@@ -11,15 +11,8 @@ from mmseg.models import build_segmentor
 import mmcv
 import os
 
-# Handle register_all_modules import with fallback
-try:
-    from mmseg.utils import register_all_modules
-    register_all_modules()
-except ImportError:
-    # Fallback when mmseg.utils.register_all_modules is not available
-    def register_all_modules():
-        pass
-    register_all_modules()
+# Module registration is handled by cfg.default_scope = 'mmseg' in Runner configuration
+# No explicit register_all_modules() call needed in diagnostic mode
 
 def parse_args():
     parser = argparse.ArgumentParser(description='MMSegmentation validation script')
