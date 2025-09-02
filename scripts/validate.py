@@ -3,10 +3,11 @@
 import argparse
 import torch
 from mmengine.config import Config
-from mmengine.dataset import build_dataloader, build_dataset
+from mmengine.runner import Runner
+from mmseg.registry import DATASETS, MODELS
 from mmseg.models import build_segmentor
 from mmseg.evaluation import IoUMetric
-import mmcv
+from mmengine.utils import ProgressBar
 import os
 
 def parse_args():
@@ -32,14 +33,15 @@ def main():
     cfg.load_from = args.checkpoint
 
     # --- 3. 构建数据集和数据加载器 ---
-    val_dataset = build_dataset(cfg.test_dataloader.dataset)
-    # 使用 cfg.val_dataloader 的设置，但只评估一次
-    val_loader = build_dataloader(
+    val_dataset = DATASETS.build(cfg.test_dataloader.dataset)
+    # 简化的数据加载器构建
+    from torch.utils.data import DataLoader
+    val_loader = DataLoader(
         val_dataset,
         batch_size=1,
+        shuffle=False,
         num_workers=2,
-        persistent_workers=True,
-        sampler=dict(type='DefaultSampler', shuffle=False)
+        collate_fn=lambda x: x[0]  # 简化的collate函数
     )
 
     # --- 4. 构建并加载模型 ---
@@ -60,7 +62,7 @@ def main():
     metric = IoUMetric(iou_metrics=['mIoU'])
     metric.dataset_meta = val_dataset.metainfo
     
-    progress_bar = mmcv.ProgressBar(len(val_dataset))
+    progress_bar = ProgressBar(len(val_dataset))
     for data in val_loader:
         # 将数据移动到GPU
         for key in data:
