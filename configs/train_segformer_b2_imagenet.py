@@ -1,16 +1,10 @@
-# configs/train_segformer_b2_imagenet.py (V2 - Corrected Checkpoint URL)
+# configs/train_segformer_b2_imagenet.py (V4 - Using Model Name)
 
-# --- 1. Inherit from our final, verified inference config ---
 _base_ = './final_standalone_config.py'
 
-# --- 2. Modify/add training-specific configurations ---
-
-# Dataset paths are now correctly defined in the base config,
-# but we need to define the training pipeline and dataloader here.
 data_root = '/kaggle/input/loveda'
 dataset_type = 'LoveDADataset'
 
-# Training data processing pipeline
 train_pipeline = [
     dict(type='LoadImageFromFile'),
     dict(type='LoadAnnotations'),
@@ -19,7 +13,6 @@ train_pipeline = [
     dict(type='PackSegInputs'),
 ]
 
-# Training dataloader
 train_dataloader = dict(
     batch_size=4,
     num_workers=2,
@@ -44,11 +37,42 @@ train_dataloader = dict(
                 pipeline=train_pipeline)
         ]))
 
-# Validation dataloader and evaluator are inherited from _base_
-val_dataloader = _base_.test_dataloader
-val_evaluator = _base_.test_evaluator
+# Validation pipeline
+val_pipeline = [
+    dict(type='LoadImageFromFile'),
+    dict(type='LoadAnnotations'),
+    dict(type='Resize', scale=(512, 512), keep_ratio=True),
+    dict(type='PackSegInputs'),
+]
 
-# --- 3. Define training loop and hyperparameters ---
+# Validation dataloader
+val_dataloader = dict(
+    batch_size=1,
+    num_workers=2,
+    persistent_workers=True,
+    sampler=dict(type='DefaultSampler', shuffle=False),
+    dataset=dict(
+        type='ConcatDataset',
+        datasets=[
+            dict(
+                type=dataset_type,
+                data_root=data_root,
+                data_prefix=dict(
+                    img_path='Val/Rural/images_png',
+                    seg_map_path='Val/Rural/masks_png'),
+                pipeline=val_pipeline),
+            dict(
+                type=dataset_type,
+                data_root=data_root,
+                data_prefix=dict(
+                    img_path='Val/Urban/images_png',
+                    seg_map_path='Val/Urban/masks_png'),
+                pipeline=val_pipeline)
+        ]))
+
+# Validation evaluator
+val_evaluator = dict(type='IoUMetric', iou_metrics=['mIoU'])
+
 train_cfg = dict(type='IterBasedTrainLoop', max_iters=80000, val_interval=8000)
 val_cfg = dict(type='ValLoop')
 test_cfg = dict(type='TestLoop')
@@ -72,18 +96,17 @@ param_scheduler = [
     )
 ]
 
-# --- 4. KEY CHANGE: Update the model's pretrained checkpoint URL ---
+# === KEY CHANGE: Replaced the broken URL with the official model name string ===
 model = dict(
     backbone=dict(
         init_cfg=dict(
             type='Pretrained',
-            # This is the new, correct URL for the MiT-B2 backbone
-            checkpoint='https://download.openmmlab.com/mmpretrain/v1.0/mit/mit-b2_3rdparty_8xb128-in1k_20221122-cba83a22.pth'
+            # MMEngine will automatically find and download the correct file for 'mit-b2_in1k'
+            checkpoint='mit-b2_in1k'
         )
     )
 )
 
-# --- 5. Default runtime settings ---
 default_scope = 'mmseg'
 default_hooks = dict(
     timer=dict(type='IterTimerHook'),
