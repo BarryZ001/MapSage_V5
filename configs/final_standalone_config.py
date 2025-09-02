@@ -75,5 +75,5 @@ test_dataloader = dict(
 )
 
 # --- Top-level configs required by the Runner ---
-test_cfg = dict()
+test_cfg = dict() 
 test_evaluator = dict(type='IoUMetric', iou_metrics=['mIoU', 'mAcc', 'aAcc'])
