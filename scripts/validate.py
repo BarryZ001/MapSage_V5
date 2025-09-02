@@ -1,10 +1,12 @@
-# scripts/validate.py (V11 - Definitive Final Version)
+# scripts/validate.py (V12 - Definitive Final Imports)
 
 import argparse
 import torch
 from mmengine.config import Config
 from mmengine.runner import Runner
-from mmseg.datasets import LoveDADataset, ConcatDataset
+# === KEY CHANGE: Import ConcatDataset from mmengine, LoveDADataset from mmseg ===
+from mmengine.dataset import ConcatDataset
+from mmseg.datasets import LoveDADataset
 from mmseg.models import build_segmentor
 import mmcv
 import os
@@ -23,7 +25,6 @@ def parse_args():
     parser = argparse.ArgumentParser(description='MMSegmentation validation script')
     parser.add_argument('config', help='test config file path')
     parser.add_argument('checkpoint', help='checkpoint file')
-    # === KEY CHANGE: Add the --data-root argument back in ===
     parser.add_argument('--data-root', help='the root path of the dataset')
     args = parser.parse_args()
     return args
