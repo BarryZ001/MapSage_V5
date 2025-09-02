@@ -1,10 +1,10 @@
-# filename: final_standalone_config.py (V3 - With Dataloader)
+# filename: final_standalone_config.py (V4 - Final)
 
 # --- Model Configuration ---
 model = dict(
     type='EncoderDecoder',
     data_preprocessor=dict(
-        type='SegDataPrePrecessor',
+        type='SegDataPreProcessor',
         mean=[123.675, 116.28, 103.53],
         std=[58.395, 57.12, 57.375],
         bgr_to_rgb=True,
@@ -35,19 +35,16 @@ model = dict(
         norm_cfg=dict(type='BN', requires_grad=False),
         align_corners=False),
     train_cfg=dict(),
+    # This test_cfg is for the model's internal inference logic
     test_cfg=dict(mode='slide', crop_size=(1024, 1024), stride=(768, 768)))
 
-# === FIX FOR THE ERROR ===
-# Add the Dataloader and Pipeline config that the validation script needs
-# =========================
+# --- Dataloader and Pipeline Configuration ---
 test_pipeline = [
     dict(type='LoadImageFromFile'),
     dict(type='Resize', scale=(1024, 1024), keep_ratio=True),
-    # The 'LoadAnnotations' is required for evaluation.
     dict(type='LoadAnnotations'),
     dict(type='PackSegInputs')
 ]
-
 test_dataloader = dict(
     batch_size=1,
     num_workers=2,
@@ -55,11 +52,15 @@ test_dataloader = dict(
     sampler=dict(type='DefaultSampler', shuffle=False),
     dataset=dict(
         type='LoveDADataset',
-        data_root='data/LoveDA',  # This path will be overridden by the script's --data-root argument
+        data_root='data/LoveDA',
         data_prefix=dict(img_path='Val/images_png', seg_map_path='Val/annotations_png'),
         pipeline=test_pipeline
     )
 )
 
-# Test evaluator
+# === FIX FOR THE ERROR ===
+# The Runner requires these three components to be defined for a test run.
+# We were missing the top-level `test_cfg`.
+# =========================
+test_cfg = dict()  # An empty dictionary is sufficient to satisfy the Runner
 test_evaluator = dict(type='IoUMetric', iou_metrics=['mIoU', 'mAcc', 'aAcc'])
