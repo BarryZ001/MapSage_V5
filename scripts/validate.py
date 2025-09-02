@@ -3,10 +3,11 @@
 import argparse
 import torch
 from mmengine.config import Config
-from mmengine.dataset import build_dataloader, build_dataset
+from mmengine.dataset import build_dataloader
+from mmseg.datasets import build_dataset
 from mmseg.models import build_segmentor
-from mmseg.evaluation import IoUMetric
-from mmseg.utils import register_all_modules  # 1. Import the helper function
+from mmseg.evaluation.metrics import IoUMetric
+from mmseg import register_all_modules  # 1. Import the helper function
 import mmcv
 import os
 
