@@ -31,22 +31,34 @@ def main():
     # --- Load Config ---
     cfg = Config.fromfile(args.config)
 
-    # --- Set up Runner ---
+    # --- Set up Runner (but don't load checkpoint with it yet) ---
     if args.work_dir is not None:
         cfg.work_dir = args.work_dir
     elif 'work_dir' not in cfg:
         cfg.work_dir = os.path.join('./work_dirs', os.path.splitext(os.path.basename(args.config))[0])
-
     cfg.default_scope = 'mmseg'
-
+    
+    # The Runner will build the model structure
     runner = Runner.from_cfg(cfg)
 
-    # === KEY CHANGE: Added weights_only=False for PyTorch 2.6+ compatibility ===
-    print(f"\nLoading checkpoint from {args.checkpoint}...")
-    runner.load_checkpoint(args.checkpoint, weights_only=False)
+    # === KEY CHANGE: Manually load checkpoint with the correct arguments ===
+    print(f"\nManually loading checkpoint from {args.checkpoint}...")
+    # Use torch.load directly with weights_only=False
+    checkpoint = torch.load(args.checkpoint, map_location='cpu', weights_only=False)
+
+    # Extract the state_dict (weights)
+    if 'state_dict' in checkpoint:
+        state_dict = checkpoint['state_dict']
+    else:
+        state_dict = checkpoint
+        
+    # Manually load the weights into the model that the Runner built
+    runner.model.load_state_dict(state_dict, strict=False)
+    print("✅ Checkpoint loaded into model manually.")
 
     # --- Run Validation ---
     print("\nStarting validation using the Runner...")
+    # The runner.test() method will now use the model with the weights we just loaded
     metrics = runner.test()
 
     # --- Print Results ---
