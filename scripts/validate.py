@@ -1,137 +1,81 @@
-# scripts/validate.py (V6 - PyTorch 2.6 Compatible + Simplified)
+# scripts/validate.py (V7 - Runner-based)
 
 import argparse
 import torch
-import torch.nn.functional as F
-from torch.utils.data import DataLoader, Dataset
+from mmengine.config import Config
+from mmengine.runner import Runner
+from mmseg.utils import register_all_modules
+import mmcv
 import os
-import glob
-from PIL import Image
-import numpy as np
-from torchvision import transforms
 
-# Simple dataset class for validation
-class SimpleValidationDataset(Dataset):
-    def __init__(self, data_root, transform=None):
-        self.data_root = data_root
-        self.transform = transform or transforms.Compose([
-            transforms.Resize((512, 512)),
-            transforms.ToTensor(),
-            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-        ])
-        
-        # Find image files
-        self.image_files = []
-        for ext in ['*.jpg', '*.jpeg', '*.png', '*.tif', '*.tiff']:
-            self.image_files.extend(glob.glob(os.path.join(data_root, '**', ext), recursive=True))
-        
-        print(f"Found {len(self.image_files)} images for validation")
-    
-    def __len__(self):
-        return len(self.image_files)
-    
-    def __getitem__(self, idx):
-        img_path = self.image_files[idx]
-        image = Image.open(img_path).convert('RGB')
-        
-        if self.transform:
-            image = self.transform(image)
-        
-        return {'img': image, 'img_path': img_path}
+# Call the registration function once when the script starts
+register_all_modules()
 
 def parse_args():
-    parser = argparse.ArgumentParser(description='PyTorch 2.6+ Compatible validation script')
-    parser.add_argument('config', help='config file path (for compatibility)')
+    parser = argparse.ArgumentParser(description='MMSegmentation validation script')
+    parser.add_argument('config', help='test config file path')
     parser.add_argument('checkpoint', help='checkpoint file')
     parser.add_argument('--data-root', help='the root path of the dataset')
     args = parser.parse_args()
     return args
 
-def load_model(checkpoint_path):
-    """Load model from checkpoint with PyTorch 2.6+ compatibility"""
-    try:
-        # === KEY CHANGE: Added weights_only=False for PyTorch 2.6+ compatibility ===
-        checkpoint = torch.load(checkpoint_path, map_location='cpu', weights_only=False)
-        print(f"Loaded checkpoint from {checkpoint_path}")
-        
-        # Extract model state dict
-        if 'state_dict' in checkpoint:
-            state_dict = checkpoint['state_dict']
-        else:
-            state_dict = checkpoint
-        
-        print(f"Checkpoint contains {len(state_dict)} parameters")
-        return state_dict
-    except Exception as e:
-        print(f"Error loading checkpoint: {e}")
-        return None
-
-def calculate_basic_metrics(predictions, targets=None):
-    """Calculate basic metrics for segmentation"""
-    # For now, just return dummy metrics since we don't have ground truth
-    metrics = {
-        'total_images': len(predictions),
-        'avg_prediction_classes': np.mean([len(np.unique(pred)) for pred in predictions]),
-        'prediction_shape': predictions[0].shape if predictions else None
-    }
-    return metrics
-
 def main():
     args = parse_args()
+
+    # --- Load Config ---
+    cfg = Config.fromfile(args.config)
     
-    print("=" * 50)
-    print("      PyTorch 2.6+ 兼容验证脚本")
-    print("=" * 50)
+    # --- Update Paths in Config ---
+    if args.data_root is not None:
+        cfg.test_dataloader.dataset.data_root = args.data_root
+    
+    # Use a temporary work directory
+    cfg.work_dir = '/kaggle/working/tmp_eval'
+    
+    # --- Build Runner and Components ---
+    # The Runner will automatically build the model and dataloader from the config
+    runner = Runner.from_cfg(cfg)
+    
+    # Get the dataloader from the runner
+    val_loader = runner.build_dataloader(cfg.test_dataloader, seed=0)
+    
+    # Load the checkpoint. This also builds the model.
+    runner.load_checkpoint(args.checkpoint, weights_only=True)
+    model = runner.model
+    
+    # Get the evaluation metric from the config
+    metric = runner.build_metric(cfg.test_evaluator)
+    metric.dataset_meta = val_loader.dataset.metainfo
+    
+    # --- Run Evaluation ---
+    model.eval()
+    progress_bar = mmcv.ProgressBar(len(val_loader.dataset))
+    for data in val_loader:
+        with torch.no_grad():
+            # Let the model handle data movement to the correct device
+            result = model.test_step(data)
+        
+        metric.process(data_batch=data, data_samples=result)
+        progress_bar.update()
+
+    # --- Compute and Print Results ---
+    metrics = metric.compute_metrics(metric.results)
+    print("\n\n" + "="*40)
+    print("      评估完成 - 黄金基准性能")
+    print("="*40)
     print(f"配置文件: {args.config}")
     print(f"权重文件: {args.checkpoint}")
-    print(f"数据集路径: {args.data_root}")
-    print()
+    print(f"数据集路径: {cfg.test_dataloader.dataset.data_root}")
+    print("\n--- 指标 ---")
     
-    # Load checkpoint with PyTorch 2.6+ compatibility
-    state_dict = load_model(args.checkpoint)
-    if state_dict is None:
-        print("Failed to load model checkpoint")
-        return
-    
-    # Create dataset
-    if args.data_root and os.path.exists(args.data_root):
-        dataset = SimpleValidationDataset(args.data_root)
-        dataloader = DataLoader(dataset, batch_size=1, shuffle=False, num_workers=0)
-    else:
-        print(f"Warning: Data root {args.data_root} not found, using dummy data")
-        dataset = SimpleValidationDataset('.')
-        dataloader = DataLoader(dataset, batch_size=1, shuffle=False, num_workers=0)
-    
-    # Process images
-    predictions = []
-    print(f"\nProcessing {len(dataset)} images...")
-    
-    for i, batch in enumerate(dataloader):
-        img = batch['img']
-        img_path = batch['img_path'][0]
-        
-        # Simple prediction (dummy for now)
-        with torch.no_grad():
-            # Create a dummy prediction based on image content
-            pred = torch.randint(0, 7, (512, 512))  # 7 classes for LoveDA
-            predictions.append(pred.numpy())
-        
-        if (i + 1) % 10 == 0:
-            print(f"Processed {i + 1}/{len(dataset)} images")
-    
-    # Calculate metrics
-    metrics = calculate_basic_metrics(predictions)
-    
-    print("\n" + "=" * 50)
-    print("      验证完成 - PyTorch 2.6+ 兼容")
-    print("=" * 50)
-    print(f"处理图像数量: {metrics['total_images']}")
-    print(f"平均预测类别数: {metrics['avg_prediction_classes']:.2f}")
-    print(f"预测输出尺寸: {metrics['prediction_shape']}")
-    print("\n✓ PyTorch 2.6+ 兼容性: weights_only=False")
-    print("✓ 成功加载检查点文件")
-    print("注意: 这是简化版本，避免了MMSegmentation导入问题")
-    print("=" * 50)
+    # Print metrics in a more readable format
+    for key, value in metrics.items():
+        if isinstance(value, float):
+            print(f"{key}: {value:.4f}")
+        else:
+            print(f"{key}: {value}")
+            
+    print("="*40 + "\n")
 
 if __name__ == '__main__':
     main()

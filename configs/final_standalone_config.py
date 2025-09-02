@@ -60,3 +60,6 @@ test_dataloader = dict(
         pipeline=test_pipeline
     )
 )
+
+# Test evaluator
+test_evaluator = dict(type='IoUMetric', iou_metrics=['mIoU', 'mAcc', 'aAcc'])
