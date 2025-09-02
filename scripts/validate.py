@@ -1,17 +1,17 @@
-# scripts/validate.py (V8 - Final Corrected Imports)
+# scripts/validate.py (V9 - Definitive Imports)
 
 import argparse
 import torch
 from mmengine.config import Config
-# 1. Correctly import both builders from mmseg.datasets
-from mmseg.datasets import build_dataloader, build_dataset
+from mmengine.runner import build_dataloader      # Correct import for dataloader builder
+from mmseg.datasets import build_dataset          # Correct import for dataset builder
 from mmseg.models import build_segmentor
 from mmseg.evaluation import IoUMetric
 from mmseg.utils import register_all_modules
 import mmcv
 import os
 
-# 2. Call the registration function once when the script starts
+# Call the registration function once when the script starts
 register_all_modules()
 
 def parse_args():
@@ -27,7 +27,7 @@ def main():
 
     # --- Load Config ---
     cfg = Config.fromfile(args.config)
-
+    
     # --- Update Paths in Config ---
     if args.data_root is not None:
         cfg.test_dataloader.dataset.data_root = args.data_root
@@ -47,12 +47,12 @@ def main():
     model = build_segmentor(cfg.model)
     # Use weights_only=False for PyTorch 2.6+ compatibility
     checkpoint = torch.load(cfg.load_from, map_location='cpu', weights_only=False)
-
+    
     if 'state_dict' in checkpoint:
         state_dict = checkpoint['state_dict']
     else:
         state_dict = checkpoint
-
+        
     model.load_state_dict(state_dict, strict=False)
     model.cuda()
     model.eval()
@@ -60,15 +60,15 @@ def main():
     # --- Run Evaluation ---
     metric = IoUMetric(iou_metrics=['mIoU'])
     metric.dataset_meta = val_dataset.metainfo
-
+    
     progress_bar = mmcv.ProgressBar(len(val_dataset))
     for data in val_loader:
         # Move data to GPU
         data['inputs'][0] = data['inputs'][0].cuda()
-
+        
         with torch.no_grad():
             result = model.test_step(data)
-
+            
         metric.process(data_batch=data, data_samples=result)
         progress_bar.update()
 
