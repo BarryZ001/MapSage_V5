@@ -1,0 +1,101 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+PYTHONPATH
+
+# Virtual Environment
+.venv/
+venv/
+ENV/
+env/
+.env
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Large files and data
+*.pth
+*.pkl
+*.h5
+*.hdf5
+*.tar
+*.tar.gz
+*.zip
+*.rar
+
+# Model checkpoints (keep structure but ignore large files)
+checkpoints/*.pth
+checkpoints/*.pkl
+!checkpoints/.gitkeep
+
+# Data directories (keep structure but ignore large files)
+data/
+!data/.gitkeep
+images/Val/
+!images/.gitkeep
+!images/Val/.gitkeep
+
+# Temporary files
+*.tmp
+*.temp
+*.log
+*.out
+*.err
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Test images (keep some samples)
+*.png
+*.jpg
+*.jpeg
+!test_image.jpg
+
+# Streamlit
+.streamlit/
+
+# MMSegmentation cache
+.mmseg_cache/
+work_dirs/
+
+# Weights & Biases
+wandb/
+
+# MLflow
+mlruns/
+
+# Tensorboard
+runs/
+logs/
