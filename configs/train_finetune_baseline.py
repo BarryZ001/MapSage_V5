@@ -1,11 +1,10 @@
-# configs/train_finetune_baseline.py
+# configs/train_finetune_baseline.py (V2 - With Data Preprocessor Size)
 
-# 1. 继承我们最终版的、路径正确的独立配置文件
 _base_ = './final_standalone_config.py'
 
-# 2. 定义训练数据加载器
 data_root = '/kaggle/input/loveda'
 dataset_type = 'LoveDADataset'
+
 train_pipeline = [
     dict(type='LoadImageFromFile'),
     dict(type='LoadAnnotations'),
@@ -13,6 +12,7 @@ train_pipeline = [
     dict(type='RandomFlip', prob=0.5),
     dict(type='PackSegInputs'),
 ]
+
 train_dataloader = dict(
     batch_size=4,
     num_workers=2,
@@ -37,8 +37,6 @@ train_dataloader = dict(
                 pipeline=train_pipeline)
         ]))
 
-# 3. 定义验证数据加载器和评估器
-# Validation pipeline
 val_pipeline = [
     dict(type='LoadImageFromFile'),
     dict(type='LoadAnnotations'),
@@ -46,10 +44,9 @@ val_pipeline = [
     dict(type='PackSegInputs'),
 ]
 
-# Validation dataloader
 val_dataloader = dict(
     batch_size=1,
-    num_workers=2,
+    num_workers=4,
     persistent_workers=True,
     sampler=dict(type='DefaultSampler', shuffle=False),
     dataset=dict(
@@ -71,40 +68,43 @@ val_dataloader = dict(
                 pipeline=val_pipeline)
         ]))
 
-# Validation evaluator
 val_evaluator = dict(type='IoUMetric', iou_metrics=['mIoU'])
 
-# 4. 定义一个较短的微调训练流程
-# 总迭代次数减少，验证间隔也相应缩短
 train_cfg = dict(type='IterBasedTrainLoop', max_iters=20000, val_interval=4000)
 val_cfg = dict(type='ValLoop')
 test_cfg = dict(type='TestLoop')
 
-# 5. 使用较低的学习率进行微调
 optim_wrapper = dict(
     type='OptimWrapper',
     optimizer=dict(
-        type='AdamW', lr=1e-5, betas=(0.9, 0.999), weight_decay=0.01),  # 学习率降低
+        type='AdamW', lr=1e-5, betas=(0.9, 0.999), weight_decay=0.01),
     clip_grad=dict(max_norm=1.0, norm_type=2))
 
 param_scheduler = [
     dict(
-        type='LinearLR', start_factor=1e-6, by_epoch=False, begin=0, end=500),  # warmup缩短
+        type='LinearLR', start_factor=1e-6, by_epoch=False, begin=0, end=500),
     dict(
         type='PolyLR',
         eta_min=0.0,
         power=1.0,
         begin=500,
-        end=20000,  # 总迭代次数
+        end=20000,
         by_epoch=False,
     )
 ]
 
-# 6. 移除模型中关于ImageNet预训练的定义
-# 因为我们将通过 `load_from` 来加载完整的模型
-model = dict(backbone=dict(init_cfg=None))
+model = dict(
+    # === KEY CHANGE: Added 'size' to the data_preprocessor ===
+    data_preprocessor=dict(
+        size=(512, 512),
+        type='SegDataPreProcessor',
+        mean=[73.53223947628777, 80.01710095339912, 74.59297778068898],
+        std=[41.511366098369635, 35.66528876209687, 33.75830885257866],
+        bgr_to_rgb=True,
+        pad_val=0,
+        seg_pad_val=255),
+    backbone=dict(init_cfg=None))
 
-# 7. 运行时设置
 default_scope = 'mmseg'
 default_hooks = dict(
     timer=dict(type='IterTimerHook'),
@@ -114,18 +114,6 @@ default_hooks = dict(
     sampler_seed=dict(type='DistSamplerSeedHook'),
     visualization=dict(type='SegVisualizationHook'))
 
-env_cfg = dict(
-    cudnn_benchmark=True,
-    mp_cfg=dict(mp_start_method='fork', opencv_num_threads=0),
-    dist_cfg=dict(backend='nccl'),
-)
-
-vis_backends = [dict(type='LocalVisBackend')]
-visualizer = dict(
-    type='SegLocalVisualizer', vis_backends=vis_backends, name='visualizer')
-log_processor = dict(by_epoch=False)
 log_level = 'INFO'
-
-# === 关键修改：从清理后的权重文件开始加载 ===
 load_from = '/kaggle/working/best_mIoU_iter_6000_cleaned.pth'
 resume = False
