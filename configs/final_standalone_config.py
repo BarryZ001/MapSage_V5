@@ -1,4 +1,7 @@
-# filename: configs/final_standalone_config.py (V5 - Definitive)
+# filename: configs/final_standalone_config.py (V6 - Final Definitive)
+
+# The Runner requires a work_dir for logs and outputs.
+work_dir = './work_dirs/test'
 
 # --- Model Configuration ---
 model = dict(
@@ -38,8 +41,7 @@ model = dict(
     test_cfg=dict(mode='slide', crop_size=(1024, 1024), stride=(768, 768)))
 
 # --- Dataloader and Pipeline Configuration ---
-# This section correctly handles the Rural/Urban subdirectory structure.
-
+# Correctly handles the Rural/Urban subdirectory structure.
 test_pipeline = [
     dict(type='LoadImageFromFile'),
     dict(type='Resize', scale=(1024, 1024), keep_ratio=True),
@@ -47,10 +49,9 @@ test_pipeline = [
     dict(type='PackSegInputs')
 ]
 
-# Define the two subsets of the validation data
 rural_val_dataset = dict(
     type='LoveDADataset',
-    data_root='data/LoveDA',  # This will be overridden by the script's --data-root
+    data_root='data/LoveDA',
     data_prefix=dict(img_path='Val/Rural/images_png', seg_map_path='Val/Rural/masks_png'),
     pipeline=test_pipeline
 )
@@ -62,7 +63,6 @@ urban_val_dataset = dict(
     pipeline=test_pipeline
 )
 
-# Use ConcatDataset to combine the rural and urban validation sets
 test_dataloader = dict(
     batch_size=1,
     num_workers=2,
@@ -75,5 +75,5 @@ test_dataloader = dict(
 )
 
 # --- Top-level configs required by the Runner ---
-test_cfg = dict() 
+test_cfg = dict()
 test_evaluator = dict(type='IoUMetric', iou_metrics=['mIoU', 'mAcc', 'aAcc'])
