@@ -1,4 +1,4 @@
-# filename: configs/final_standalone_config.py (V7 - Case Sensitivity Fix)
+# filename: configs/final_standalone_config.py (V8 - Path Agnostic)
 
 work_dir = './work_dirs/test'
 
@@ -45,17 +45,17 @@ test_pipeline = [
     dict(type='PackSegInputs')
 ]
 
-# === KEY CHANGE: Corrected 'LoveDA' to 'loveda' ===
+# === KEY CHANGE: Removed the hardcoded 'data_root' from the definitions below ===
 rural_val_dataset = dict(
     type='LoveDADataset',
-    data_root='data/loveda',  # Corrected to lowercase
+    # data_root is now supplied by the script at runtime
     data_prefix=dict(img_path='Val/Rural/images_png', seg_map_path='Val/Rural/masks_png'),
     pipeline=test_pipeline
 )
 
 urban_val_dataset = dict(
     type='LoveDADataset',
-    data_root='data/loveda', # Corrected to lowercase
+    # data_root is now supplied by the script at runtime
     data_prefix=dict(img_path='Val/Urban/images_png', seg_map_path='Val/Urban/masks_png'),
     pipeline=test_pipeline
 )
