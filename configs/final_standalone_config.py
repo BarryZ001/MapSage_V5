@@ -1,4 +1,4 @@
-# filename: configs/final_standalone_config.py (V10 - Final Metric Fix)
+# filename: configs/final_standalone_config.py (V11 - Default Metrics)
 
 work_dir = './work_dirs/test'
 
@@ -70,6 +70,6 @@ test_dataloader = dict(
     )
 )
 
-test_cfg = dict() 
-# === KEY CHANGE: Use base metric names 'IoU' and 'Acc' ===
-test_evaluator = dict(type='IoUMetric', iou_metrics=['IoU', 'Acc'])
+test_cfg = dict()
+# === KEY CHANGE: Removed iou_metrics to use the class's default behavior ===
+test_evaluator = dict(type='IoUMetric')
