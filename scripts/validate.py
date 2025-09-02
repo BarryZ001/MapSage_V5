@@ -7,8 +7,10 @@ from mmengine.runner import Runner
 try:
     from mmseg.utils import register_all_modules
 except ImportError:
+    # Fallback for environments without mmsegmentation
     def register_all_modules():
-        pass
+        """Dummy function for compatibility when mmseg is not available"""
+        print("Warning: mmsegmentation not found, using fallback registration")
 import mmcv
 import os
 
@@ -28,26 +30,25 @@ def main():
 
     # --- Load Config ---
     cfg = Config.fromfile(args.config)
-    
+
     # --- Set up Runner ---
     if args.work_dir is not None:
         cfg.work_dir = args.work_dir
     elif 'work_dir' not in cfg:
         cfg.work_dir = os.path.join('./work_dirs', os.path.splitext(os.path.basename(args.config))[0])
-        
+
     cfg.default_scope = 'mmseg'
-    
+
     runner = Runner.from_cfg(cfg)
-    
-    # === KEY CHANGE: Load the checkpoint BEFORE calling test() ===
+
+    # === KEY CHANGE: Added weights_only=False for PyTorch 2.6+ compatibility ===
     print(f"\nLoading checkpoint from {args.checkpoint}...")
-    runner.load_checkpoint(args.checkpoint)
+    runner.load_checkpoint(args.checkpoint, weights_only=False)
 
     # --- Run Validation ---
     print("\nStarting validation using the Runner...")
-    # Now, call test() without any arguments
     metrics = runner.test()
-    
+
     # --- Print Results ---
     print("\n\n" + "="*40)
     print("      评估完成 - 黄金基准性能")
@@ -55,13 +56,13 @@ def main():
     print(f"配置文件: {args.config}")
     print(f"权重文件: {args.checkpoint}")
     print("\n--- 指标 ---")
-    
+
     for key, value in metrics.items():
         if isinstance(value, float):
             print(f"{key}: {value:.4f}")
         else:
             print(f"{key}: {value}")
-            
+
     print("="*40 + "\n")
 
 if __name__ == '__main__':
