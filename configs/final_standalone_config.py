@@ -1,21 +1,15 @@
-# filename: final_standalone_config.py
-# FINAL VERSION - Includes a 'data' dictionary for compatibility with the inference API.
+# filename: final_standalone_config.py (V3 - With Dataloader)
 
 # --- Model Configuration ---
 model = dict(
     type='EncoderDecoder',
-    
-    # Data Preprocessor (Modern v1.x format)
     data_preprocessor=dict(
-        type='SegDataPreProcessor',
+        type='SegDataPrePrecessor',
         mean=[123.675, 116.28, 103.53],
         std=[58.395, 57.12, 57.375],
         bgr_to_rgb=True,
         pad_val=0,
-        seg_pad_val=255
-    ),
-    
-    # Backbone: SegFormer-B2 (Official standard definition)
+        seg_pad_val=255),
     backbone=dict(
         type='MixVisionTransformer',
         in_channels=3,
@@ -30,10 +24,7 @@ model = dict(
         qkv_bias=True,
         drop_rate=0.0,
         attn_drop_rate=0.0,
-        drop_path_rate=0.1
-    ),
-    
-    # Decode Head
+        drop_path_rate=0.1),
     decode_head=dict(
         type='SegformerHead',
         in_channels=[64, 128, 320, 512],
@@ -42,32 +33,30 @@ model = dict(
         dropout_ratio=0.1,
         num_classes=7,
         norm_cfg=dict(type='BN', requires_grad=False),
-        align_corners=False,
-    ),
-    
-    # Training Config (Not used for inference)
+        align_corners=False),
     train_cfg=dict(),
-    
-    # Test/Inference Config
-    test_cfg=dict(mode='slide', crop_size=(1024, 1024), stride=(768, 768))
-)
+    test_cfg=dict(mode='slide', crop_size=(1024, 1024), stride=(768, 768)))
 
-
-# ======================================================================
-# === FIX FOR THE CRASH ===
-# Add this 'data' dictionary to satisfy the legacy structure that the
-# inference_segmentor function is expecting.
-# ======================================================================
+# === FIX FOR THE ERROR ===
+# Add the Dataloader and Pipeline config that the validation script needs
+# =========================
 test_pipeline = [
-    dict(type='LoadImageFromFile'), # Placeholder to make the structure valid
+    dict(type='LoadImageFromFile'),
     dict(type='Resize', scale=(1024, 1024), keep_ratio=True),
+    # The 'LoadAnnotations' is required for evaluation.
+    dict(type='LoadAnnotations'),
     dict(type='PackSegInputs')
 ]
-data = dict(
-    test=dict(
-        # These values are placeholders to prevent the crash.
+
+test_dataloader = dict(
+    batch_size=1,
+    num_workers=2,
+    persistent_workers=True,
+    sampler=dict(type='DefaultSampler', shuffle=False),
+    dataset=dict(
         type='LoveDADataset',
-        data_root='data/LoveDA',
+        data_root='data/LoveDA',  # This path will be overridden by the script's --data-root argument
+        data_prefix=dict(img_path='Val/images_png', seg_map_path='Val/annotations_png'),
         pipeline=test_pipeline
     )
 )
