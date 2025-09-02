@@ -4,7 +4,11 @@ import argparse
 import torch
 from mmengine.config import Config
 from mmengine.runner import Runner
-from mmseg.utils import register_all_modules
+try:
+    from mmseg.utils import register_all_modules
+except ImportError:
+    def register_all_modules():
+        pass
 import mmcv
 import os
 
@@ -31,20 +35,18 @@ def main():
     elif 'work_dir' not in cfg:
         cfg.work_dir = os.path.join('./work_dirs', os.path.splitext(os.path.basename(args.config))[0])
         
-    # === KEY CHANGE: Explicitly set the default scope to 'mmseg' ===
-    # This tells the Runner where to find custom modules like 'EncoderDecoder'
     cfg.default_scope = 'mmseg'
     
-    # The Runner will now know where to find all necessary components
     runner = Runner.from_cfg(cfg)
     
-    # In MMEngine, loading the checkpoint is now handled by the runner's test method
-    # runner.load_or_resume(args.checkpoint) is for resuming training
-    
+    # === KEY CHANGE: Load the checkpoint BEFORE calling test() ===
+    print(f"\nLoading checkpoint from {args.checkpoint}...")
+    runner.load_checkpoint(args.checkpoint)
+
     # --- Run Validation ---
     print("\nStarting validation using the Runner...")
-    # The test method will automatically load the checkpoint specified in the command
-    metrics = runner.test(ckpt_path=args.checkpoint)
+    # Now, call test() without any arguments
+    metrics = runner.test()
     
     # --- Print Results ---
     print("\n\n" + "="*40)
@@ -54,7 +56,6 @@ def main():
     print(f"权重文件: {args.checkpoint}")
     print("\n--- 指标 ---")
     
-    # Print metrics in a more readable format
     for key, value in metrics.items():
         if isinstance(value, float):
             print(f"{key}: {value:.4f}")
