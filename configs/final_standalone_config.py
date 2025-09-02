@@ -1,4 +1,4 @@
-# filename: configs/final_standalone_config.py (V8 - Path Agnostic)
+# filename: configs/final_standalone_config.py (V9 - Hardcoded Absolute Path)
 
 work_dir = './work_dirs/test'
 
@@ -45,17 +45,17 @@ test_pipeline = [
     dict(type='PackSegInputs')
 ]
 
-# === KEY CHANGE: Removed the hardcoded 'data_root' from the definitions below ===
+# === KEY CHANGE: Hardcoded the absolute Kaggle path for data_root ===
 rural_val_dataset = dict(
     type='LoveDADataset',
-    # data_root is now supplied by the script at runtime
+    data_root='/kaggle/input/loveda',
     data_prefix=dict(img_path='Val/Rural/images_png', seg_map_path='Val/Rural/masks_png'),
     pipeline=test_pipeline
 )
 
 urban_val_dataset = dict(
     type='LoveDADataset',
-    # data_root is now supplied by the script at runtime
+    data_root='/kaggle/input/loveda',
     data_prefix=dict(img_path='Val/Urban/images_png', seg_map_path='Val/Urban/masks_png'),
     pipeline=test_pipeline
 )
