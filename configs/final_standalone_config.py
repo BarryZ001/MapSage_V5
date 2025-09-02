@@ -1,6 +1,5 @@
-# filename: final_standalone_config.py (V5 - Final Corrected Dataset Path)
+# filename: configs/final_standalone_config.py (Final Version for Runner)
 
-# --- Model Configuration ---
 model = dict(
     type='EncoderDecoder',
     data_preprocessor=dict(
@@ -37,43 +36,22 @@ model = dict(
     train_cfg=dict(),
     test_cfg=dict(mode='slide', crop_size=(1024, 1024), stride=(768, 768)))
 
-
-# === FIX FOR THE DATASET PATH ===
-# We define the pipeline once
 test_pipeline = [
     dict(type='LoadImageFromFile'),
     dict(type='Resize', scale=(1024, 1024), keep_ratio=True),
     dict(type='LoadAnnotations'),
-    dict(type='PackSegInputs')
-]
-
-# Define the two subsets of the validation data
-rural_val = dict(
-    type='LoveDADataset',
-    data_root='data/LoveDA', # This will be overridden by the script's --data-root
-    data_prefix=dict(img_path='Val/Rural/images_png', seg_map_path='Val/Rural/masks_png'),
-    pipeline=test_pipeline
-)
-
-urban_val = dict(
-    type='LoveDADataset',
-    data_root='data/LoveDA',
-    data_prefix=dict(img_path='Val/Urban/images_png', seg_map_path='Val/Urban/masks_png'),
-    pipeline=test_pipeline
-)
-
-# Use ConcatDataset to combine them
+    dict(type='PackSegInputs')]
 test_dataloader = dict(
     batch_size=1,
     num_workers=2,
     persistent_workers=True,
     sampler=dict(type='DefaultSampler', shuffle=False),
     dataset=dict(
-        type='ConcatDataset',
-        datasets=[rural_val, urban_val]
-    )
-)
+        type='LoveDADataset',
+        data_root='data/LoveDA',
+        data_prefix=dict(img_path='Val/images_png', seg_map_path='Val/annotations_png'),
+        pipeline=test_pipeline))
 
-# --- Top-level configs for the Runner ---
+# The Runner requires all three of these to be defined
 test_cfg = dict()
 test_evaluator = dict(type='IoUMetric', iou_metrics=['mIoU', 'mAcc', 'aAcc'])
