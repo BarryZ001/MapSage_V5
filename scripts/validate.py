@@ -3,17 +3,22 @@
 import argparse
 import torch
 from mmengine.config import Config
-from mmengine.runner import build_dataloader
+from mmengine.dataset import build_dataloader
 # 关键修改：直接导入我们将要手动创建的Dataset类
 from mmseg.datasets import LoveDADataset, ConcatDataset
 from mmseg.models import build_segmentor
-from mmseg.evaluation import IoUMetric
-from mmseg.utils import register_all_modules
+from mmseg.evaluation.metrics import IoUMetric
+from mmseg.registry import MODELS
 import mmcv
 import os
 
-# Call the registration function once when the script starts
-register_all_modules()
+# Register all modules
+try:
+    from mmseg.utils import register_all_modules
+    register_all_modules()
+except ImportError:
+    # Fallback registration
+    pass
 
 def parse_args():
     parser = argparse.ArgumentParser(description='MMSegmentation validation script')
@@ -82,7 +87,12 @@ def main():
 
     # --- Run Evaluation ---
     metric = IoUMetric(iou_metrics=['mIoU'])
-    metric.dataset_meta = val_dataset.metainfo
+    # Set dataset metadata
+    try:
+        metric.dataset_meta = val_dataset.metainfo
+    except AttributeError:
+        # Fallback for metainfo access
+        metric.dataset_meta = getattr(val_dataset.datasets[0], 'metainfo', None)
     
     progress_bar = mmcv.ProgressBar(len(val_dataset))
     for data in val_loader:
