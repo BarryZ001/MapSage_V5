@@ -1,4 +1,4 @@
-# filename: configs/final_standalone_config.py (V9 - Hardcoded Absolute Path)
+# filename: configs/final_standalone_config.py (V10 - Final Metric Fix)
 
 work_dir = './work_dirs/test'
 
@@ -45,7 +45,6 @@ test_pipeline = [
     dict(type='PackSegInputs')
 ]
 
-# === KEY CHANGE: Hardcoded the absolute Kaggle path for data_root ===
 rural_val_dataset = dict(
     type='LoveDADataset',
     data_root='/kaggle/input/loveda',
@@ -72,4 +71,5 @@ test_dataloader = dict(
 )
 
 test_cfg = dict() 
-test_evaluator = dict(type='IoUMetric', iou_metrics=['mIoU', 'mAcc', 'aAcc'])
+# === KEY CHANGE: Use base metric names 'IoU' and 'Acc' ===
+test_evaluator = dict(type='IoUMetric', iou_metrics=['IoU', 'Acc'])
