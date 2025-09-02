@@ -1,9 +1,7 @@
-# filename: configs/final_standalone_config.py (V6 - Final Definitive)
+# filename: configs/final_standalone_config.py (V7 - Case Sensitivity Fix)
 
-# The Runner requires a work_dir for logs and outputs.
 work_dir = './work_dirs/test'
 
-# --- Model Configuration ---
 model = dict(
     type='EncoderDecoder',
     data_preprocessor=dict(
@@ -40,8 +38,6 @@ model = dict(
     train_cfg=dict(),
     test_cfg=dict(mode='slide', crop_size=(1024, 1024), stride=(768, 768)))
 
-# --- Dataloader and Pipeline Configuration ---
-# Correctly handles the Rural/Urban subdirectory structure.
 test_pipeline = [
     dict(type='LoadImageFromFile'),
     dict(type='Resize', scale=(1024, 1024), keep_ratio=True),
@@ -49,16 +45,17 @@ test_pipeline = [
     dict(type='PackSegInputs')
 ]
 
+# === KEY CHANGE: Corrected 'LoveDA' to 'loveda' ===
 rural_val_dataset = dict(
     type='LoveDADataset',
-    data_root='data/LoveDA',
+    data_root='data/loveda',  # Corrected to lowercase
     data_prefix=dict(img_path='Val/Rural/images_png', seg_map_path='Val/Rural/masks_png'),
     pipeline=test_pipeline
 )
 
 urban_val_dataset = dict(
     type='LoveDADataset',
-    data_root='data/LoveDA',
+    data_root='data/loveda', # Corrected to lowercase
     data_prefix=dict(img_path='Val/Urban/images_png', seg_map_path='Val/Urban/masks_png'),
     pipeline=test_pipeline
 )
@@ -74,6 +71,5 @@ test_dataloader = dict(
     )
 )
 
-# --- Top-level configs required by the Runner ---
-test_cfg = dict()
+test_cfg = dict() 
 test_evaluator = dict(type='IoUMetric', iou_metrics=['mIoU', 'mAcc', 'aAcc'])
