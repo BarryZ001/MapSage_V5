@@ -7,10 +7,26 @@ from mmengine.runner import Runner
 try:
     from mmseg.utils import register_all_modules
 except ImportError:
-    # Fallback for environments without mmsegmentation
-    def register_all_modules():
-        """Dummy function for compatibility when mmseg is not available"""
-        print("Warning: mmsegmentation not found, using fallback registration")
+    # Comprehensive fallback for environments without MMSegmentation
+    def register_all_modules(init_default_scope=True):
+        """
+        Fallback function when MMSegmentation is not available.
+        
+        This function provides compatibility for environments where mmseg
+        is not installed or the import path has changed. The actual module
+        registration will be handled by cfg.default_scope = 'mmseg' setting
+        in the Runner configuration.
+        
+        Args:
+            init_default_scope (bool): Placeholder parameter for API compatibility
+        """
+        import warnings
+        warnings.warn(
+            "MMSegmentation register_all_modules not available. "
+            "Using cfg.default_scope for module registration instead.",
+            UserWarning
+        )
+        pass
 import mmcv
 import os
 
@@ -30,51 +46,51 @@ def main():
 
     # --- Load Config ---
     cfg = Config.fromfile(args.config)
+    cfg.load_from = args.checkpoint
 
-    # --- Set up Runner (but don't load checkpoint with it yet) ---
-    if args.work_dir is not None:
-        cfg.work_dir = args.work_dir
-    elif 'work_dir' not in cfg:
-        cfg.work_dir = os.path.join('./work_dirs', os.path.splitext(os.path.basename(args.config))[0])
-    cfg.default_scope = 'mmseg'
+    # === KEY CHANGE: Correctly update data_root for ConcatDataset ===
+    if args.data_root is not None:
+        # The dataset is a ConcatDataset, which has a 'datasets' list.
+        # We must iterate through this list and update the data_root for each sub-dataset.
+        if cfg.test_dataloader.dataset.type == 'ConcatDataset':
+            for ds_cfg in cfg.test_dataloader.dataset.datasets:
+                ds_cfg.data_root = args.data_root
+        else:
+            # Fallback for simple datasets
+            cfg.test_dataloader.dataset.data_root = args.data_root
     
-    # The Runner will build the model structure
+    # --- Build Runner and Components ---
+    # The Runner will automatically build the model and dataloader from the config
     runner = Runner.from_cfg(cfg)
-
-    # === KEY CHANGE: Manually load checkpoint with the correct arguments ===
-    print(f"\nManually loading checkpoint from {args.checkpoint}...")
-    # Use torch.load directly with weights_only=False
-    checkpoint = torch.load(args.checkpoint, map_location='cpu', weights_only=False)
-
-    # Extract the state_dict (weights)
-    if 'state_dict' in checkpoint:
-        state_dict = checkpoint['state_dict']
-    else:
-        state_dict = checkpoint
-        
-    # Manually load the weights into the model that the Runner built
-    runner.model.load_state_dict(state_dict, strict=False)
-    print("✅ Checkpoint loaded into model manually.")
-
+    
+    # Get the dataloader from the runner
+    val_loader = runner.build_dataloader(cfg.test_dataloader, seed=0)
+    
+    # Load the checkpoint. This also builds the model.
+    try:
+        runner.load_checkpoint(args.checkpoint, weights_only=False)
+    except TypeError:
+        # Fallback for older MMEngine versions that don't support weights_only
+        runner.load_checkpoint(args.checkpoint)
+    
     # --- Run Validation ---
     print("\nStarting validation using the Runner...")
-    # The runner.test() method will now use the model with the weights we just loaded
+    # Use the runner's built-in test method which handles everything
     metrics = runner.test()
-
-    # --- Print Results ---
     print("\n\n" + "="*40)
     print("      评估完成 - 黄金基准性能")
     print("="*40)
     print(f"配置文件: {args.config}")
     print(f"权重文件: {args.checkpoint}")
+    print(f"数据集路径: {args.data_root}")
     print("\n--- 指标 ---")
-
+    
     for key, value in metrics.items():
         if isinstance(value, float):
             print(f"{key}: {value:.4f}")
         else:
             print(f"{key}: {value}")
-
+            
     print("="*40 + "\n")
 
 if __name__ == '__main__':
