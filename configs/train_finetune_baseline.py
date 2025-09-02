@@ -126,6 +126,6 @@ visualizer = dict(
 log_processor = dict(by_epoch=False)
 log_level = 'INFO'
 
-# === 关键修改：从您自己的权重文件开始加载 ===
-load_from = '/kaggle/input/mapsage-stage02-checkpoint-6000/best_mIoU_iter_6000.pth'
+# === 关键修改：从清理后的权重文件开始加载 ===
+load_from = '/kaggle/working/best_mIoU_iter_6000_cleaned.pth'
 resume = False
