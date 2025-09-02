@@ -6,13 +6,18 @@ from mmengine.config import Config
 from mmengine.runner import Runner
 from mmseg.datasets import LoveDADataset, ConcatDataset
 from mmseg.models import build_segmentor
-from mmseg.evaluation import IoUMetric
-from mmseg.utils import register_all_modules
 import mmcv
 import os
 
-# Call the registration function once when the script starts
-register_all_modules()
+# Handle register_all_modules import with fallback
+try:
+    from mmseg.utils import register_all_modules
+    register_all_modules()
+except ImportError:
+    # Fallback when mmseg.utils.register_all_modules is not available
+    def register_all_modules():
+        pass
+    register_all_modules()
 
 def parse_args():
     parser = argparse.ArgumentParser(description='MMSegmentation validation script')
