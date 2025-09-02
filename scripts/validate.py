@@ -1,33 +1,18 @@
-# scripts/validate.py (V7 - Manual Control)
+# scripts/validate.py (V8 - Final Corrected Imports)
 
 import argparse
 import torch
 from mmengine.config import Config
-try:
-    from mmengine.dataset import build_dataloader
-except ImportError:
-    try:
-        from mmengine.runner import build_dataloader
-    except ImportError:
-        # Fallback: 如果都导入失败，我们手动实现一个简单版本
-        def build_dataloader(dataset, **kwargs):
-            from torch.utils.data import DataLoader
-            return DataLoader(dataset, **kwargs)
-# 关键修改：直接导入我们将要手动创建的Dataset类
-from mmseg.datasets import LoveDADataset, ConcatDataset
+# 1. Correctly import both builders from mmseg.datasets
+from mmseg.datasets import build_dataloader, build_dataset
 from mmseg.models import build_segmentor
-from mmseg.evaluation.metrics import IoUMetric
-from mmseg.registry import MODELS
+from mmseg.evaluation import IoUMetric
+from mmseg.utils import register_all_modules
 import mmcv
 import os
 
-# Register all modules
-try:
-    from mmseg.utils import register_all_modules
-    register_all_modules()
-except ImportError:
-    # Fallback registration
-    pass
+# 2. Call the registration function once when the script starts
+register_all_modules()
 
 def parse_args():
     parser = argparse.ArgumentParser(description='MMSegmentation validation script')
@@ -42,37 +27,14 @@ def main():
 
     # --- Load Config ---
     cfg = Config.fromfile(args.config)
+
+    # --- Update Paths in Config ---
+    if args.data_root is not None:
+        cfg.test_dataloader.dataset.data_root = args.data_root
     cfg.load_from = args.checkpoint
 
-    # --- Manually Build Datasets for Full Control ---
-    print("\n--- Manually Building Datasets ---")
-
-    # 从配置中获取Rural和Urban各自的定义
-    rural_cfg = cfg.test_dataloader.dataset.datasets[0]
-    urban_cfg = cfg.test_dataloader.dataset.datasets[1]
-    
-    # 确保传入的data_root覆盖配置文件中的默认值
-    if args.data_root:
-        rural_cfg.data_root = args.data_root
-        urban_cfg.data_root = args.data_root
-
-    # 手动创建Rural验证集
-    print("Building Rural dataset...")
-    rural_dataset = LoveDADataset(**rural_cfg)
-    print(f"✅ Rural dataset loaded. Found {len(rural_dataset)} images.")
-
-    # 手动创建Urban验证集
-    print("Building Urban dataset...")
-    urban_dataset = LoveDADataset(**urban_cfg)
-    print(f"✅ Urban dataset loaded. Found {len(urban_dataset)} images.")
-
-    # 手动将它们合并
-    print("Combining datasets...")
-    val_dataset = ConcatDataset(datasets=[rural_dataset, urban_dataset])
-    print(f"🎉 Final combined dataset size: {len(val_dataset)}\n")
-
-    # --- Build Dataloader ---
-    # 使用我们手动创建好的 val_dataset
+    # --- Build Dataloader and Dataset ---
+    val_dataset = build_dataset(cfg.test_dataloader.dataset)
     val_loader = build_dataloader(
         val_dataset,
         batch_size=1,
@@ -83,31 +45,30 @@ def main():
 
     # --- Build and Load Model ---
     model = build_segmentor(cfg.model)
+    # Use weights_only=False for PyTorch 2.6+ compatibility
     checkpoint = torch.load(cfg.load_from, map_location='cpu', weights_only=False)
-    
+
     if 'state_dict' in checkpoint:
         state_dict = checkpoint['state_dict']
     else:
         state_dict = checkpoint
-        
+
     model.load_state_dict(state_dict, strict=False)
     model.cuda()
     model.eval()
 
     # --- Run Evaluation ---
     metric = IoUMetric(iou_metrics=['mIoU'])
-    # Set dataset metadata
-    try:
-        metric.dataset_meta = val_dataset.metainfo
-    except AttributeError:
-        # Fallback for metainfo access
-        metric.dataset_meta = getattr(val_dataset.datasets[0], 'metainfo', None)
-    
+    metric.dataset_meta = val_dataset.metainfo
+
     progress_bar = mmcv.ProgressBar(len(val_dataset))
     for data in val_loader:
+        # Move data to GPU
         data['inputs'][0] = data['inputs'][0].cuda()
+
         with torch.no_grad():
             result = model.test_step(data)
+
         metric.process(data_batch=data, data_samples=result)
         progress_bar.update()
 
@@ -116,10 +77,9 @@ def main():
     print("\n\n" + "="*40)
     print("      评估完成 - 黄金基准性能")
     print("="*40)
-    # ... [rest of the printing logic remains the same]
     print(f"配置文件: {args.config}")
     print(f"权重文件: {args.checkpoint}")
-    print(f"数据集路径: {args.data_root}")  # Use args.data_root for clarity
+    print(f"数据集路径: {cfg.test_dataloader.dataset.data_root}")
     print("\n--- 指标 ---")
     print(f"mIoU: {metrics['mIoU']:.4f}")
     print(f"mAcc: {metrics['mAcc']:.4f}")
