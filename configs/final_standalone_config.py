@@ -1,4 +1,4 @@
-# filename: configs/final_standalone_config.py (V11 - Default Metrics)
+# filename: configs/final_standalone_config.py (Definitive Version with Correct Normalization)
 
 work_dir = './work_dirs/test'
 
@@ -6,8 +6,9 @@ model = dict(
     type='EncoderDecoder',
     data_preprocessor=dict(
         type='SegDataPreProcessor',
-        mean=[123.675, 116.28, 103.53],
-        std=[58.395, 57.12, 57.375],
+        # === KEY CHANGE: Updated with the correct, calculated LoveDA statistics ===
+        mean=[73.53223947628777, 80.01710095339912, 74.59297778068898],
+        std=[41.511366098369635, 35.66528876209687, 33.75830885257866],
         bgr_to_rgb=True,
         pad_val=0,
         seg_pad_val=255),
@@ -70,6 +71,5 @@ test_dataloader = dict(
     )
 )
 
-test_cfg = dict()
-# === KEY CHANGE: Removed iou_metrics to use the class's default behavior ===
+test_cfg = dict() 
 test_evaluator = dict(type='IoUMetric')
