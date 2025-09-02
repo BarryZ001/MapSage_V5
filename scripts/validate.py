@@ -1,4 +1,4 @@
-# scripts/validate.py (Definitive Runner-based Version)
+# scripts/validate.py (V10 - Added default_scope)
 
 import argparse
 import torch
@@ -26,18 +26,25 @@ def main():
     cfg = Config.fromfile(args.config)
     
     # --- Set up Runner ---
-    # The Runner will automatically build the model, dataloader, and evaluator
     if args.work_dir is not None:
         cfg.work_dir = args.work_dir
     elif 'work_dir' not in cfg:
         cfg.work_dir = os.path.join('./work_dirs', os.path.splitext(os.path.basename(args.config))[0])
         
+    # === KEY CHANGE: Explicitly set the default scope to 'mmseg' ===
+    # This tells the Runner where to find custom modules like 'EncoderDecoder'
+    cfg.default_scope = 'mmseg'
+    
+    # The Runner will now know where to find all necessary components
     runner = Runner.from_cfg(cfg)
-    runner.load_or_resume(args.checkpoint) # Use load_or_resume for flexibility
+    
+    # In MMEngine, loading the checkpoint is now handled by the runner's test method
+    # runner.load_or_resume(args.checkpoint) is for resuming training
     
     # --- Run Validation ---
     print("\nStarting validation using the Runner...")
-    metrics = runner.test()
+    # The test method will automatically load the checkpoint specified in the command
+    metrics = runner.test(ckpt_path=args.checkpoint)
     
     # --- Print Results ---
     print("\n\n" + "="*40)
