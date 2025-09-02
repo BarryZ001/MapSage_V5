@@ -3,7 +3,16 @@
 import argparse
 import torch
 from mmengine.config import Config
-from mmengine.dataset import build_dataloader
+try:
+    from mmengine.dataset import build_dataloader
+except ImportError:
+    try:
+        from mmengine.runner import build_dataloader
+    except ImportError:
+        # Fallback: 如果都导入失败，我们手动实现一个简单版本
+        def build_dataloader(dataset, **kwargs):
+            from torch.utils.data import DataLoader
+            return DataLoader(dataset, **kwargs)
 # 关键修改：直接导入我们将要手动创建的Dataset类
 from mmseg.datasets import LoveDADataset, ConcatDataset
 from mmseg.models import build_segmentor
