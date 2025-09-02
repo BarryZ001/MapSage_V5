@@ -4,7 +4,6 @@ import argparse
 import torch
 from mmengine.config import Config
 from mmengine.runner import Runner
-from mmseg.registry import DATASETS, MODELS
 from mmseg.models import build_segmentor
 from mmseg.evaluation import IoUMetric
 from mmengine.utils import ProgressBar
@@ -33,16 +32,20 @@ def main():
     cfg.load_from = args.checkpoint
 
     # --- 3. 构建数据集和数据加载器 ---
-    val_dataset = DATASETS.build(cfg.test_dataloader.dataset)
-    # 简化的数据加载器构建
-    from torch.utils.data import DataLoader
-    val_loader = DataLoader(
-        val_dataset,
-        batch_size=1,
-        shuffle=False,
-        num_workers=2,
-        collate_fn=lambda x: x[0]  # 简化的collate函数
-    )
+    # Use MMSegmentation's inference API instead of building dataset manually
+    from mmseg.apis import init_segmentor, inference_segmentor
+    import glob
+    import os
+    
+    # Initialize model using MMSeg API
+    model = init_segmentor(cfg, args.checkpoint, device='cuda:0')
+    
+    # Get test images from dataset root
+    if args.data_root:
+        test_img_dir = os.path.join(args.data_root, 'Test', 'images_png')
+        test_images = glob.glob(os.path.join(test_img_dir, '*.png'))
+    else:
+        test_images = []
 
     # --- 4. 构建并加载模型 ---
     model = build_segmentor(cfg.model)
