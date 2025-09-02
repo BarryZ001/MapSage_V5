@@ -44,41 +44,9 @@ train_dataloader = dict(
                 pipeline=train_pipeline)
         ]))
 
-# Validation data processing pipeline
-val_pipeline = [
-    dict(type='LoadImageFromFile'),
-    dict(type='LoadAnnotations'),
-    dict(type='Resize', scale=(1024, 1024), keep_ratio=True),
-    dict(type='PackSegInputs'),
-]
-
-# Validation dataloader (reusing our verified configuration)
-val_dataloader = dict(
-    batch_size=1,
-    num_workers=4,
-    persistent_workers=True,
-    sampler=dict(type='DefaultSampler', shuffle=False),
-    dataset=dict(
-        type='ConcatDataset',
-        datasets=[
-            dict(
-                type=dataset_type,
-                data_root=data_root,
-                data_prefix=dict(
-                    img_path='Val/Rural/images_png',
-                    seg_map_path='Val/Rural/masks_png'),
-                pipeline=val_pipeline),
-            dict(
-                type=dataset_type,
-                data_root=data_root,
-                data_prefix=dict(
-                    img_path='Val/Urban/images_png',
-                    seg_map_path='Val/Urban/masks_png'),
-                pipeline=val_pipeline)
-        ]))
-
-# Validation evaluator (reusing our verified configuration)
-val_evaluator = dict(type='IoUMetric')
+# Validation dataloader and evaluator are inherited from _base_
+val_dataloader = _base_.test_dataloader
+val_evaluator = _base_.test_evaluator
 
 # --- 3. Define training loop and hyperparameters ---
 train_cfg = dict(type='IterBasedTrainLoop', max_iters=80000, val_interval=8000)
