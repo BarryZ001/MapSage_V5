@@ -5,7 +5,7 @@ _base_ = './final_standalone_config.py'
 num_classes = 8
 crop_size = (512, 512)
 # 注意：此处的data_root是一个占位符，实际路径将在Colab中硬编码或动态设置
-data_root = '/content/datasets/EarthVQA'  # Colab本地运行时路径
+data_root = '/content/datasets/EarthVQA/EarthVQA'  # Colab本地运行时路径
 dataset_type = 'BaseSegDataset'
 
 train_pipeline = [

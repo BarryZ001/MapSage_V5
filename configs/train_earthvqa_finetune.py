@@ -4,7 +4,7 @@ _base_ = './final_standalone_config.py'
 
 num_classes = 8 
 crop_size = (512, 512) 
-data_root = '/kaggle/input/2024earthvqa/2024EarthVQA'
+data_root = '/content/datasets/EarthVQA/EarthVQA'
 dataset_type = 'BaseSegDataset' 
 
 train_pipeline = [
