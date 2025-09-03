@@ -71,5 +71,4 @@ test_dataloader = dict(
     )
 )
 
-test_cfg = dict() 
 test_evaluator = dict(type='IoUMetric')
