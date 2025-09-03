@@ -4,14 +4,6 @@ work_dir = './work_dirs/test'
 
 model = dict(
     type='EncoderDecoder',
-    data_preprocessor=dict(
-        type='SegDataPreProcessor',
-        # === KEY CHANGE: Updated with the correct, calculated LoveDA statistics ===
-        mean=[73.53223947628777, 80.01710095339912, 74.59297778068898],
-        std=[41.511366098369635, 35.66528876209687, 33.75830885257866],
-        bgr_to_rgb=True,
-        pad_val=0,
-        seg_pad_val=255),
     backbone=dict(
         type='MixVisionTransformer',
         in_channels=3,
