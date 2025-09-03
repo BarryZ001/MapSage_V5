@@ -247,6 +247,124 @@ def run_inference(model, image_np):
         st.error(f"详细错误信息: {traceback.format_exc()}")
         return None
 
+def run_inference_tta(model, image_np, cfg, device):
+    """
+    使用TTA (Test Time Augmentation) 进行推理
+    支持多尺度 [0.75, 1.0, 1.25] 和水平翻转增强
+    """
+    try:
+        # 检查必要的依赖
+        if not CV2_AVAILABLE:
+            st.error("❌ TTA功能需要OpenCV，请安装: pip install opencv-python")
+            return None
+        
+        if not TORCH_AVAILABLE:
+            st.error("❌ TTA功能需要PyTorch")
+            return None
+            
+        # TTA参数配置
+        scales = [0.75, 1.0, 1.25]
+        flip_directions = [False, True]  # 不翻转和水平翻转
+        
+        # 存储所有TTA结果
+        tta_results = []
+        
+        # 获取归一化参数
+        normalize_cfg = None
+        for transform in cfg.test_pipeline:
+            if transform['type'] == 'Normalize':
+                normalize_cfg = transform
+                break
+        
+        if normalize_cfg is None:
+            mean = np.array([123.675, 116.28, 103.53], dtype=np.float32)
+            std = np.array([58.395, 57.12, 57.375], dtype=np.float32)
+        else:
+            mean = np.array(normalize_cfg['mean'], dtype=np.float32)
+            std = np.array(normalize_cfg['std'], dtype=np.float32)
+        
+        original_h, original_w = image_np.shape[:2]
+        
+        # 遍历所有尺度和翻转组合
+        for scale in scales:
+            for flip in flip_directions:
+                # 1. 尺度变换
+                if scale != 1.0:
+                    new_h = int(original_h * scale)
+                    new_w = int(original_w * scale)
+                    scaled_image = cv2.resize(image_np, (new_w, new_h), interpolation=cv2.INTER_LINEAR)
+                else:
+                    scaled_image = image_np.copy()
+                
+                # 2. 翻转变换
+                if flip:
+                    flipped_image = cv2.flip(scaled_image, 1)  # 水平翻转
+                else:
+                    flipped_image = scaled_image
+                
+                # 3. 数据预处理
+                # 归一化
+                image_normalized = (flipped_image.astype(np.float32) - mean) / std
+                # HWC -> CHW
+                image_transposed = image_normalized.transpose(2, 0, 1)
+                # 转换为PyTorch Tensor
+                image_tensor = torch.from_numpy(image_transposed).unsqueeze(0).to(device)
+                
+                # 4. 创建元数据
+                meta_dict = {
+                    'ori_shape': (original_h, original_w, 3),
+                    'img_shape': flipped_image.shape,
+                    'pad_shape': flipped_image.shape,
+                    'scale_factor': scale,
+                    'flip': flip,
+                    'flip_direction': 'horizontal' if flip else None
+                }
+                
+                # 5. 模型推理
+                with torch.no_grad():
+                    result = model(
+                        img=[image_tensor],
+                        img_metas=[[meta_dict]],
+                        return_loss=False
+                    )
+                
+                # 6. 后处理：恢复到原始尺寸
+                seg_map = result[0]
+                
+                # 如果有翻转，需要翻转回来
+                if flip:
+                    seg_map = np.flip(seg_map, axis=1)
+                
+                # 如果有缩放，需要缩放回原始尺寸
+                if scale != 1.0:
+                    seg_map = cv2.resize(
+                        seg_map.astype(np.uint8), 
+                        (original_w, original_h), 
+                        interpolation=cv2.INTER_NEAREST
+                    )
+                
+                tta_results.append(seg_map)
+        
+        # 7. TTA结果融合：使用投票机制
+        # 将所有结果堆叠并进行投票
+        stacked_results = np.stack(tta_results, axis=0)  # (num_tta, H, W)
+        
+        # 对每个像素位置进行投票，选择出现次数最多的类别
+        final_result = np.zeros((original_h, original_w), dtype=np.uint8)
+        for i in range(original_h):
+            for j in range(original_w):
+                pixel_votes = stacked_results[:, i, j]
+                # 使用numpy的bincount进行投票
+                counts = np.bincount(pixel_votes)
+                final_result[i, j] = np.argmax(counts)
+        
+        return final_result
+        
+    except Exception as e:
+        st.error(f"❌ TTA推理过程中出错: {str(e)}")
+        st.error(f"详细错误信息: {traceback.format_exc()}")
+        return None
+
 def draw_segmentation_map(seg_map, palette):
     """
     将单通道的类别索引图转换为彩色的可视化分割图。
@@ -357,13 +475,29 @@ if uploaded_file is not None and MMSEG_AVAILABLE and config_exists and checkpoin
             
             st.subheader("🤖 第三行：模型分割结果")
             
+            # TTA选项控制
+            col1, col2 = st.columns([3, 1])
+            with col1:
+                use_tta = st.checkbox(
+                    "🎯 高精度模式 (TTA)", 
+                    value=False,
+                    help="启用测试时增强(TTA)，包含3个尺度×2个翻转=6次推理，显著提升精度但增加约6倍推理时间"
+                )
+            with col2:
+                if use_tta:
+                    st.warning("⏱️ 推理时间约6倍")
+            
             # 3. 加载模型并推理
             with st.spinner('🔄 模型加载中... (首次运行较慢)'):
                 model = load_model(CONFIG_FILE, CHECKPOINT_FILE)
             
             if model is not None:
-                with st.spinner('⚙️ CPU正在进行滑窗推理，请稍候...'):
-                    segmentation_map = run_inference(model, image_np)
+                 if use_tta:
+                     with st.spinner('🎯 TTA高精度推理中... (3尺度×2翻转，请耐心等待)'):
+                         segmentation_map = run_inference_tta(model, image_np, model.cfg, DEVICE)
+                 else:
+                     with st.spinner('⚙️ CPU正在进行滑窗推理，请稍候...'):
+                         segmentation_map = run_inference(model, image_np)
                 
                 if segmentation_map is not None:
                     color_result_map = draw_segmentation_map(segmentation_map, PALETTE)
