@@ -1,11 +1,10 @@
-# configs/train_earthvqa_finetune.py (V2 - Using BaseSegDataset)
+# configs/train_earthvqa_finetune.py (V3 - Fixed Data Preprocessor)
 
 _base_ = './final_standalone_config.py' 
 
 num_classes = 8 
 crop_size = (512, 512) 
 data_root = '/kaggle/input/2024earthvqa/2024EarthVQA'
-# === KEY CHANGE 1: Use the generic BaseSegDataset ===
 dataset_type = 'BaseSegDataset' 
 
 train_pipeline = [
@@ -27,7 +26,6 @@ train_dataloader = dict(
         type=dataset_type,
         data_root=data_root,
         data_prefix=dict(img_path='Train/images_png', seg_map_path='Train/masks_png'),
-        # === KEY CHANGE 2: Add suffixes, since BaseSegDataset doesn't know them by default ===
         img_suffix='.png',
         seg_map_suffix='.png',
         metainfo=dict(classes=('background', 'building', 'road', 'water', 'barren', 'forest', 'agricultural', 'playground')),
@@ -66,7 +64,19 @@ param_scheduler = [
     dict(type='PolyLR', eta_min=0.0, power=1.0, begin=500, end=40000, by_epoch=False)
 ]
 
-model = dict(decode_head=dict(num_classes=num_classes))
+# === KEY CHANGE: Redefine the 'model' dictionary to include the full data_preprocessor ===
+# This ensures the 'size' parameter is correctly set for training.
+model = dict(
+    data_preprocessor=dict(
+        type='SegDataPreProcessor',
+        size=(512, 512),
+        mean=[73.53223947628777, 80.01710095339912, 74.59297778068898],
+        std=[41.511366098369635, 35.66528876209687, 33.75830885257866],
+        bgr_to_rgb=True,
+        pad_val=0,
+        seg_pad_val=255),
+    decode_head=dict(num_classes=num_classes))
+
 
 default_scope = 'mmseg'
 default_hooks = dict(
