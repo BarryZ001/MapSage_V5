@@ -1,16 +1,12 @@
-# configs/train_on_earthvqa_kaggle.py
+# configs/train_on_earthvqa_kaggle.py (V2 - Hardcoded Checkpoint Path)
 
-# --- 1. 基础配置 ---
 _base_ = './final_standalone_config.py'
 
-# --- 2. 核心参数定义 ---
 num_classes = 8
 crop_size = (512, 512)
-# 关键：硬编码为Kaggle的精确路径
 data_root = '/kaggle/input/2024earthvqa/2024EarthVQA'
 dataset_type = 'BaseSegDataset'
 
-# --- 3. 训练数据增强流程 ---
 train_pipeline = [
     dict(type='LoadImageFromFile'),
     dict(type='LoadAnnotations'),
@@ -21,7 +17,6 @@ train_pipeline = [
     dict(type='PackSegInputs')
 ]
 
-# --- 4. 训练数据加载器 (使用简化的EarthVQA目录结构) ---
 train_dataloader = dict(
     batch_size=4,
     num_workers=2,
@@ -36,7 +31,6 @@ train_dataloader = dict(
         metainfo=dict(classes=('background', 'building', 'road', 'water', 'barren', 'forest', 'agricultural', 'playground')),
         pipeline=train_pipeline))
 
-# --- 5. 验证组件 (同样使用简化路径) ---
 val_pipeline = [
     dict(type='LoadImageFromFile'),
     dict(type='Resize', scale=(1024, 1024), keep_ratio=True),
@@ -58,27 +52,26 @@ val_dataloader = dict(
         pipeline=val_pipeline))
 val_evaluator = dict(type='IoUMetric')
 
-# --- 6. 训练策略 ---
 train_cfg = dict(type='IterBasedTrainLoop', max_iters=40000, val_interval=4000)
 val_cfg = dict(type='ValLoop')
+
 optim_wrapper = dict(
     type='OptimWrapper',
     optimizer=dict(type='AdamW', lr=2e-5, betas=(0.9, 0.999), weight_decay=0.01),
     clip_grad=dict(max_norm=1.0, norm_type=2))
 
 param_scheduler = [
-    dict(type='LinearLR', start_factor=1e-6, by_epoch=False, begin=0, end=500),
-    dict(type='PolyLR', eta_min=0.0, power=1.0, begin=500, end=40000, by_epoch=False)
+    dict(type='LinearLR', start_factor=1e-6, by_epoch=False, begin=0, end=1500),
+    dict(type='PolyLR', eta_min=0.0, power=1.0, begin=1500, end=40000, by_epoch=False)
 ]
 
-# --- 7. 模型定义 ---
 model = dict(decode_head=dict(num_classes=num_classes))
 
-# --- 8. 运行时设置 ---
 default_scope = 'mmseg'
 default_hooks = dict(
     checkpoint=dict(type='CheckpointHook', by_epoch=False, interval=4000, save_best='mIoU'))
 log_level = 'INFO'
-# 关键：我们将通过脚本的 Cell 动态指定 load_from 路径
-load_from = None
+
+# === KEY CHANGE: Hardcode the path to the cleaned checkpoint ===
+load_from = '/kaggle/working/best_mIoU_iter_6000_cleaned.pth'
 resume = False
