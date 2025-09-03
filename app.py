@@ -53,7 +53,7 @@ except (ImportError, ModuleNotFoundError) as e:
 
 # --- 配置 ---
 # 请将这里的路径修改为你自己的文件路径
-CONFIG_FILE = 'final_standalone_config.py'
+CONFIG_FILE = 'configs/final_standalone_config.py'
 CHECKPOINT_FILE = 'checkpoints/best_mIoU_iter_6000.pth'
 DEVICE = 'cpu'
 
