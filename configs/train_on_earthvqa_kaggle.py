@@ -1,12 +1,15 @@
-# configs/train_on_earthvqa_kaggle.py (V2 - Hardcoded Checkpoint Path)
+# configs/train_on_earthvqa_kaggle.py (最终修正版)
 
-_base_ = './final_standalone_config.py'
+# --- 1. 基础配置 ---
+_base_ = './final_standalone_config.py' 
 
-num_classes = 8
-crop_size = (512, 512)
+# --- 2. 核心参数定义 ---
+num_classes = 8 
+crop_size = (512, 512) 
 data_root = '/kaggle/input/2024earthvqa/2024EarthVQA'
-dataset_type = 'BaseSegDataset'
+dataset_type = 'BaseSegDataset' 
 
+# --- 3. 训练数据增强流程 ---
 train_pipeline = [
     dict(type='LoadImageFromFile'),
     dict(type='LoadAnnotations'),
@@ -17,6 +20,7 @@ train_pipeline = [
     dict(type='PackSegInputs')
 ]
 
+# --- 4. 训练数据加载器 ---
 train_dataloader = dict(
     batch_size=4,
     num_workers=2,
@@ -31,6 +35,7 @@ train_dataloader = dict(
         metainfo=dict(classes=('background', 'building', 'road', 'water', 'barren', 'forest', 'agricultural', 'playground')),
         pipeline=train_pipeline))
 
+# --- 5. 验证组件 ---
 val_pipeline = [
     dict(type='LoadImageFromFile'),
     dict(type='Resize', scale=(1024, 1024), keep_ratio=True),
@@ -52,9 +57,9 @@ val_dataloader = dict(
         pipeline=val_pipeline))
 val_evaluator = dict(type='IoUMetric')
 
+# --- 6. 训练策略 ---
 train_cfg = dict(type='IterBasedTrainLoop', max_iters=40000, val_interval=4000)
 val_cfg = dict(type='ValLoop')
-
 optim_wrapper = dict(
     type='OptimWrapper',
     optimizer=dict(type='AdamW', lr=2e-5, betas=(0.9, 0.999), weight_decay=0.01),
@@ -65,13 +70,50 @@ param_scheduler = [
     dict(type='PolyLR', eta_min=0.0, power=1.0, begin=1500, end=40000, by_epoch=False)
 ]
 
-model = dict(decode_head=dict(num_classes=num_classes))
+# === 关键修改：完整重定义model字典，确保data_preprocessor正确 ===
+model = dict(
+    type='EncoderDecoder',
+    # 为训练过程加入size参数
+    data_preprocessor=dict(
+        type='SegDataPreProcessor',
+        size=(512, 512), # <--- 修复错误的关键参数
+        mean=[73.53223947628777, 80.01710095339912, 74.59297778068898],
+        std=[41.511366098369635, 35.66528876209687, 33.75830885257866],
+        bgr_to_rgb=True,
+        pad_val=0,
+        seg_pad_val=255),
+    backbone=dict(
+        type='MixVisionTransformer',
+        in_channels=3,
+        embed_dims=64,
+        num_stages=4,
+        num_layers=[3, 4, 6, 3],
+        num_heads=[1, 2, 5, 8],
+        patch_sizes=[7, 3, 3, 3],
+        sr_ratios=[8, 4, 2, 1],
+        out_indices=(0, 1, 2, 3),
+        mlp_ratio=4,
+        qkv_bias=True,
+        drop_rate=0.0,
+        attn_drop_rate=0.0,
+        drop_path_rate=0.1),
+    decode_head=dict(
+        type='SegformerHead',
+        in_channels=[64, 128, 320, 512],
+        in_index=[0, 1, 2, 3],
+        channels=256,
+        dropout_ratio=0.1,
+        num_classes=num_classes,
+        norm_cfg=dict(type='BN', requires_grad=False),
+        align_corners=False),
+    train_cfg=dict(),
+    test_cfg=dict(mode='slide', crop_size=(1024, 1024), stride=(768, 768)))
 
+
+# --- 8. 运行时设置 ---
 default_scope = 'mmseg'
 default_hooks = dict(
     checkpoint=dict(type='CheckpointHook', by_epoch=False, interval=4000, save_best='mIoU'))
 log_level = 'INFO'
-
-# === KEY CHANGE: Hardcode the path to the cleaned checkpoint ===
 load_from = '/kaggle/working/best_mIoU_iter_6000_cleaned.pth'
 resume = False
