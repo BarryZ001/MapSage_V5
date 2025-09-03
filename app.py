@@ -34,16 +34,15 @@ except ImportError:
 # 尝试导入MMSegmentation
 try:
     from mmseg.apis import init_segmentor, inference_segmentor  # type: ignore
-    # register_all_modules函数在较新版本中可能不存在
-    try:
-        from mmseg.utils import register_all_modules
-    except ImportError:
-        register_all_modules = None
     MMSEG_AVAILABLE = True
     MMSEG_ERROR = None
-    # 注册所有模块（如果可用）
-    if register_all_modules is not None:
-        register_all_modules()
+    
+    # 确保必要的模块被导入（兼容不同版本）
+    try:
+        import mmseg.models  # type: ignore
+        import mmseg.datasets  # type: ignore
+    except ImportError:
+        pass
 except (ImportError, ModuleNotFoundError) as e:
     MMSEG_AVAILABLE = False
     MMSEG_ERROR = str(e)
