@@ -1,11 +1,11 @@
 # configs/resume_earthvqa_kaggle.py (最终迁移学习版)
 
 # 1. 继承我们最终版的、路径正确的独立配置文件
-_base_ = './final_standalone_config.py'
+_base_ = './final_standalone_config.py' 
 
 # 2. 定义训练数据加载器 (使用简化的EarthVQA目录结构)
 data_root = '/kaggle/input/2024earthvqa/2024EarthVQA'
-dataset_type = 'BaseSegDataset'
+dataset_type = 'BaseSegDataset' 
 crop_size = (512, 512)
 train_pipeline = [
     dict(type='LoadImageFromFile'),
