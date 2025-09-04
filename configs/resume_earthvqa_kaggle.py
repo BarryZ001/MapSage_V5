@@ -1,9 +1,9 @@
-# configs/resume_earthvqa_kaggle.py (最终修正版 - 简化路径)
+# configs/resume_earthvqa_kaggle.py (最终迁移学习版)
 
 # 1. 继承我们最终版的、路径正确的独立配置文件
 _base_ = './final_standalone_config.py'
 
-# 2. 定义训练数据加载器 (关键修改：不再使用ConcatDataset)
+# 2. 定义训练数据加载器 (使用简化的EarthVQA目录结构)
 data_root = '/kaggle/input/2024earthvqa/2024EarthVQA'
 dataset_type = 'BaseSegDataset'
 crop_size = (512, 512)
@@ -22,11 +22,9 @@ train_dataloader = dict(
     dataset=dict(
         type=dataset_type,
         data_root=data_root,
-        # 使用您提供的正确、简化的路径前缀
         data_prefix=dict(
             img_path='Train/images_png',
             seg_map_path='Train/masks_png'),
-        # BaseSegDataset需要明确文件后缀
         img_suffix='.png',
         seg_map_suffix='.png',
         pipeline=train_pipeline))
@@ -89,6 +87,6 @@ default_hooks = dict(
     checkpoint=dict(type='CheckpointHook', by_epoch=False, interval=4000, save_best='mIoU'))
 log_level = 'INFO'
 
-# === 关键修改：硬编码为您的Kaggle数据集中的检查点路径 ===
+# === 关键修改：使用 load_from 加载权重，并确保 resume 为 False ===
 load_from = '/kaggle/input/temp-8000tier/iter_8000.pth'
-resume = True
+resume = False
