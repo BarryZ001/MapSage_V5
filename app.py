@@ -247,36 +247,35 @@ def run_inference(model, image_np):
         st.error(f"详细错误信息: {traceback.format_exc()}")
         return None
 
-def run_inference_tta(model, image_np, cfg, device):
+def run_inference_tta(model, image_np, config, device):
     """
-    使用TTA (Test Time Augmentation) 进行推理
-    支持多尺度 [0.75, 1.0, 1.25] 和水平翻转增强
+    执行TTA推理，支持多尺度和翻转增强
+    
+    Args:
+        model: 加载的MMSegmentation模型
+        image_np: 输入图像 (numpy array, HWC格式)
+        config: 模型配置
+        device: 推理设备
+    
+    Returns:
+        numpy array: 融合后的分割结果
     """
     try:
-        # 检查必要的依赖
-        if not CV2_AVAILABLE:
-            st.error("❌ TTA功能需要OpenCV，请安装: pip install opencv-python")
-            return None
+        # 在函数内部导入必要的库
+        import cv2 as cv2_local
+        import torch as torch_local
         
-        if not TORCH_AVAILABLE:
-            st.error("❌ TTA功能需要PyTorch")
-            return None
-            
-        # TTA参数配置
-        scales = [0.75, 1.0, 1.25]
-        flip_directions = [False, True]  # 不翻转和水平翻转
-        
-        # 存储所有TTA结果
+        # TTA配置
+        scales = [0.75, 1.0, 1.25]  # 多尺度
+        flip_directions = [False, True]  # 是否翻转
         tta_results = []
         
-        # 获取归一化参数
-        normalize_cfg = None
-        for transform in cfg.test_pipeline:
-            if transform['type'] == 'Normalize':
-                normalize_cfg = transform
-                break
+        st.info(f"🔄 开始TTA推理，共 {len(scales) * len(flip_directions)} 个变换组合")
         
-        if normalize_cfg is None:
+        # 获取数据预处理配置
+        normalize_cfg = config.get('img_norm_cfg', {})
+        if not normalize_cfg:
+            # 使用默认的ImageNet归一化参数
             mean = np.array([123.675, 116.28, 103.53], dtype=np.float32)
             std = np.array([58.395, 57.12, 57.375], dtype=np.float32)
         else:
@@ -286,19 +285,20 @@ def run_inference_tta(model, image_np, cfg, device):
         original_h, original_w = image_np.shape[:2]
         
         # 遍历所有尺度和翻转组合
-        for scale in scales:
-            for flip in flip_directions:
+        for i, scale in enumerate(scales):
+            for j, flip in enumerate(flip_directions):
+                st.write(f"处理组合 {i*len(flip_directions)+j+1}/{len(scales)*len(flip_directions)}: 尺度={scale}, 翻转={flip}")
                 # 1. 尺度变换
                 if scale != 1.0:
                     new_h = int(original_h * scale)
                     new_w = int(original_w * scale)
-                    scaled_image = cv2.resize(image_np, (new_w, new_h), interpolation=cv2.INTER_LINEAR)
+                    scaled_image = cv2_local.resize(image_np, (new_w, new_h), interpolation=cv2_local.INTER_LINEAR)
                 else:
                     scaled_image = image_np.copy()
                 
                 # 2. 翻转变换
                 if flip:
-                    flipped_image = cv2.flip(scaled_image, 1)  # 水平翻转
+                    flipped_image = cv2_local.flip(scaled_image, 1)  # 水平翻转
                 else:
                     flipped_image = scaled_image
                 
@@ -308,7 +308,7 @@ def run_inference_tta(model, image_np, cfg, device):
                 # HWC -> CHW
                 image_transposed = image_normalized.transpose(2, 0, 1)
                 # 转换为PyTorch Tensor
-                image_tensor = torch.from_numpy(image_transposed).unsqueeze(0).to(device)
+                image_tensor = torch_local.from_numpy(image_transposed).unsqueeze(0).to(device)
                 
                 # 4. 创建元数据
                 meta_dict = {
@@ -321,42 +321,62 @@ def run_inference_tta(model, image_np, cfg, device):
                 }
                 
                 # 5. 模型推理
-                with torch.no_grad():
+                with torch_local.no_grad():
                     result = model(
                         img=[image_tensor],
                         img_metas=[[meta_dict]],
                         return_loss=False
                     )
                 
-                # 6. 后处理：恢复到原始尺寸
-                seg_map = result[0]
+                # 6. 后处理：获取分割结果
+                seg_logits = result[0]  # 模型输出的logits
                 
-                # 如果有翻转，需要翻转回来
+                # 转换为numpy
+                if hasattr(seg_logits, 'cpu'):
+                    seg_logits = seg_logits.cpu().numpy()
+                
+                # 如果有翻转，需要在logits层面翻转回来
                 if flip:
-                    seg_map = np.flip(seg_map, axis=1)
+                    if len(seg_logits.shape) == 3:  # (C, H, W)
+                        seg_logits = np.flip(seg_logits, axis=2)  # 在宽度维度翻转
+                    else:  # (H, W)
+                        seg_logits = np.flip(seg_logits, axis=1)  # 在宽度维度翻转
+                
+                # 如果是多类别预测，取argmax
+                if len(seg_logits.shape) == 3:  # (C, H, W)
+                    seg_map = np.argmax(seg_logits, axis=0)
+                else:  # 已经是(H, W)
+                    seg_map = seg_logits
                 
                 # 如果有缩放，需要缩放回原始尺寸
                 if scale != 1.0:
-                    seg_map = cv2.resize(
+                    seg_map = cv2_local.resize(
                         seg_map.astype(np.uint8), 
                         (original_w, original_h), 
-                        interpolation=cv2.INTER_NEAREST
+                        interpolation=cv2_local.INTER_NEAREST
                     )
                 
-                tta_results.append(seg_map)
+                tta_results.append(seg_map.astype(np.uint8))
         
-        # 7. TTA结果融合：使用投票机制
-        # 将所有结果堆叠并进行投票
+        # 7. TTA结果融合：使用高效的投票机制
+        if len(tta_results) == 0:
+            return None
+            
+        # 将所有结果堆叠
         stacked_results = np.stack(tta_results, axis=0)  # (num_tta, H, W)
         
-        # 对每个像素位置进行投票，选择出现次数最多的类别
-        final_result = np.zeros((original_h, original_w), dtype=np.uint8)
-        for i in range(original_h):
-            for j in range(original_w):
-                pixel_votes = stacked_results[:, i, j]
-                # 使用numpy的bincount进行投票
-                counts = np.bincount(pixel_votes)
-                final_result[i, j] = np.argmax(counts)
+        # 使用scipy.stats.mode进行高效投票，如果不可用则使用numpy方法
+        try:
+            from scipy.stats import mode
+            final_result, _ = mode(stacked_results, axis=0, keepdims=False)
+            final_result = final_result.astype(np.uint8)
+        except ImportError:
+            # 备用方案：使用numpy的高效投票
+            final_result = np.zeros((original_h, original_w), dtype=np.uint8)
+            for class_id in range(stacked_results.max() + 1):
+                class_votes = np.sum(stacked_results == class_id, axis=0)
+                final_result = np.where(class_votes > np.sum(stacked_results == final_result, axis=0), 
+                                      class_id, final_result)
         
         return final_result
         
@@ -492,12 +512,12 @@ if uploaded_file is not None and MMSEG_AVAILABLE and config_exists and checkpoin
                 model = load_model(CONFIG_FILE, CHECKPOINT_FILE)
             
             if model is not None:
-                 if use_tta:
-                     with st.spinner('🎯 TTA高精度推理中... (3尺度×2翻转，请耐心等待)'):
-                         segmentation_map = run_inference_tta(model, image_np, model.cfg, DEVICE)
-                 else:
-                     with st.spinner('⚙️ CPU正在进行滑窗推理，请稍候...'):
-                         segmentation_map = run_inference(model, image_np)
+                if use_tta:
+                    with st.spinner('🎯 TTA高精度推理中... (3尺度×2翻转，请耐心等待)'):
+                        segmentation_map = run_inference_tta(model, image_np, model.cfg, DEVICE)
+                else:
+                    with st.spinner('⚙️ CPU正在进行滑窗推理，请稍候...'):
+                        segmentation_map = run_inference(model, image_np)
                 
                 if segmentation_map is not None:
                     color_result_map = draw_segmentation_map(segmentation_map, PALETTE)
