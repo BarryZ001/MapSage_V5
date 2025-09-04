@@ -37,9 +37,39 @@ train_dataloader = dict(
                 pipeline=train_pipeline)
         ]))
 
-# 3. 继承验证部分的配置
-val_dataloader = _base_.test_dataloader
-val_evaluator = _base_.test_evaluator
+# 3. 定义验证配置
+val_pipeline = [
+    dict(type='LoadImageFromFile'),
+    dict(type='Resize', scale=(512, 512), keep_ratio=True),
+    dict(type='LoadAnnotations'),
+    dict(type='PackSegInputs'),
+]
+
+val_dataloader = dict(
+    batch_size=1,
+    num_workers=4,
+    persistent_workers=True,
+    sampler=dict(type='DefaultSampler', shuffle=False),
+    dataset=dict(
+        type='ConcatDataset',
+        datasets=[
+            dict(
+                type=dataset_type,
+                data_root=data_root,
+                data_prefix=dict(
+                    img_path='Val/Rural/images_png',
+                    seg_map_path='Val/Rural/masks_png'),
+                pipeline=val_pipeline),
+            dict(
+                type=dataset_type,
+                data_root=data_root,
+                data_prefix=dict(
+                    img_path='Val/Urban/images_png',
+                    seg_map_path='Val/Urban/masks_png'),
+                pipeline=val_pipeline)
+        ]))
+
+val_evaluator = dict(type='IoUMetric', iou_metrics=['mIoU'])
 
 # 4. 定义一个较短的微调训练流程
 train_cfg = dict(type='IterBasedTrainLoop', max_iters=20000, val_interval=4000)
