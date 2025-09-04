@@ -1,11 +1,12 @@
-# configs/resume_earthvqa_kaggle.py (最终修正版)
+# configs/resume_earthvqa_kaggle.py (最终修正版 - 简化路径)
 
 # 1. 继承我们最终版的、路径正确的独立配置文件
-_base_ = './final_standalone_config.py' 
+_base_ = './final_standalone_config.py'
 
-# 2. 定义训练数据加载器
+# 2. 定义训练数据加载器 (关键修改：不再使用ConcatDataset)
 data_root = '/kaggle/input/2024earthvqa/2024EarthVQA'
-dataset_type = 'BaseSegDataset' 
+dataset_type = 'BaseSegDataset'
+crop_size = (512, 512)
 train_pipeline = [
     dict(type='LoadImageFromFile'),
     dict(type='LoadAnnotations'),
@@ -19,25 +20,18 @@ train_dataloader = dict(
     persistent_workers=True,
     sampler=dict(type='InfiniteSampler', shuffle=True),
     dataset=dict(
-        type='ConcatDataset',
-        datasets=[
-            dict(
-                type=dataset_type,
-                data_root=data_root,
-                data_prefix=dict(
-                    img_path='Train/Rural/images_png',
-                    seg_map_path='Train/Rural/masks_png'),
-                pipeline=train_pipeline),
-            dict(
-                type=dataset_type,
-                data_root=data_root,
-                data_prefix=dict(
-                    img_path='Train/Urban/images_png',
-                    seg_map_path='Train/Urban/masks_png'),
-                pipeline=train_pipeline)
-        ]))
+        type=dataset_type,
+        data_root=data_root,
+        # 使用您提供的正确、简化的路径前缀
+        data_prefix=dict(
+            img_path='Train/images_png',
+            seg_map_path='Train/masks_png'),
+        # BaseSegDataset需要明确文件后缀
+        img_suffix='.png',
+        seg_map_suffix='.png',
+        pipeline=train_pipeline))
 
-# 3. 定义验证配置
+# 3. 定义验证配置（简化路径）
 val_pipeline = [
     dict(type='LoadImageFromFile'),
     dict(type='Resize', scale=(512, 512), keep_ratio=True),
@@ -51,23 +45,12 @@ val_dataloader = dict(
     persistent_workers=True,
     sampler=dict(type='DefaultSampler', shuffle=False),
     dataset=dict(
-        type='ConcatDataset',
-        datasets=[
-            dict(
-                type=dataset_type,
-                data_root=data_root,
-                data_prefix=dict(
-                    img_path='Val/Rural/images_png',
-                    seg_map_path='Val/Rural/masks_png'),
-                pipeline=val_pipeline),
-            dict(
-                type=dataset_type,
-                data_root=data_root,
-                data_prefix=dict(
-                    img_path='Val/Urban/images_png',
-                    seg_map_path='Val/Urban/masks_png'),
-                pipeline=val_pipeline)
-        ]))
+        type=dataset_type,
+        data_root=data_root,
+        data_prefix=dict(img_path='Val/images_png', seg_map_path='Val/masks_png'),
+        img_suffix='.png',
+        seg_map_suffix='.png',
+        pipeline=val_pipeline))
 
 val_evaluator = dict(type='IoUMetric', iou_metrics=['mIoU'])
 
@@ -98,6 +81,7 @@ param_scheduler = [
 
 # 6. 移除模型中关于ImageNet预训练的定义
 model = dict(backbone=dict(init_cfg=None))
+
 
 # 7. 运行时设置
 default_scope = 'mmseg'
