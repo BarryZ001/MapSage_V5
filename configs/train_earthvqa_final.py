@@ -4,10 +4,28 @@
 _base_ = './final_standalone_config.py'
 
 # --- 2. 核心参数定义 ---
-num_classes = 8
+# 根据EarthVQA官方文档：8个有效类别(1-8) + no-data区域(0) = 9个索引
+num_classes = 9
 crop_size = (512, 512)
 data_root = '/kaggle/input/2024earthvqa/2024EarthVQA'
 dataset_type = 'BaseSegDataset'
+
+# --- 2.1 模型配置覆盖 ---
+# 覆盖基础配置中的解码头类别数量和数据预处理器
+model = dict(
+    data_preprocessor=dict(
+        type='SegDataPreProcessor',
+        size=crop_size,
+        # EarthVQA数据集特定的标准化参数
+        mean=[73.53223947628777, 80.01710095339912, 74.59297778068898],
+        std=[41.511366098369635, 35.66528876209687, 33.75830885257866],
+        bgr_to_rgb=True,
+        pad_val=0,
+        seg_pad_val=255),
+    decode_head=dict(
+        num_classes=num_classes
+    )
+)
 
 # --- 3. 训练数据增强流程 (完全复刻自您成功的v79.1配置) ---
 train_pipeline = [
@@ -32,7 +50,7 @@ train_dataloader = dict(
         data_prefix=dict(img_path='Train/images_png', seg_map_path='Train/masks_png'),
         img_suffix='.png',
         seg_map_suffix='.png',
-        metainfo=dict(classes=('background', 'building', 'road', 'water', 'barren', 'forest', 'agricultural', 'playground')),
+        metainfo=dict(classes=('background', 'building', 'road', 'water', 'barren', 'forest', 'agriculture', 'playground')),
         pipeline=train_pipeline))
 
 # --- 5. 验证组件 ---
@@ -53,7 +71,7 @@ val_dataloader = dict(
         data_prefix=dict(img_path='Val/images_png', seg_map_path='Val/masks_png'),
         img_suffix='.png',
         seg_map_suffix='.png',
-        metainfo=dict(classes=('background', 'building', 'road', 'water', 'barren', 'forest', 'agricultural', 'playground')),
+        metainfo=dict(classes=('background', 'building', 'road', 'water', 'barren', 'forest', 'agriculture', 'playground')),
         pipeline=val_pipeline))
 val_evaluator = dict(type='IoUMetric')
 
