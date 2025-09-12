@@ -31,13 +31,13 @@ train_dataset = dict(
         dict(
             type=dataset_type,
             data_root=data_root,
-            data_prefix=dict(img_path='Train/Rural/images_png', seg_path='Train/Rural/masks_png'),
+            data_prefix=dict(img_path='Train/Rural/images_png', seg_map_path='Train/Rural/masks_png'),
             pipeline=train_pipeline
         ),
         dict(
             type=dataset_type,
             data_root=data_root,
-            data_prefix=dict(img_path='Train/Urban/images_png', seg_path='Train/Urban/masks_png'),
+            data_prefix=dict(img_path='Train/Urban/images_png', seg_map_path='Train/Urban/masks_png'),
             pipeline=train_pipeline
         )
     ]
@@ -49,13 +49,13 @@ val_dataset = dict(
         dict(
             type=dataset_type,
             data_root=data_root,
-            data_prefix=dict(img_path='Val/Rural/images_png', seg_path='Val/Rural/masks_png'),
+            data_prefix=dict(img_path='Val/Rural/images_png', seg_map_path='Val/Rural/masks_png'),
             pipeline=test_pipeline
         ),
         dict(
             type=dataset_type,
             data_root=data_root,
-            data_prefix=dict(img_path='Val/Urban/images_png', seg_path='Val/Urban/masks_png'),
+            data_prefix=dict(img_path='Val/Urban/images_png', seg_map_path='Val/Urban/masks_png'),
             pipeline=test_pipeline
         )
     ]
@@ -84,10 +84,13 @@ val_evaluator = dict(type='IoUMetric', iou_metrics=['mIoU'])
 # --- 6. 训练策略 ---
 train_cfg = dict(type='IterBasedTrainLoop', max_iters=40000, val_interval=4000)
 val_cfg = dict(type='ValLoop')
+test_cfg = dict(type='TestLoop')
+
 optim_wrapper = dict(
     type='OptimWrapper',
     optimizer=dict(type='AdamW', lr=1e-4, betas=(0.9, 0.999), weight_decay=0.05)
 )
+
 param_scheduler = [
     dict(type='LinearLR', start_factor=1e-6, by_epoch=False, begin=0, end=1500),
     dict(type='PolyLR', eta_min=0.0, power=1.0, begin=1500, end=40000, by_epoch=False)
@@ -102,8 +105,8 @@ backbone = dict(
     out_type='featmap',
     init_cfg=dict(
         type='Pretrained',
-        checkpoint='/kaggle/input/dinov3-vitl16-pretrain/dinov3_vitl16_pretrain_sat493m-eadcf0ff.pth',
-        prefix='backbone.'
+        checkpoint='/kaggle/input/dinov3-vitl16-pretrain/dinov3_vitl16_pretrain_sat493m-eadcf0ff.pth'
+        # === 关键修改：移除了 prefix='backbone.' 这一行 ===
     )
 )
 
@@ -145,3 +148,4 @@ default_hooks = dict(
 log_level = 'INFO'
 load_from = None
 resume = False
+work_dir = './work_dirs/train_dinov3_backbone'
