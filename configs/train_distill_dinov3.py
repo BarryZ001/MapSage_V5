@@ -9,7 +9,7 @@ crop_size = (512, 512)
 data_root = '/kaggle/input/loveda'
 dataset_type = 'LoveDADataset'
 
-# --- 3. 数据增强与加载器 (复刻自您成功的v79.1配置) ---
+# --- 3. 数据增强与加载器 ---
 train_pipeline = [
     dict(type='LoadImageFromFile'),
     dict(type='LoadAnnotations'),
@@ -67,7 +67,6 @@ teacher_model = dict(
 
 student_model = dict(
     type='EncoderDecoder',
-    # === 关键修改：直接在此处完整定义 data_preprocessor ===
     data_preprocessor=dict(
         type='SegDataPreProcessor',
         mean=[73.53223947628777, 80.01710095339912, 74.59297778068898],
@@ -75,7 +74,7 @@ student_model = dict(
         bgr_to_rgb=True,
         pad_val=0,
         seg_pad_val=255,
-        size=(512, 512) # 确保训练时有size
+        size=(512, 512)
     ),
     backbone=_base_.model.backbone,
     decode_head=dict(
@@ -106,6 +105,9 @@ model = dict(
         )
     )
 )
+
+# === 关键修改：补上缺失的顶层 test_cfg ===
+test_cfg = dict(type='TestLoop')
 
 # --- 7. 运行时设置 ---
 default_scope = 'mmseg'
