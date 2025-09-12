@@ -110,11 +110,7 @@ backbone = dict(
     final_norm=False,
     out_indices=[23],  # Last layer output for ViT-Large
     frozen_stages=20,
-    init_cfg=dict(
-        type='Pretrained',
-        checkpoint='/kaggle/input/dinov3-vitl16-pretrain/dinov3_vitl16_pretrain_sat493m-eadcf0ff.pth',
-        prefix=''
-    )
+    init_cfg=dict(type='Normal', layer='Linear', std=0.01)
 )
 
 # 解码头
