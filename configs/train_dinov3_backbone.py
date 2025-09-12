@@ -1,15 +1,12 @@
-# configs/train_dinov3_backbone.py (最终修正版)
+# configs/train_dinov3_backbone.py (完全独立版本)
 
-# --- 1. 基础配置 ---
-_base_ = './final_standalone_config.py' 
-
-# --- 2. 核心参数定义 ---
+# --- 1. 核心参数定义 ---
 num_classes = 7
-crop_size = (512, 512) 
+crop_size = (512, 512)
 data_root = '/kaggle/input/loveda'
 dataset_type = 'LoveDADataset'
 
-# --- 3. 数据增强与加载器 (与之前成功配置一致) ---
+# --- 2. 数据增强管道 ---
 train_pipeline = [
     dict(type='LoadImageFromFile'),
     dict(type='LoadAnnotations'),
@@ -19,37 +16,89 @@ train_pipeline = [
     dict(type='PhotoMetricDistortion'),
     dict(type='PackSegInputs')
 ]
+
+test_pipeline = [
+    dict(type='LoadImageFromFile'),
+    dict(type='Resize', scale=(1024, 1024), keep_ratio=True),
+    dict(type='LoadAnnotations'),
+    dict(type='PackSegInputs')
+]
+
+# --- 3. 数据集定义 ---
+train_dataset = dict(
+    type='ConcatDataset',
+    datasets=[
+        dict(
+            type=dataset_type,
+            data_root=data_root,
+            data_prefix=dict(img_path='Train/Rural/images_png', seg_path='Train/Rural/masks_png'),
+            pipeline=train_pipeline
+        ),
+        dict(
+            type=dataset_type,
+            data_root=data_root,
+            data_prefix=dict(img_path='Train/Urban/images_png', seg_path='Train/Urban/masks_png'),
+            pipeline=train_pipeline
+        )
+    ]
+)
+
+val_dataset = dict(
+    type='ConcatDataset',
+    datasets=[
+        dict(
+            type=dataset_type,
+            data_root=data_root,
+            data_prefix=dict(img_path='Val/Rural/images_png', seg_path='Val/Rural/masks_png'),
+            pipeline=test_pipeline
+        ),
+        dict(
+            type=dataset_type,
+            data_root=data_root,
+            data_prefix=dict(img_path='Val/Urban/images_png', seg_path='Val/Urban/masks_png'),
+            pipeline=test_pipeline
+        )
+    ]
+)
+
+# --- 4. 数据加载器 ---
 train_dataloader = dict(
-    batch_size=1, 
+    batch_size=1,
     num_workers=2,
     persistent_workers=True,
     sampler=dict(type='InfiniteSampler', shuffle=True),
-    dataset=_base_.test_dataloader.dataset)
-train_dataloader['dataset']['datasets'][0]['pipeline'] = train_pipeline
-train_dataloader['dataset']['datasets'][1]['pipeline'] = train_pipeline
+    dataset=train_dataset
+)
 
-# 验证组件保持不变
-val_dataloader = _base_.test_dataloader
-val_evaluator = _base_.test_evaluator
+val_dataloader = dict(
+    batch_size=1,
+    num_workers=2,
+    persistent_workers=True,
+    sampler=dict(type='DefaultSampler', shuffle=False),
+    dataset=val_dataset
+)
 
-# --- 4. 训练策略 ---
+# --- 5. 评估器 ---
+val_evaluator = dict(type='IoUMetric', iou_metrics=['mIoU'])
+
+# --- 6. 训练策略 ---
 train_cfg = dict(type='IterBasedTrainLoop', max_iters=40000, val_interval=4000)
 val_cfg = dict(type='ValLoop')
 optim_wrapper = dict(
     type='OptimWrapper',
-    optimizer=dict(type='AdamW', lr=1e-4, betas=(0.9, 0.999), weight_decay=0.05))
+    optimizer=dict(type='AdamW', lr=1e-4, betas=(0.9, 0.999), weight_decay=0.05)
+)
 param_scheduler = [
     dict(type='LinearLR', start_factor=1e-6, by_epoch=False, begin=0, end=1500),
     dict(type='PolyLR', eta_min=0.0, power=1.0, begin=1500, end=40000, by_epoch=False)
 ]
 
-# --- 5. 关键：定义新的模型架构 ---
-# 骨干网络 (Backbone)
+# --- 7. 模型架构 ---
 backbone = dict(
     type='mmpretrain.VisionTransformer',
     arch='l',
     patch_size=16,
-    frozen_stages=20, 
+    frozen_stages=20,
     out_type='featmap',
     init_cfg=dict(
         type='Pretrained',
@@ -58,10 +107,9 @@ backbone = dict(
     )
 )
 
-# 解码头 (Decode Head)
 decode_head = dict(
     type='SegformerHead',
-    in_channels=[1024, 1024, 1024, 1024], 
+    in_channels=[1024, 1024, 1024, 1024],
     in_index=[0, 1, 2, 3],
     channels=256,
     num_classes=num_classes,
@@ -73,10 +121,8 @@ decode_head = dict(
     ]
 )
 
-# === 关键修改：直接在此处完整定义 model 字典 ===
 model = dict(
     type='EncoderDecoder',
-    # 明确地、完整地定义 data_preprocessor
     data_preprocessor=dict(
         type='SegDataPreProcessor',
         mean=[73.53223947628777, 80.01710095339912, 74.59297778068898],
@@ -84,17 +130,18 @@ model = dict(
         bgr_to_rgb=True,
         pad_val=0,
         seg_pad_val=255,
-        size=(512, 512) # 确保训练时有size
+        size=crop_size
     ),
     backbone=backbone,
     decode_head=decode_head,
-    test_cfg=dict(mode='slide', crop_size=(512, 512), stride=(341, 341))
+    test_cfg=dict(mode='slide', crop_size=crop_size, stride=(341, 341))
 )
 
-# --- 6. 运行时设置 ---
+# --- 8. 运行时设置 ---
 default_scope = 'mmseg'
 default_hooks = dict(
-    checkpoint=dict(type='CheckpointHook', by_epoch=False, interval=4000, save_best='mIoU'))
+    checkpoint=dict(type='CheckpointHook', by_epoch=False, interval=4000, save_best='mIoU')
+)
 log_level = 'INFO'
 load_from = None
 resume = False
