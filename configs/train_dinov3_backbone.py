@@ -102,21 +102,26 @@ param_scheduler = [
 # --- 7. 模型架构 ---
 # 骨干网络
 backbone = dict(
-    type='mmpretrain.TIMMBackbone',
-    model_name='vit_large_patch16_224.dinov2.lvd142m',
-    pretrained=True,
+    type='mmpretrain.VisionTransformer',
+    arch='l',
+    patch_size=16,
+    out_type='featmap',
+    pre_norm=True,
+    final_norm=False,
+    out_indices=[23],  # Last layer output for ViT-Large
+    frozen_stages=20,
     init_cfg=dict(
         type='Pretrained',
-        checkpoint='/kaggle/input/dinov3-vitl16-pretrain/dinov3_vitl16_pretrain_sat493m-eadcf0ff.pth'
-    ),
-    frozen_stages=20
+        checkpoint='/kaggle/input/dinov3-vitl16-pretrain/dinov3_vitl16_pretrain_sat493m-eadcf0ff.pth',
+        prefix=''
+    )
 )
 
 # 解码头
 decode_head = dict(
     type='SegformerHead',
     in_channels=1024,
-    in_index=3,
+    in_index=0,  # Use the single output from VisionTransformer
     channels=256,
     num_classes=num_classes,
     norm_cfg=dict(type='SyncBN', requires_grad=True),
