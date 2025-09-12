@@ -4,7 +4,7 @@ import argparse
 import os
 from mmengine.config import Config
 from mmengine.runner import Runner
-from mmseg.utils import register_all_modules
+from mmseg.utils import register_all_modules  # type: ignore
 
 def main():
     parser = argparse.ArgumentParser(description='MMSegmentation training script')
