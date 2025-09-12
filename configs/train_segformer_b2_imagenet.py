@@ -2,7 +2,7 @@
 
 _base_ = './final_standalone_config.py'
 
-data_root = '/kaggle/input/loveda'
+data_root = '/data/datasets/loveda_dataset'
 dataset_type = 'LoveDADataset'
 
 train_pipeline = [
