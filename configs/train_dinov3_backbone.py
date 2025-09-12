@@ -119,10 +119,13 @@ backbone = dict(
 
 # 解码头
 decode_head = dict(
-    type='SegformerHead',
+    type='FCNHead',
     in_channels=1024,
-    in_index=0,  # Use the single output from VisionTransformer
+    in_index=0,
     channels=256,
+    num_convs=1,
+    concat_input=False,
+    dropout_ratio=0.1,
     num_classes=num_classes,
     norm_cfg=dict(type='SyncBN', requires_grad=True),
     align_corners=False,
