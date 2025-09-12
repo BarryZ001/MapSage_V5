@@ -1,4 +1,4 @@
-# configs/train_dinov3_backbone.py (完全独立版本)
+# configs/train_dinov3_backbone.py (最终修正版)
 
 # --- 1. 核心参数定义 ---
 num_classes = 7
@@ -84,6 +84,7 @@ val_evaluator = dict(type='IoUMetric', iou_metrics=['mIoU'])
 # --- 6. 训练策略 ---
 train_cfg = dict(type='IterBasedTrainLoop', max_iters=40000, val_interval=4000)
 val_cfg = dict(type='ValLoop')
+# === 关键修改：补上缺失的顶层 test_cfg ===
 test_cfg = dict(type='TestLoop')
 
 optim_wrapper = dict(
@@ -106,7 +107,6 @@ backbone = dict(
     init_cfg=dict(
         type='Pretrained',
         checkpoint='/kaggle/input/dinov3-vitl16-pretrain/dinov3_vitl16_pretrain_sat493m-eadcf0ff.pth'
-        # === 关键修改：移除了 prefix='backbone.' 这一行 ===
     )
 )
 
