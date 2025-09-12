@@ -38,37 +38,30 @@ val_cfg = dict(type='ValLoop')
 optim_wrapper = dict(
     type='OptimWrapper',
     optimizer=dict(type='AdamW', lr=1e-4, betas=(0.9, 0.999), weight_decay=0.05))
-
 param_scheduler = [
     dict(type='LinearLR', start_factor=1e-6, by_epoch=False, begin=0, end=1500),
     dict(type='PolyLR', eta_min=0.0, power=1.0, begin=1500, end=40000, by_epoch=False)
 ]
 
 # --- 5. 关键：定义新的模型架构 ---
-# 骨干网络 (Backbone) - 使用TIMMBackbone作为桥梁
+# 骨干网络 (Backbone)
 backbone = dict(
-    type='mmpretrain.TIMMBackbone',
-    # 指定DINOv3 ViT-Large的模型名称
-    model_name='vit_large_patch16_224.dinov2.lvd142m', 
-    # 关键：指定从您的本地文件加载预训练权重
-    pretrained=True,
+    type='mmpretrain.VisionTransformer',
+    arch='l',
+    patch_size=16,
+    frozen_stages=20, 
+    out_type='featmap',
     init_cfg=dict(
         type='Pretrained',
-        checkpoint=dict(
-            prefix='backbone.',
-            filename='/kaggle/input/dinov3-vitl16-pretrain/dinov3_vitl16_pretrain_sat493m-eadcf0ff.pth'
-        )
-    ),
-    # 冻结几乎所有层以防止过拟合
-    frozen_stages=20
+        checkpoint='/kaggle/input/dinov3-vitl16-pretrain/dinov3_vitl16_pretrain_sat493m-eadcf0ff.pth'
+    )
 )
 
 # 解码头 (Decode Head)
 decode_head = dict(
     type='SegformerHead',
-    # DINOv3 ViT-Large的特征维度是1024
-    in_channels=1024, 
-    in_index=3, # TIMMBackbone通常只输出最后一层的特征
+    in_channels=[1024, 1024, 1024, 1024], 
+    in_index=[0, 1, 2, 3],
     channels=256,
     num_classes=num_classes,
     norm_cfg=dict(type='SyncBN', requires_grad=True),
@@ -79,10 +72,19 @@ decode_head = dict(
     ]
 )
 
-# 最终模型
+# === 关键修改：直接在此处完整定义 model 字典 ===
 model = dict(
     type='EncoderDecoder',
-    data_preprocessor=_base_.model.data_preprocessor,
+    # 明确地、完整地定义 data_preprocessor
+    data_preprocessor=dict(
+        type='SegDataPreProcessor',
+        mean=[73.53223947628777, 80.01710095339912, 74.59297778068898],
+        std=[41.511366098369635, 35.66528876209687, 33.75830885257866],
+        bgr_to_rgb=True,
+        pad_val=0,
+        seg_pad_val=255,
+        size=(512, 512) # 确保训练时有size
+    ),
     backbone=backbone,
     decode_head=decode_head,
     test_cfg=_base_.model.test_cfg
