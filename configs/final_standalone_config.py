@@ -69,7 +69,7 @@ test_evaluator = dict(type='IoUMetric')
 data = dict(
     test=dict(
         type='LoveDADataset',
-        data_root='/kaggle/input/loveda',
+        data_root='/data/datasets/loveda_dataset',
         data_prefix=dict(img_path='Val/Rural/images_png', seg_map_path='Val/Rural/masks_png'),
         pipeline=test_pipeline
     )

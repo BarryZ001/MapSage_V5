@@ -160,7 +160,7 @@ def load_model(config, checkpoint):
 @st.cache_resource
 def load_earthvqa_model(config, checkpoint):
     """
-    使用MMSegmentation加载EarthVQA预训练模型。
+    使用MMSegmentation加载Model_v2预训练模型。
     """
     return _load_model_internal(config, checkpoint)
 
@@ -205,7 +205,7 @@ def load_dinov3_model(checkpoint_path):
             'type': 'segmentation_model'
         }
         
-        st.success("✅ DINOv3分割模型权重加载成功")
+        st.success("✅ Model_v3分割模型权重加载成功")
         return model_info
         
     except Exception as e:
@@ -311,7 +311,7 @@ def _load_model_internal(config, checkpoint):
                 else:
                     model.CLASSES = ['背景', '建筑', '道路', '水体', '贫瘠土地', '森林', '农业']
             
-            st.success("✅ SegFormer模型加载成功")
+            st.success("✅ Model_v1模型加载成功")
             return model
         else:
             st.error("❌ init_segmentor函数不可用")
@@ -347,7 +347,7 @@ def run_inference(model, image_np):
             # EarthVQA预训练模型使用ImageNet标准参数（从官方项目确认）
             mean = np.array([123.675, 116.28, 103.53], dtype=np.float32)
             std = np.array([58.395, 57.12, 57.375], dtype=np.float32)
-            st.info("🔧 使用EarthVQA官方归一化参数: ImageNet标准")
+            st.info("🔧 使用Model_v2官方归一化参数: ImageNet标准")
         else:
             # 检查模型是否有data_preprocessor配置
             if hasattr(model, 'data_preprocessor') and hasattr(model.data_preprocessor, 'mean'):
@@ -417,283 +417,83 @@ def run_inference(model, image_np):
 
 def run_inference_tta(model, image_np, config, device):
     """
-    执行TTA推理，支持多尺度和翻转增强
-    
+    执行TTA（测试时增强）推理，以提高分割准确性。
+    此版本通过对原始图像和水平翻转图像的预测结果进行平均，来减少模型预测的偏差。
+
     Args:
-        model: 加载的MMSegmentation模型
-        image_np: 输入图像 (numpy array, HWC格式)
-        config: 模型配置
-        device: 推理设备
-    
+        model: 加载的MMSegmentation模型。
+        image_np (np.ndarray): 输入图像，格式为HWC。
+        config: 模型配置。
+        device: 推理设备（'cuda'或'cpu'）。
+
     Returns:
-        numpy array: 融合后的分割结果
+        np.ndarray: 融合TTA结果后的最终分割图，或在出错时返回None。
     """
     try:
-        # 在函数内部导入必要的库
-        import cv2 as cv2_local
-        import torch as torch_local
-        
-        # TTA配置：更多样化的变换组合打破对称性
-        scales = [0.9, 1.0, 1.1]  # 多尺度
-        transforms = [
-            {'h_flip': False, 'v_flip': False, 'rotate': 0},    # 原始
-            {'h_flip': True, 'v_flip': False, 'rotate': 0},     # 水平翻转
-            {'h_flip': False, 'v_flip': True, 'rotate': 0},     # 垂直翻转
-            {'h_flip': False, 'v_flip': False, 'rotate': 90},   # 90度旋转
-            {'h_flip': True, 'v_flip': True, 'rotate': 0},      # 双向翻转
-        ]
-        tta_results = []
-        
-        st.info(f"🔄 开始TTA推理，共 {len(scales) * len(transforms)} 个变换组合")
-        
-        # 获取数据预处理配置
-        # 检查是否为EarthVQA预训练模型
-        is_earthvqa_model = False
-        if hasattr(config, 'filename') and config.filename:
-            is_earthvqa_model = 'earthvqa' in str(config.filename).lower() or 'sfpnr50' in str(config.filename).lower()
-        
-        if is_earthvqa_model:
-            # EarthVQA预训练模型使用ImageNet标准参数
-            mean = np.array([123.675, 116.28, 103.53], dtype=np.float32)
-            std = np.array([58.395, 57.12, 57.375], dtype=np.float32)
-            st.info("🔧 TTA使用EarthVQA官方归一化参数: ImageNet标准")
-        else:
-            # 获取其他模型的归一化配置
-            normalize_cfg = config.get('img_norm_cfg', {})
-            if not normalize_cfg:
-                # 使用自训练模型的归一化参数
-                mean = np.array([73.53223947628777, 80.01710095339912, 74.59297778068898], dtype=np.float32)
-                std = np.array([41.511366098369635, 35.66528876209687, 33.75830885257866], dtype=np.float32)
-            else:
-                mean = np.array(normalize_cfg['mean'], dtype=np.float32)
-                std = np.array(normalize_cfg['std'], dtype=np.float32)
+        import cv2
+        import torch
+        import torch.nn.functional as F
+        import numpy as np
+        import streamlit as st
+        import traceback
+
+        model.eval() # 确保模型处于评估模式
+
+        scales = [0.75, 1.0, 1.25]
+        h_flip = True
         
         original_h, original_w = image_np.shape[:2]
         
-        # 遍历所有尺度和变换组合
-        for i, scale in enumerate(scales):
-            for j, transform in enumerate(transforms):
-                combo_idx = i * len(transforms) + j + 1
-                total_combos = len(scales) * len(transforms)
-                st.write(f"处理组合 {combo_idx}/{total_combos}: 尺度={scale}, 变换={transform}")
-                # 1. 尺度变换
-                if scale != 1.0:
-                    new_h = int(original_h * scale)
-                    new_w = int(original_w * scale)
-                    scaled_image = cv2_local.resize(image_np, (new_w, new_h), interpolation=cv2_local.INTER_LINEAR)
-                else:
-                    scaled_image = image_np.copy()
-                
-                # 2. 应用变换
-                processed_image = scaled_image.copy()
-                
-                # 水平翻转
-                if transform['h_flip']:
-                    processed_image = cv2_local.flip(processed_image, 1)
-                
-                # 垂直翻转
-                if transform['v_flip']:
-                    processed_image = cv2_local.flip(processed_image, 0)
-                
-                # 旋转
-                if transform['rotate'] != 0:
-                    h, w = processed_image.shape[:2]
-                    center = (w // 2, h // 2)
-                    rotation_matrix = cv2_local.getRotationMatrix2D(center, transform['rotate'], 1.0)
-                    processed_image = cv2_local.warpAffine(processed_image, rotation_matrix, (w, h))
-                
-                # 3. 数据预处理
-                # 归一化
-                image_normalized = (processed_image.astype(np.float32) - mean) / std
-                # HWC -> CHW
-                image_transposed = image_normalized.transpose(2, 0, 1)
-                # 转换为PyTorch Tensor
-                image_tensor = torch_local.from_numpy(image_transposed).unsqueeze(0).to(device)
-                
-                # 4. 创建元数据
-                meta_dict = {
-                    'ori_shape': (original_h, original_w, 3),
-                    'img_shape': processed_image.shape,
-                    'pad_shape': processed_image.shape,
-                    'scale_factor': scale,
-                    'flip': transform['h_flip'] or transform['v_flip'],
-                    'flip_direction': 'horizontal' if transform['h_flip'] else ('vertical' if transform['v_flip'] else None)
-                }
-                
-                # 5. 模型推理
-                with torch_local.no_grad():
-                    result = model(
-                        img=[image_tensor],
-                        img_metas=[[meta_dict]],
-                        return_loss=False
-                    )
-                
-                # 6. 后处理：获取分割结果
-                seg_logits = result[0]  # 模型输出的logits
-                
-                # 转换为numpy
-                if hasattr(seg_logits, 'cpu'):
-                    seg_logits = seg_logits.cpu().numpy()
-                
-                # 如果是多类别预测，取argmax
-                if len(seg_logits.shape) == 3:  # (C, H, W)
-                    seg_map = np.argmax(seg_logits, axis=0)
-                else:  # 已经是(H, W)
-                    seg_map = seg_logits
-                
-                # 如果有变换，需要在分割图层面逆变换回来
-                # 注意：逆变换的顺序与正变换相反
-                
-                # 逆旋转
-                if transform['rotate'] != 0:
-                    h, w = seg_map.shape[:2]
-                    center = (w // 2, h // 2)
-                    rotation_matrix = cv2_local.getRotationMatrix2D(center, -transform['rotate'], 1.0)
-                    seg_map = cv2_local.warpAffine(seg_map.astype(np.uint8), rotation_matrix, (w, h), flags=cv2_local.INTER_NEAREST).astype(seg_map.dtype)
-                
-                # 逆垂直翻转
-                if transform['v_flip']:
-                    seg_map = cv2_local.flip(seg_map.astype(np.uint8), 0).astype(seg_map.dtype)
-                
-                # 逆水平翻转
-                if transform['h_flip']:
-                    seg_map = cv2_local.flip(seg_map.astype(np.uint8), 1).astype(seg_map.dtype)
-                
-                # 如果有缩放，需要缩放回原始尺寸
-                if scale != 1.0:
-                    seg_map = cv2_local.resize(
-                        seg_map.astype(np.uint8), 
-                        (original_w, original_h), 
-                        interpolation=cv2_local.INTER_NEAREST
-                    )
-                
-                tta_results.append(seg_map.astype(np.uint8))
-        
-        # 7. TTA结果融合：使用概率平均而非投票机制避免对称问题 <mcreference link="https://github.com/qubvel/ttach" index="1">1</mcreference>
-        if len(tta_results) == 0:
-            return None
+        normalize_cfg = config.get('img_norm_cfg', {})
+        mean = np.array(normalize_cfg.get('mean', [123.675, 116.28, 103.53]), dtype=np.float32)
+        std = np.array(normalize_cfg.get('std', [58.395, 57.12, 57.375]), dtype=np.float32)
+
+        all_logits = []
+
+        images_to_process = [{'img': image_np, 'flip': False}]
+        if h_flip:
+            images_to_process.append({'img': cv2.flip(image_np, 1), 'flip': True})
+
+        for item in images_to_process:
+            img_to_proc = item['img']
+            is_flipped = item['flip']
             
-        # 重新收集logits而非分割图进行融合
-        st.info("🔄 重新执行TTA以收集logits进行概率融合...")
-        tta_logits = []
-        
-        # 重新遍历所有尺度和变换组合，这次收集logits
-        for i, scale in enumerate(scales):
-            for j, transform in enumerate(transforms):
-                # 1. 尺度变换
-                if scale != 1.0:
-                    new_h = int(original_h * scale)
-                    new_w = int(original_w * scale)
-                    scaled_image = cv2_local.resize(image_np, (new_w, new_h), interpolation=cv2_local.INTER_LINEAR)
-                else:
-                    scaled_image = image_np.copy()
+            for scale in scales:
+                st.write(f"处理中：尺度={scale}, 翻转={is_flipped}")
                 
-                # 2. 应用变换
-                processed_image = scaled_image.copy()
+                new_h, new_w = int(original_h * scale), int(original_w * scale)
+                img_scaled = cv2.resize(img_to_proc, (new_w, new_h), interpolation=cv2.INTER_LINEAR)
+
+                img_norm = (img_scaled.astype(np.float32) - mean) / std
+                img_tensor = torch.from_numpy(img_norm.transpose(2, 0, 1)).unsqueeze(0).to(device)
                 
-                # 水平翻转
-                if transform['h_flip']:
-                    processed_image = cv2_local.flip(processed_image, 1)
-                
-                # 垂直翻转
-                if transform['v_flip']:
-                    processed_image = cv2_local.flip(processed_image, 0)
-                
-                # 旋转
-                if transform['rotate'] != 0:
-                    h, w = processed_image.shape[:2]
-                    center = (w // 2, h // 2)
-                    rotation_matrix = cv2_local.getRotationMatrix2D(center, transform['rotate'], 1.0)
-                    processed_image = cv2_local.warpAffine(processed_image, rotation_matrix, (w, h))
-                
-                # 3. 数据预处理
-                image_normalized = (processed_image.astype(np.float32) - mean) / std
-                image_transposed = image_normalized.transpose(2, 0, 1)
-                image_tensor = torch_local.from_numpy(image_transposed).unsqueeze(0).to(device)
-                
-                # 4. 创建元数据
-                meta_dict = {
+                meta = [{
                     'ori_shape': (original_h, original_w, 3),
-                    'img_shape': processed_image.shape,
-                    'pad_shape': processed_image.shape,
-                    'scale_factor': scale,
-                    'flip': transform['h_flip'] or transform['v_flip'],
-                    'flip_direction': 'horizontal' if transform['h_flip'] else ('vertical' if transform['v_flip'] else None)
-                }
-                
-                # 5. 模型推理
-                with torch_local.no_grad():
-                    result = model(
-                        img=[image_tensor],
-                        img_metas=[[meta_dict]],
-                        return_loss=False
-                    )
-                
-                # 6. 获取logits并处理维度
-                seg_logits = result[0]
-                if hasattr(seg_logits, 'cpu'):
-                    seg_logits = seg_logits.cpu().numpy()
-                
-                # 确保logits是3维 (C, H, W)
-                if len(seg_logits.shape) == 4:  # (1, C, H, W)
-                    seg_logits = seg_logits[0]  # 去掉batch维度
-                elif len(seg_logits.shape) == 2:  # (H, W) - 已经是分割图
-                    # 如果模型直接输出分割图，我们需要转换为概率形式
-                    num_classes = int(seg_logits.max()) + 1
-                    one_hot = np.eye(num_classes)[seg_logits.astype(int)]
-                    seg_logits = one_hot.transpose(2, 0, 1)  # (C, H, W)
-                
-                # 如果有变换，需要在logits层面逆变换回来
-                # 注意：逆变换的顺序与正变换相反
-                
-                # 逆旋转
-                if transform['rotate'] != 0:
-                    # 对每个类别通道分别进行逆旋转
-                    rotated_logits = []
-                    for c in range(seg_logits.shape[0]):
-                        channel_data = seg_logits[c].astype(np.float32)
-                        h, w = channel_data.shape
-                        center = (w // 2, h // 2)
-                        rotation_matrix = cv2_local.getRotationMatrix2D(center, -transform['rotate'], 1.0)
-                        rotated_channel = cv2_local.warpAffine(channel_data, rotation_matrix, (w, h), flags=cv2_local.INTER_LINEAR)
-                        rotated_logits.append(rotated_channel)
-                    seg_logits = np.stack(rotated_logits, axis=0)
-                
-                # 逆垂直翻转
-                if transform['v_flip']:
-                    seg_logits = np.flip(seg_logits, axis=1)  # 在高度维度翻转
-                
-                # 逆水平翻转
-                if transform['h_flip']:
-                    seg_logits = np.flip(seg_logits, axis=2)  # 在宽度维度翻转
-                
-                # 如果有缩放，需要缩放回原始尺寸
-                if scale != 1.0:
-                    # 对每个类别通道分别进行缩放
-                    resized_logits = []
-                    for c in range(seg_logits.shape[0]):
-                        channel_data = seg_logits[c].astype(np.float32)
-                        resized_channel = cv2_local.resize(
-                            channel_data, 
-                            (original_w, original_h), 
-                            interpolation=cv2_local.INTER_LINEAR
-                        )
-                        resized_logits.append(resized_channel)
-                    seg_logits = np.stack(resized_logits, axis=0)
-                
-                tta_logits.append(seg_logits)
+                    'img_shape': (new_h, new_w, 3),
+                    'pad_shape': (new_h, new_w, 3),
+                    'scale_factor': np.array([scale, scale, scale, scale], dtype=np.float32),
+                    'flip': is_flipped,
+                    'flip_direction': 'horizontal' if is_flipped else None
+                }]
+
+                with torch.no_grad():
+                    logits_np = model(img=[img_tensor], img_metas=[meta], return_loss=False)[0]
+                    logits = torch.from_numpy(logits_np).unsqueeze(0).to(device)
+
+                if is_flipped:
+                    logits = torch.flip(logits, dims=[3])
+
+                logits_resized = F.interpolate(logits, size=(original_h, original_w), mode='bilinear', align_corners=False)
+                all_logits.append(logits_resized.cpu())
+
+        st.info(f"🔄 融合 {len(all_logits)} 个TTA结果...")
+        avg_logits = torch.mean(torch.stack(all_logits), dim=0)
         
-        # 平均所有logits <mcreference link="https://github.com/qubvel/ttach" index="1">1</mcreference>
-        averaged_logits = np.mean(tta_logits, axis=0)
+        final_seg_map = torch.argmax(avg_logits, dim=1).squeeze(0).numpy().astype(np.uint8)
         
-        # 从平均logits获取最终分割结果
-        if len(averaged_logits.shape) == 3:  # (C, H, W)
-            final_result = np.argmax(averaged_logits, axis=0)
-        else:  # 已经是(H, W)
-            final_result = averaged_logits
-        
-        return final_result.astype(np.uint8)
-        
+        st.success("✅ TTA推理完成！")
+        return final_seg_map
+
     except Exception as e:
         st.error(f"❌ TTA推理过程中出错: {str(e)}")
         st.error(f"详细错误信息: {traceback.format_exc()}")
@@ -753,7 +553,7 @@ def run_dinov3_inference(model_info, image_np):
             gray_image = image_np
         
         # 应用一些简单的特征提取（边缘检测等）
-        if CV2_AVAILABLE and 'cv2' in globals():
+        if CV2_AVAILABLE and cv2 is not None:
             # 使用Sobel算子进行边缘检测
             sobel_x = cv2.Sobel(gray_image.astype(np.float32), cv2.CV_64F, 1, 0, ksize=3)
             sobel_y = cv2.Sobel(gray_image.astype(np.float32), cv2.CV_64F, 0, 1, ksize=3)
@@ -832,7 +632,7 @@ def run_dinov3_segmentation(model_info, image_np):
             segmentation_map[red_mask] = 2  # 建筑物类别
         
         # 应用一些形态学操作来平滑结果
-        if CV2_AVAILABLE and 'cv2' in globals():
+        if CV2_AVAILABLE and cv2 is not None:
             kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
             segmentation_map = cv2.morphologyEx(segmentation_map, cv2.MORPH_CLOSE, kernel)
             segmentation_map = cv2.morphologyEx(segmentation_map, cv2.MORPH_OPEN, kernel)
@@ -902,7 +702,7 @@ def load_dinov3_official_model(checkpoint_path):
         model.load_state_dict(filtered_state_dict, strict=False)
         model.eval()
         
-        st.success(f"✅ DINOv3官方模型加载成功: {checkpoint_path}")
+        st.success(f"✅ Model_v3官方模型加载成功: {checkpoint_path}")
         return model
         
     except Exception as e:
@@ -944,7 +744,7 @@ def run_dinov3_official_segmentation(model, image_np):
         # 转换图像为tensor
         if len(image_np.shape) == 3:
             input_tensor = transform(image_np)
-            if hasattr(input_tensor, 'unsqueeze'):
+            if torch is not None and hasattr(input_tensor, 'unsqueeze'):
                 input_tensor = input_tensor.unsqueeze(0)
         else:
             # 灰度图像转RGB
@@ -999,10 +799,10 @@ def run_dinov3_official_segmentation(model, image_np):
                 feature_2d = features.view(-1).reshape(14, 14)  # 强制重塑为14x14
             
             # 将特征图调整到原图尺寸
-            if hasattr(F, 'interpolate') and hasattr(feature_2d, 'unsqueeze'):
+            if torch is not None and hasattr(torch.nn.functional, 'interpolate') and hasattr(feature_2d, 'unsqueeze'):
                 # 确保feature_2d是2D张量
                 if len(feature_2d.shape) == 2:
-                    feature_map = F.interpolate(
+                    feature_map = torch.nn.functional.interpolate(
                         feature_2d.unsqueeze(0).unsqueeze(0),  # 添加batch和channel维度
                         size=(original_h, original_w), 
                         mode='bilinear', 
@@ -1010,7 +810,7 @@ def run_dinov3_official_segmentation(model, image_np):
                     ).squeeze().detach().numpy()
                 else:
                     # 如果已经有额外维度，直接使用
-                    feature_map = F.interpolate(
+                    feature_map = torch.nn.functional.interpolate(
                         feature_2d.unsqueeze(0) if len(feature_2d.shape) == 3 else feature_2d,
                         size=(original_h, original_w), 
                         mode='bilinear', 
@@ -1090,7 +890,7 @@ if not config_exists or not checkpoint_exists:
         st.error(f"- 权重文件: {CHECKPOINT_FILE}")
     st.info("请按照README中的说明准备这些文件。")
 else:
-    st.success("✅ 自训练模型文件检查通过")
+    st.success("✅ Model_v1模型文件检查通过")
 
 if not earthvqa_config_exists or not earthvqa_checkpoint_exists:
     st.warning("⚠️ 缺少EarthVQA预训练模型文件:")
@@ -1100,14 +900,14 @@ if not earthvqa_config_exists or not earthvqa_checkpoint_exists:
         st.warning(f"- EarthVQA权重文件: {EARTHVQA_CHECKPOINT_FILE}")
     st.info("EarthVQA预训练权重可从官方仓库下载: https://github.com/Junjue-Wang/EarthVQA")
 else:
-    st.success("✅ EarthVQA预训练模型文件检查通过")
+    st.success("✅ Model_v2预训练模型文件检查通过")
 
 if not dinov3_checkpoint_exists:
     st.warning("⚠️ 缺少DINOv3 SAT 493M模型文件:")
     st.warning(f"- DINOv3权重文件: {DINOV3_CHECKPOINT_FILE}")
     st.info("DINOv3 SAT 493M预训练权重可从官方仓库下载: https://github.com/facebookresearch/dinov3")
 else:
-    st.success("✅ DINOv3 SAT 493M模型文件检查通过")
+    st.success("✅ Model_v3 SAT 493M模型文件检查通过")
 
 if MMSEG_AVAILABLE and config_exists and checkpoint_exists:
     st.info("⚠️ **注意**: 由于在CPU上进行滑窗推理，处理一张图片可能需要1-3分钟，请耐心等待。")
@@ -1123,7 +923,7 @@ with st.sidebar:
     
     st.markdown("---")
     st.header("ℹ️ 关于")
-    st.write("此应用用于快速验证在LoveDA数据集上训练的遥感分割模型的效果。")
+    st.write("此应用用于快速验证遥感影像数据集上训练的遥感分割模型的效果。")
     st.write(f"**模型性能**: mIoU = 84.96")
     st.write(f"**推理设备**: {DEVICE.upper()}")
     
@@ -1169,7 +969,7 @@ if uploaded_file is not None and MMSEG_AVAILABLE and config_exists and checkpoin
             except Exception as e:
                 st.error(f"无法加载掩码文件: {str(e)}")
             
-            st.subheader("🤖 第三行：自训练模型分割结果")
+            st.subheader("🤖 第三行：Model_v1模型分割结果")
             
             # TTA选项控制
             col1, col2 = st.columns([3, 1])
@@ -1187,7 +987,7 @@ if uploaded_file is not None and MMSEG_AVAILABLE and config_exists and checkpoin
             segmentation_map = None
             color_result_map = None
             
-            with st.spinner('🔄 自训练模型加载中... (首次运行较慢)'):
+            with st.spinner('🔄 Model_v1模型加载中... (首次运行较慢)'):
                 model = load_model(CONFIG_FILE, CHECKPOINT_FILE)
             
             if model is not None:
@@ -1203,7 +1003,7 @@ if uploaded_file is not None and MMSEG_AVAILABLE and config_exists and checkpoin
                     st.image(color_result_map, use_container_width=True, caption="自训练模型分割结果 (mIoU: 84.96)")
                     
                     # 显示详细信息（可折叠）
-                    with st.expander("🔍 查看自训练模型详细信息"):
+                    with st.expander("🔍 查看Model_v1模型详细信息"):
                         st.write(f"输出 `segmentation_map` 的形状: {segmentation_map.shape}")
                         st.write(f"数据类型: {segmentation_map.dtype}")
                         st.write(f"最小值: {np.min(segmentation_map)}")
@@ -1213,7 +1013,7 @@ if uploaded_file is not None and MMSEG_AVAILABLE and config_exists and checkpoin
                         st.write(f"唯一值总数: {len(unique_values)}")
                     
                     # 显示类别统计
-                    st.subheader("📈 自训练模型类别统计")
+                    st.subheader("📈 Model_v1模型类别统计")
                     stats = calculate_class_statistics(segmentation_map, CLASS_NAMES)
                     
                     # 转换为表格格式
@@ -1231,13 +1031,13 @@ if uploaded_file is not None and MMSEG_AVAILABLE and config_exists and checkpoin
             
             # 4. 第四行：EarthVQA预训练权重分割结果
             if earthvqa_config_exists and earthvqa_checkpoint_exists:
-                st.subheader("🌍 第四行：EarthVQA预训练权重分割结果")
+                st.subheader("🌍 第四行：Model_v2预训练权重分割结果")
                 
-                with st.spinner('🔄 EarthVQA预训练模型加载中...'):
+                with st.spinner('🔄 Model_v2预训练模型加载中...'):
                     earthvqa_model = load_earthvqa_model(EARTHVQA_CONFIG_FILE, EARTHVQA_CHECKPOINT_FILE)
                 
                 if earthvqa_model is not None:
-                    with st.spinner('⚙️ EarthVQA模型推理中，请稍候...'):
+                    with st.spinner('⚙️ Model_v2模型推理中，请稍候...'):
                         earthvqa_segmentation_map = run_inference(earthvqa_model, image_np)
                     
                     if earthvqa_segmentation_map is not None:
@@ -1245,7 +1045,7 @@ if uploaded_file is not None and MMSEG_AVAILABLE and config_exists and checkpoin
                         st.image(earthvqa_color_result_map, use_container_width=True, caption="EarthVQA预训练权重分割结果")
                         
                         # 显示详细信息（可折叠）
-                        with st.expander("🔍 查看EarthVQA模型详细信息"):
+                        with st.expander("🔍 查看Model_v2模型详细信息"):
                             st.write(f"输出 `segmentation_map` 的形状: {earthvqa_segmentation_map.shape}")
                             st.write(f"数据类型: {earthvqa_segmentation_map.dtype}")
                             st.write(f"最小值: {np.min(earthvqa_segmentation_map)}")
@@ -1255,7 +1055,7 @@ if uploaded_file is not None and MMSEG_AVAILABLE and config_exists and checkpoin
                             st.write(f"唯一值总数: {len(unique_values)}")
                         
                         # 显示类别统计
-                        st.subheader("📈 EarthVQA模型类别统计")
+                        st.subheader("📈 Model_v2模型类别统计")
                         earthvqa_stats = calculate_class_statistics(earthvqa_segmentation_map, EARTHVQA_CLASS_NAMES)
                         
                         # 转换为表格格式
@@ -1269,28 +1069,28 @@ if uploaded_file is not None and MMSEG_AVAILABLE and config_exists and checkpoin
                         
                         st.table(earthvqa_stats_data)
                     else:
-                        st.error("❌ EarthVQA模型推理失败")
+                        st.error("❌ Model_v2模型推理失败")
                 else:
-                    st.error("❌ EarthVQA模型加载失败")
+                    st.error("❌ Model_v2模型加载失败")
             else:
-                st.info("💡 要查看EarthVQA预训练权重的分割结果，请下载并放置EarthVQA模型文件")
+                st.info("💡 要查看Model_v2预训练权重的分割结果，请下载并放置Model_v2模型文件")
             
             # 5. 第五行：DINOv3 SAT 493M特征提取结果
             if dinov3_checkpoint_exists and DINOV3_AVAILABLE:
-                st.subheader("🤖 第五行：DINOv3 SAT 493M特征提取结果")
+                st.subheader("🤖 第五行：Model_v3 SAT 493M特征提取结果")
                 
-                with st.spinner('🔄 DINOv3 SAT 493M模型加载中...'):
+                with st.spinner('🔄 Model_v3 SAT 493M模型加载中...'):
                     dinov3_model = load_dinov3_model(DINOV3_CHECKPOINT_FILE)
                 
                 if dinov3_model is not None:
-                    with st.spinner('⚙️ DINOv3特征提取中，请稍候...'):
+                    with st.spinner('⚙️ Model_v3特征提取中，请稍候...'):
                         dinov3_feature_map, dinov3_features = run_dinov3_inference(dinov3_model, image_np)
                     
                     if dinov3_feature_map is not None:
                         st.image(dinov3_feature_map, use_container_width=True, caption="DINOv3 SAT 493M特征可视化")
                         
                         # 显示详细信息（可折叠）
-                        with st.expander("🔍 查看DINOv3模型详细信息"):
+                        with st.expander("🔍 查看Model_v3模型详细信息"):
                             st.write(f"特征向量维度: {dinov3_features.shape}")
                             st.write(f"特征数据类型: {dinov3_features.dtype}")
                             st.write(f"特征最小值: {np.min(dinov3_features):.4f}")
@@ -1299,7 +1099,7 @@ if uploaded_file is not None and MMSEG_AVAILABLE and config_exists and checkpoin
                             st.write(f"特征标准差: {np.std(dinov3_features):.4f}")
                         
                         # 显示特征统计
-                        st.subheader("📈 DINOv3特征统计")
+                        st.subheader("📈 Model_v3特征统计")
                         st.write("DINOv3模型提取的是高维特征表示，用于下游任务如分类、检测等。")
                         st.write(f"特征维度: {len(dinov3_features)}")
                         st.write(f"特征范围: [{np.min(dinov3_features):.4f}, {np.max(dinov3_features):.4f}]")
@@ -1315,13 +1115,13 @@ if uploaded_file is not None and MMSEG_AVAILABLE and config_exists and checkpoin
             
             # 6. 第六行：DINOv3 SAT 493M分割结果
             if dinov3_checkpoint_exists and DINOV3_AVAILABLE:
-                st.subheader("🤖 第六行：DINOv3 SAT 493M分割结果")
+                st.subheader("🤖 第六行：Model_v3 SAT 493M分割结果")
                 
-                with st.spinner('🔄 DINOv3分割模型加载中...'):
+                with st.spinner('🔄 Model_v3分割模型加载中...'):
                     dinov3_seg_model = load_dinov3_model(DINOV3_CHECKPOINT_FILE)
                 
                 if dinov3_seg_model is not None:
-                    with st.spinner('⚙️ DINOv3分割推理中，请稍候...'):
+                    with st.spinner('⚙️ Model_v3分割推理中，请稍候...'):
                         dinov3_segmentation_map = run_dinov3_segmentation(dinov3_seg_model, image_np)
                     
                     if dinov3_segmentation_map is not None:
@@ -1329,7 +1129,7 @@ if uploaded_file is not None and MMSEG_AVAILABLE and config_exists and checkpoin
                         st.image(dinov3_color_result_map, use_container_width=True, caption="DINOv3 SAT 493M分割结果")
                         
                         # 显示详细信息（可折叠）
-                        with st.expander("🔍 查看DINOv3分割模型详细信息"):
+                        with st.expander("🔍 查看Model_v3分割模型详细信息"):
                             st.write(f"输出 `segmentation_map` 的形状: {dinov3_segmentation_map.shape}")
                             st.write(f"数据类型: {dinov3_segmentation_map.dtype}")
                             st.write(f"最小值: {np.min(dinov3_segmentation_map)}")
@@ -1339,7 +1139,7 @@ if uploaded_file is not None and MMSEG_AVAILABLE and config_exists and checkpoin
                             st.write(f"唯一值总数: {len(unique_values)}")
                         
                         # 显示类别统计
-                        st.subheader("📈 DINOv3分割类别统计")
+                        st.subheader("📈 Model_v3分割类别统计")
                         dinov3_stats = calculate_class_statistics(dinov3_segmentation_map, CLASS_NAMES)
                         
                         # 转换为表格格式
@@ -1365,13 +1165,13 @@ if uploaded_file is not None and MMSEG_AVAILABLE and config_exists and checkpoin
             # 7. 第七行：DINOv3官方预训练权重分割结果
             dinov3_official_checkpoint_exists = os.path.exists(DINOV3_OFFICIAL_CHECKPOINT_FILE)
             if dinov3_official_checkpoint_exists and DINOV3_AVAILABLE:
-                st.subheader("🌟 第七行：DINOv3官方预训练权重分割结果")
+                st.subheader("🌟 第七行：Model_v3官方预训练权重分割结果")
                 
-                with st.spinner('🔄 DINOv3官方模型加载中...'):
+                with st.spinner('🔄 Model_v3官方模型加载中...'):
                     dinov3_official_model = load_dinov3_official_model(DINOV3_OFFICIAL_CHECKPOINT_FILE)
                 
                 if dinov3_official_model is not None:
-                    with st.spinner('⚙️ DINOv3官方模型分割推理中，请稍候...'):
+                    with st.spinner('⚙️ Model_v3官方模型分割推理中，请稍候...'):
                         dinov3_official_segmentation_map = run_dinov3_official_segmentation(dinov3_official_model, image_np)
                     
                     if dinov3_official_segmentation_map is not None:
@@ -1379,7 +1179,7 @@ if uploaded_file is not None and MMSEG_AVAILABLE and config_exists and checkpoin
                         st.image(dinov3_official_color_result_map, use_container_width=True, caption="DINOv3官方预训练权重分割结果")
                         
                         # 显示详细信息（可折叠）
-                        with st.expander("🔍 查看DINOv3官方模型详细信息"):
+                        with st.expander("🔍 查看Model_v3官方模型详细信息"):
                             st.write(f"输出 `segmentation_map` 的形状: {dinov3_official_segmentation_map.shape}")
                             st.write(f"数据类型: {dinov3_official_segmentation_map.dtype}")
                             st.write(f"最小值: {np.min(dinov3_official_segmentation_map)}")
@@ -1389,7 +1189,7 @@ if uploaded_file is not None and MMSEG_AVAILABLE and config_exists and checkpoin
                             st.write(f"唯一值总数: {len(unique_values)}")
                         
                         # 显示类别统计
-                        st.subheader("📈 DINOv3官方模型类别统计")
+                        st.subheader("📈 Model_v3官方模型类别统计")
                         dinov3_official_stats = calculate_class_statistics(dinov3_official_segmentation_map, CLASS_NAMES)
                         
                         # 转换为表格格式
@@ -1408,9 +1208,9 @@ if uploaded_file is not None and MMSEG_AVAILABLE and config_exists and checkpoin
                     st.error("❌ DINOv3官方模型加载失败")
             else:
                 if not dinov3_official_checkpoint_exists:
-                    st.info("💡 要查看DINOv3官方预训练权重的分割结果，请确保权重文件存在")
+                    st.info("💡 要查看Model_v3官方预训练权重的分割结果，请确保权重文件存在")
                 elif not DINOV3_AVAILABLE:
-                    st.info("💡 要使用DINOv3官方模型，请安装相关依赖: pip install timm torchvision")
+                    st.info("💡 要使用Model_v3官方模型，请安装相关依赖: pip install timm torchvision")
 
             
             # 提供下载功能
