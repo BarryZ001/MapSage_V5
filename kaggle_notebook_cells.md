@@ -123,24 +123,29 @@ print("📈 预期效果: 更丰富的场景多样性，提升模型泛化能力
 
 ## Cell 4: Model Training
 ```python
-# Import necessary functions (avoid CUDA-dependent imports)
+# Import necessary functions and register models
 from mmengine.runner import Runner
-# Import mmseg to register model components
-import mmseg
-from mmseg.registry import MODELS
+from mmengine.registry import MODELS as MMENGINE_MODELS
 
-# Use custom_imports in config to register models safely
-# This approach avoids direct imports that might trigger CUDA loading
-if not hasattr(cfg, 'custom_imports'):
-    cfg.custom_imports = dict(
-        imports=['mmseg.models.segmentors.encoder_decoder'],
-        allow_failed_imports=True
-    )
-else:
-    # Ensure mmseg models are in custom_imports
-    if 'mmseg.models.segmentors.encoder_decoder' not in cfg.custom_imports.get('imports', []):
-        cfg.custom_imports.setdefault('imports', []).append('mmseg.models.segmentors.encoder_decoder')
-        cfg.custom_imports.setdefault('allow_failed_imports', True)
+# Import mmseg and register EncoderDecoder directly to MMEngine registry
+import mmseg
+from mmseg.registry import MODELS as MMSEG_MODELS
+
+# Manually register EncoderDecoder to MMEngine's model registry
+# This ensures the model is available when Runner tries to build it
+try:
+    from mmseg.models.segmentors.encoder_decoder import EncoderDecoder
+    # Register to MMEngine's model registry if not already registered
+    if not MMENGINE_MODELS.get('EncoderDecoder'):
+        MMENGINE_MODELS.register_module(name='EncoderDecoder', module=EncoderDecoder)
+        print("✅ EncoderDecoder registered to MMEngine model registry")
+except Exception as e:
+    print(f"⚠️ Warning: Could not register EncoderDecoder: {e}")
+    # Fallback: try to get from mmseg registry and register to mmengine
+    encoder_decoder_cls = MMSEG_MODELS.get('EncoderDecoder')
+    if encoder_decoder_cls:
+        MMENGINE_MODELS.register_module(name='EncoderDecoder', module=encoder_decoder_cls)
+        print("✅ EncoderDecoder registered from mmseg registry")
 
 # Completely disable visualization to avoid CUDA extension loading
 cfg.visualizer = None
