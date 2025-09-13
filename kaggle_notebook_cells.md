@@ -185,9 +185,12 @@ class MinimalEncoderDecoder(BaseModel):
         """Placeholder prediction"""
         return data_samples
 
-# Register the minimal EncoderDecoder to avoid import issues
-MMENGINE_MODELS.register_module(name='EncoderDecoder', module=MinimalEncoderDecoder)
-print("✅ MinimalEncoderDecoder registered to MMEngine model registry")
+# Register the minimal EncoderDecoder to avoid import issues (only if not already registered)
+if 'EncoderDecoder' not in MMENGINE_MODELS.module_dict:
+    MMENGINE_MODELS.register_module(name='EncoderDecoder', module=MinimalEncoderDecoder)
+    print("✅ MinimalEncoderDecoder registered to MMEngine model registry")
+else:
+    print("✅ EncoderDecoder already registered, skipping registration")
 
 # Completely disable visualization to avoid CUDA extension loading
 cfg.visualizer = None
