@@ -126,10 +126,14 @@ print("📈 预期效果: 更丰富的场景多样性，提升模型泛化能力
 # Import necessary functions (avoid CUDA-dependent imports)
 from mmengine.runner import Runner
 
-# Disable visualization to avoid CUDA extension loading
+# Completely disable visualization to avoid CUDA extension loading
 cfg.visualizer = None
+# Remove visualization hook entirely
 if 'default_hooks' in cfg and 'visualization' in cfg.default_hooks:
-    cfg.default_hooks.visualization = dict(type='SegVisualizationHook', draw=False, enable=False)
+    del cfg.default_hooks['visualization']
+# Ensure no vis_backends are loaded
+if hasattr(cfg, 'vis_backends'):
+    cfg.vis_backends = []
 
 # Build datasets using Runner (avoids direct dataset import issues)
 # This approach handles model building, dataset loading, and training in one go
