@@ -37,10 +37,7 @@ model = dict(
         drop_rate=0.0,
         attn_drop_rate=0.0,
         drop_path_rate=0.1,
-        init_cfg=dict(
-            type='Pretrained',
-            checkpoint='/kaggle/input/mit-b0-pretrain/mit_b0_20220624-7e0fe6dd.pth'
-        )
+        init_cfg=dict(type='Normal', layer='Linear', std=0.01)
     ),
     decode_head=dict(
         type='SegformerHead',

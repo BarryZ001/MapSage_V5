@@ -10,9 +10,7 @@
 
 2. **DINOv3预训练权重**：`/kaggle/input/dinov3-vitl16-pretrain/dinov3_vitl16_pretrain_sat493m-eadcf0ff.pth`
 
-3. **SegFormer-B0预训练权重**：`/kaggle/input/mit-b0-pretrain/mit_b0_20220624-7e0fe6dd.pth`
-
-4. **mIoU=84.96的训练权重**：`/kaggle/input/mapsage-stage02-checkpoint-6000/best_mIoU_iter_6000.pth`
+3. **mIoU=84.96的训练权重**：`/kaggle/input/mapsage-stage02-checkpoint-6000/best_mIoU_iter_6000.pth`
 
 ## 可用的配置文件
 
