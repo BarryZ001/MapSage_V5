@@ -365,6 +365,10 @@ class MinimalLoveDADataset(BaseDataset):
         # Disable serialization to avoid empty dataset errors
         kwargs['serialize_data'] = False
         super().__init__(data_root=data_root, **kwargs)
+    
+    def _serialize_data(self):
+        """Override to disable data serialization completely."""
+        return b'', np.array([0])
         
     def load_data_list(self):
         """Load annotation file to get data list."""
