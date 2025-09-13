@@ -54,8 +54,7 @@ model = dict(
         loss_decode=dict(
             type='CrossEntropyLoss', 
             use_sigmoid=False, 
-            loss_weight=1.0,
-            ignore_index=255
+            loss_weight=1.0
         )
     ),
     train_cfg=dict(),
