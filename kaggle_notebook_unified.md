@@ -233,10 +233,15 @@ import torch.nn as nn
 # Clear any existing optimizer registrations to avoid conflicts in Kaggle environment
 try:
     from mmengine.registry import OPTIMIZERS
-    # Clear the Adafactor registration if it exists to avoid KeyError
-    if 'Adafactor' in OPTIMIZERS.module_dict:
-        del OPTIMIZERS.module_dict['Adafactor']
-        print("✅ 清理已存在的Adafactor注册以避免冲突")
+    # Clear all torch optimizer registrations that might conflict
+    torch_optimizers = ['Adafactor', 'ASGD', 'Adam', 'AdamW', 'Adamax', 'SGD', 'RMSprop', 'Adadelta', 'Adagrad', 'SparseAdam', 'LBFGS', 'NAdam', 'RAdam']
+    cleared_count = 0
+    for opt_name in torch_optimizers:
+        if opt_name in OPTIMIZERS.module_dict:
+            del OPTIMIZERS.module_dict[opt_name]
+            cleared_count += 1
+    if cleared_count > 0:
+        print(f"✅ 清理了 {cleared_count} 个已存在的优化器注册以避免冲突")
 except Exception as e:
     print(f"⚠️ 清理注册表时出现问题: {e}")
 
