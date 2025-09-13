@@ -34,10 +34,6 @@ def main():
         if 'EncoderDecoder' not in MMENGINE_MODELS.module_dict:
             MMENGINE_MODELS.register_module(module=EncoderDecoder, force=True)
             print("✅ EncoderDecoder registered to mmengine registry")
-        
-        # 验证注册状态
-        print(f"🔍 Final check - EncoderDecoder in MODELS: {'EncoderDecoder' in MODELS.module_dict}")
-        print(f"🔍 Final check - EncoderDecoder in MMENGINE_MODELS: {'EncoderDecoder' in MMENGINE_MODELS.module_dict}")
     except ImportError as e:
         print(f"⚠️ Failed to import EncoderDecoder: {e}")
         # 尝试从其他位置导入
@@ -48,6 +44,32 @@ def main():
             print("✅ EncoderDecoder imported from segmentors and registered")
         except ImportError:
             print("❌ Could not import EncoderDecoder from any location")
+    
+    # 确保数据预处理器已注册
+    try:
+        from mmseg.models.data_preprocessor import SegDataPreProcessor  # type: ignore
+        if 'SegDataPreProcessor' not in MODELS.module_dict:
+            MODELS.register_module(module=SegDataPreProcessor, force=True)
+            print("✅ SegDataPreProcessor registered to mmseg registry")
+        if 'SegDataPreProcessor' not in MMENGINE_MODELS.module_dict:
+            MMENGINE_MODELS.register_module(module=SegDataPreProcessor, force=True)
+            print("✅ SegDataPreProcessor registered to mmengine registry")
+    except ImportError as e:
+        print(f"⚠️ Failed to import SegDataPreProcessor: {e}")
+        # 尝试从其他位置导入
+        try:
+            from mmseg.models import SegDataPreProcessor  # type: ignore
+            MODELS.register_module(module=SegDataPreProcessor, force=True)
+            MMENGINE_MODELS.register_module(module=SegDataPreProcessor, force=True)
+            print("✅ SegDataPreProcessor imported and registered")
+        except ImportError:
+            print("❌ Could not import SegDataPreProcessor from any location")
+    
+    # 验证注册状态
+    print(f"🔍 Final check - EncoderDecoder in MODELS: {'EncoderDecoder' in MODELS.module_dict}")
+    print(f"🔍 Final check - EncoderDecoder in MMENGINE_MODELS: {'EncoderDecoder' in MMENGINE_MODELS.module_dict}")
+    print(f"🔍 Final check - SegDataPreProcessor in MODELS: {'SegDataPreProcessor' in MODELS.module_dict}")
+    print(f"🔍 Final check - SegDataPreProcessor in MMENGINE_MODELS: {'SegDataPreProcessor' in MMENGINE_MODELS.module_dict}")
     
     # 确保可视化器已注册 - 同时注册到mmseg和mmengine注册表
     try:
