@@ -37,7 +37,7 @@ teacher_model = dict(
         frozen_stages=-1,  # Freeze all stages
         init_cfg=dict(
             type='Pretrained',
-            checkpoint='/kaggle/input/dinov3-vitb14/dinov3_vitb14_pretrain.pth'
+            checkpoint='/kaggle/input/dinov3-vitl16-pretrain/dinov3_vitl16_pretrain_sat493m-eadcf0ff.pth'
         )
     ),
     decode_head=dict(

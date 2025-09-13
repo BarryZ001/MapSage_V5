@@ -213,7 +213,7 @@ log_processor = dict(by_epoch=False)
 log_level = 'INFO'
 
 # Resume and load
-load_from = '/kaggle/working/best_mIoU_iter_6000_cleaned.pth'  # Load from previous checkpoint
+load_from = '/kaggle/input/mapsage-stage02-checkpoint-6000/best_mIoU_iter_6000.pth'  # Load from mIoU=84.96 checkpoint
 resume = False
 
 # Work directory
