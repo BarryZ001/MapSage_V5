@@ -588,6 +588,27 @@ if 'IoUMetric' not in METRICS.module_dict:
 else:
     print("✅ IoUMetric already registered")
 
+# Fix PyTorch 2.6 weights_only=True checkpoint loading issue
+import torch.serialization
+from mmengine.logging.history_buffer import HistoryBuffer
+
+# Add safe globals to allow HistoryBuffer in checkpoint loading
+torch.serialization.add_safe_globals([HistoryBuffer])
+print("✅ 已添加HistoryBuffer到PyTorch安全全局变量列表")
+
+# Monkey patch torch.load to use weights_only=False for checkpoint loading
+original_torch_load = torch.load
+def patched_torch_load(f, map_location=None, pickle_module=None, weights_only=None, **kwargs):
+    """Patched torch.load that sets weights_only=False for checkpoint files"""
+    # For checkpoint files, use weights_only=False to avoid unpickling errors
+    if isinstance(f, str) and ('.pth' in f or 'checkpoint' in f):
+        weights_only = False
+        print(f"✅ 使用weights_only=False加载checkpoint: {f}")
+    return original_torch_load(f, map_location=map_location, pickle_module=pickle_module, weights_only=weights_only, **kwargs)
+
+torch.load = patched_torch_load
+print("✅ 已修补torch.load以支持checkpoint加载")
+
 # Completely disable visualization to avoid CUDA extension loading
 cfg.visualizer = None
 # Remove visualization hook entirely
