@@ -137,7 +137,22 @@ if hasattr(cfg, 'vis_backends'):
 
 # Build datasets using Runner (avoids direct dataset import issues)
 # This approach handles model building, dataset loading, and training in one go
-runner = Runner.from_cfg(cfg)
+# Pass visualizer=None directly to Runner to bypass visualization entirely
+runner = Runner(
+    model=cfg['model'],
+    work_dir=cfg['work_dir'],
+    train_dataloader=cfg['train_dataloader'],
+    val_dataloader=cfg['val_dataloader'],
+    train_cfg=cfg['train_cfg'],
+    val_cfg=cfg['val_cfg'],
+    optim_wrapper=cfg['optim_wrapper'],
+    param_scheduler=cfg['param_scheduler'],
+    val_evaluator=cfg['val_evaluator'],
+    default_hooks=cfg['default_hooks'],
+    load_from=cfg['load_from'],
+    visualizer=None,  # Explicitly disable visualizer
+    cfg=cfg
+)
 model = runner.model
 
 print(f"Model type: {type(model).__name__}")
