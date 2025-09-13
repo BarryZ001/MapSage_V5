@@ -213,28 +213,52 @@ if 'EncoderDecoder' not in MMENGINE_MODELS.module_dict:
 else:
     print("✅ EncoderDecoder already registered, skipping registration")
 
-# Import and register LoveDADataset to fix KeyError
-try:
-    from mmseg.datasets import LoveDADataset
-    from mmengine.registry import DATASETS
+# Create a minimal LoveDADataset implementation to avoid mmseg imports
+from mmengine.dataset import BaseDataset
+from mmengine.registry import DATASETS
+import os.path as osp
+from PIL import Image
+import numpy as np
+
+class MinimalLoveDADataset(BaseDataset):
+    """Minimal LoveDADataset implementation to avoid CUDA dependencies"""
     
-    # Register LoveDADataset if not already registered
-    if 'LoveDADataset' not in DATASETS.module_dict:
-        DATASETS.register_module(name='LoveDADataset', module=LoveDADataset)
-        print("✅ LoveDADataset registered to MMEngine dataset registry")
-    else:
-        print("✅ LoveDADataset already registered")
-except ImportError as e:
-    print(f"⚠️ 无法导入LoveDADataset: {e}")
-    print("将使用BaseSegDataset作为替代")
+    METAINFO = {
+        'classes': ('background', 'building', 'road', 'water', 'barren', 'forest', 'agriculture'),
+        'palette': [[255, 255, 255], [255, 0, 0], [255, 255, 0], [0, 0, 255], [159, 129, 183], [0, 255, 0], [255, 195, 128]]
+    }
     
-    # Fallback: use BaseSegDataset as LoveDADataset
-    from mmseg.datasets import BaseSegDataset
-    from mmengine.registry import DATASETS
-    
-    if 'LoveDADataset' not in DATASETS.module_dict:
-        DATASETS.register_module(name='LoveDADataset', module=BaseSegDataset)
-        print("✅ BaseSegDataset registered as LoveDADataset fallback")
+    def __init__(self, data_root, data_prefix=None, img_suffix='.png', seg_map_suffix='.png', **kwargs):
+        self.img_suffix = img_suffix
+        self.seg_map_suffix = seg_map_suffix
+        self.data_prefix = data_prefix or {}
+        super().__init__(data_root=data_root, **kwargs)
+        
+    def load_data_list(self):
+        """Load annotation file to get data list."""
+        data_list = []
+        img_dir = osp.join(self.data_root, self.data_prefix.get('img_path', ''))
+        seg_dir = osp.join(self.data_root, self.data_prefix.get('seg_map_path', ''))
+        
+        if osp.exists(img_dir):
+            for img_name in os.listdir(img_dir):
+                if img_name.endswith(self.img_suffix):
+                    data_info = {
+                        'img_path': osp.join(img_dir, img_name),
+                        'seg_map_path': osp.join(seg_dir, img_name.replace(self.img_suffix, self.seg_map_suffix)),
+                        'label_map': None,
+                        'reduce_zero_label': False,
+                        'seg_fields': []
+                    }
+                    data_list.append(data_info)
+        return data_list
+
+# Register the minimal LoveDADataset
+if 'LoveDADataset' not in DATASETS.module_dict:
+    DATASETS.register_module(name='LoveDADataset', module=MinimalLoveDADataset)
+    print("✅ MinimalLoveDADataset registered as LoveDADataset")
+else:
+    print("✅ LoveDADataset already registered")
 
 # Completely disable visualization to avoid CUDA extension loading
 cfg.visualizer = None
