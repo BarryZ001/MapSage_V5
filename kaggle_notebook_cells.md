@@ -362,9 +362,12 @@ class MinimalLoveDADataset(BaseDataset):
         self.img_suffix = img_suffix
         self.seg_map_suffix = seg_map_suffix
         self.data_prefix = data_prefix or {}
-        # Disable serialization to avoid empty dataset errors
+        # Force disable serialization before calling parent init
         kwargs['serialize_data'] = False
+        self.serialize_data = False
         super().__init__(data_root=data_root, **kwargs)
+        # Double ensure serialization is disabled after parent init
+        self.serialize_data = False
     
     def _serialize_data(self):
         """Override to disable data serialization completely."""
