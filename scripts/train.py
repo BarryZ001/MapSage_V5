@@ -190,26 +190,23 @@ def main():
     # 确保数据变换组件已注册
     try:
         from mmengine.registry import TRANSFORMS  # type: ignore
-        from mmseg.datasets.transforms import *  # type: ignore
+        import mmseg.datasets.transforms  # type: ignore
         
-        # 注册常用的数据变换
-        transform_classes = [
-            'RandomCrop', 'RandomFlip', 'PhotoMetricDistortion', 'Normalize',
-            'Pad', 'DefaultFormatBundle', 'Collect', 'LoadImageFromFile',
-            'LoadAnnotations', 'Resize', 'RandomResize', 'ResizeToMultiple',
-            'RandomRotate', 'AdjustGamma', 'CLAHE', 'Rerange', 'RGB2Gray',
-            'SegRescale', 'BioMedical3DRandomCrop', 'BioMedical3DPad',
-            'BioMedicalGaussianNoise', 'BioMedicalGaussianBlur', 'BioMedicalRandomGamma'
+        # 注册常用的数据变换组件
+        transform_names = [
+            'RandomCrop', 'RandomFlip', 'PhotoMetricDistortion', 'Normalize', 'Pad',
+            'LoadImageFromFile', 'LoadAnnotations', 'Resize', 'PackSegInputs'
         ]
         
-        for transform_name in transform_classes:
+        for transform_name in transform_names:
             try:
-                if transform_name not in TRANSFORMS.module_dict:
-                    # 尝试从全局命名空间获取类
-                    if transform_name in globals():
-                        transform_cls = globals()[transform_name]
-                        TRANSFORMS.register_module(name=transform_name, module=transform_cls, force=True)
+                if hasattr(mmseg.datasets.transforms, transform_name):
+                    transform_class = getattr(mmseg.datasets.transforms, transform_name)
+                    if transform_name not in TRANSFORMS.module_dict:
+                        TRANSFORMS.register_module(name=transform_name, module=transform_class, force=True)
                         print(f"✅ {transform_name} registered to transforms registry")
+                else:
+                    print(f"⚠️ Transform {transform_name} not found")
             except Exception as e:
                 print(f"⚠️ Failed to register {transform_name}: {e}")
                 
