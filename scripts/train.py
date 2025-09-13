@@ -85,6 +85,26 @@ def main():
         except ImportError:
             print("❌ Could not import MixVisionTransformer from any location")
     
+    # 确保SegformerHead已注册
+    try:
+        from mmseg.models.decode_heads import SegformerHead  # type: ignore
+        if 'SegformerHead' not in MODELS.module_dict:
+            MODELS.register_module(module=SegformerHead, force=True)
+            print("✅ SegformerHead registered to mmseg registry")
+        if 'SegformerHead' not in MMENGINE_MODELS.module_dict:
+            MMENGINE_MODELS.register_module(module=SegformerHead, force=True)
+            print("✅ SegformerHead registered to mmengine registry")
+    except ImportError as e:
+        print(f"⚠️ Failed to import SegformerHead: {e}")
+        # 尝试从其他位置导入
+        try:
+            from mmseg.models import SegformerHead  # type: ignore
+            MODELS.register_module(module=SegformerHead, force=True)
+            MMENGINE_MODELS.register_module(module=SegformerHead, force=True)
+            print("✅ SegformerHead imported and registered")
+        except ImportError:
+            print("❌ Could not import SegformerHead from any location")
+    
     # 验证注册状态
     print(f"🔍 Final check - EncoderDecoder in MODELS: {'EncoderDecoder' in MODELS.module_dict}")
     print(f"🔍 Final check - EncoderDecoder in MMENGINE_MODELS: {'EncoderDecoder' in MMENGINE_MODELS.module_dict}")
@@ -92,6 +112,8 @@ def main():
     print(f"🔍 Final check - SegDataPreProcessor in MMENGINE_MODELS: {'SegDataPreProcessor' in MMENGINE_MODELS.module_dict}")
     print(f"🔍 Final check - MixVisionTransformer in MODELS: {'MixVisionTransformer' in MODELS.module_dict}")
     print(f"🔍 Final check - MixVisionTransformer in MMENGINE_MODELS: {'MixVisionTransformer' in MMENGINE_MODELS.module_dict}")
+    print(f"🔍 Final check - SegformerHead in MODELS: {'SegformerHead' in MODELS.module_dict}")
+    print(f"🔍 Final check - SegformerHead in MMENGINE_MODELS: {'SegformerHead' in MMENGINE_MODELS.module_dict}")
     
     # 确保可视化器已注册 - 同时注册到mmseg和mmengine注册表
     try:
