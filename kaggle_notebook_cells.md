@@ -135,6 +135,14 @@ import torch.nn as nn
 os.environ['MMCV_WITH_OPS'] = '0'
 os.environ['MAX_JOBS'] = '1'
 
+# Monkey patch to completely bypass revert_sync_batchnorm function
+from mmengine.model import utils as mmengine_utils
+def dummy_revert_sync_batchnorm(module):
+    """Dummy function to replace revert_sync_batchnorm and avoid MMCV imports"""
+    return module
+mmengine_utils.revert_sync_batchnorm = dummy_revert_sync_batchnorm
+print("✅ 已替换revert_sync_batchnorm函数以避免MMCV扩展加载")
+
 # GPU模式 - 检测并使用可用的GPU
 if torch.cuda.is_available():
     print(f"✅ 检测到GPU: {torch.cuda.get_device_name(0)}")
