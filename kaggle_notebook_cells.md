@@ -393,24 +393,58 @@ class MinimalLoveDADataset(BaseDataset):
     def load_data_list(self):
         """Load annotation file to get data list."""
         data_list = []
-        img_dir = osp.join(self.data_root, self.data_prefix.get('img_path', ''))
-        seg_dir = osp.join(self.data_root, self.data_prefix.get('seg_map_path', ''))
         
-        if osp.exists(img_dir):
-            for img_name in os.listdir(img_dir):
-                if img_name.endswith(self.img_suffix):
-                    data_info = {
-                        'img_path': osp.join(img_dir, img_name),
-                        'seg_map_path': osp.join(seg_dir, img_name.replace(self.img_suffix, self.seg_map_suffix)),
-                        'label_map': None,
-                        'reduce_zero_label': False,
-                        'seg_fields': []
-                    }
-                    data_list.append(data_info)
+        # Handle LoveDA dataset structure: Train/Rural and Train/Urban
+        base_img_path = self.data_prefix.get('img_path', '')
+        base_seg_path = self.data_prefix.get('seg_map_path', '')
         
-        # If no data found, create a dummy entry to avoid empty dataset serialization error
+        # Try LoveDA structure first
+        loveda_subdirs = ['Train/Rural', 'Train/Urban', 'Val/Rural', 'Val/Urban']
+        
+        for subdir in loveda_subdirs:
+            img_dir = osp.join(self.data_root, subdir, 'images_png')
+            seg_dir = osp.join(self.data_root, subdir, 'masks_png')
+            
+            if osp.exists(img_dir):
+                print(f"✅ 找到LoveDA数据目录: {img_dir}")
+                for img_name in os.listdir(img_dir):
+                    if img_name.endswith(self.img_suffix):
+                        seg_name = img_name.replace(self.img_suffix, self.seg_map_suffix)
+                        seg_path = osp.join(seg_dir, seg_name)
+                        
+                        # Only add if mask exists or create dummy mask path
+                        if not osp.exists(seg_path):
+                            seg_path = osp.join(seg_dir, img_name)  # Try same name
+                        
+                        data_info = {
+                            'img_path': osp.join(img_dir, img_name),
+                            'seg_map_path': seg_path,
+                            'label_map': None,
+                            'reduce_zero_label': False,
+                            'seg_fields': []
+                        }
+                        data_list.append(data_info)
+        
+        # Fallback to original structure if LoveDA structure not found
         if not data_list:
-            print(f"⚠️ No data found in {img_dir}, creating dummy dataset entry")
+            img_dir = osp.join(self.data_root, base_img_path)
+            seg_dir = osp.join(self.data_root, base_seg_path)
+            
+            if osp.exists(img_dir):
+                for img_name in os.listdir(img_dir):
+                    if img_name.endswith(self.img_suffix):
+                        data_info = {
+                            'img_path': osp.join(img_dir, img_name),
+                            'seg_map_path': osp.join(seg_dir, img_name.replace(self.img_suffix, self.seg_map_suffix)),
+                            'label_map': None,
+                            'reduce_zero_label': False,
+                            'seg_fields': []
+                        }
+                        data_list.append(data_info)
+        
+        # If still no data found, create a dummy entry
+        if not data_list:
+            print(f"⚠️ No data found in LoveDA structure or {self.data_root}, creating dummy dataset entry")
             data_list = [{
                 'img_path': '/tmp/dummy.png',
                 'seg_map_path': '/tmp/dummy_mask.png', 
@@ -418,6 +452,8 @@ class MinimalLoveDADataset(BaseDataset):
                 'reduce_zero_label': False,
                 'seg_fields': []
             }]
+        else:
+            print(f"✅ 成功加载 {len(data_list)} 个数据样本")
         
         return data_list
 
@@ -514,10 +550,16 @@ try:
     print("尝试简化训练模式...")
     
     # Set a very small number of iterations for testing
-    if hasattr(runner.train_cfg, 'max_iters'):
-        original_max_iters = runner.train_cfg.max_iters
-        runner.train_cfg.max_iters = 2  # Only run 2 iterations for testing
-        print(f"设置测试迭代次数: {runner.train_cfg.max_iters}")
+    if hasattr(runner, '_train_cfg') and hasattr(runner._train_cfg, 'max_iters'):
+        original_max_iters = runner._train_cfg.max_iters
+        runner._train_cfg.max_iters = 2  # Only run 2 iterations for testing
+        print(f"设置测试迭代次数: {runner._train_cfg.max_iters}")
+    elif hasattr(runner, 'cfg') and 'train_cfg' in runner.cfg and hasattr(runner.cfg.train_cfg, 'max_iters'):
+        original_max_iters = runner.cfg.train_cfg.max_iters
+        runner.cfg.train_cfg.max_iters = 2
+        print(f"设置测试迭代次数: {runner.cfg.train_cfg.max_iters}")
+    else:
+        print("无法找到max_iters配置，使用默认训练设置")
     
     runner.train()
     print("✅ 训练启动成功！")
