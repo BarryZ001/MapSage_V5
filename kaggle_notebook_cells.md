@@ -649,17 +649,25 @@ torch.serialization.add_safe_globals([HistoryBuffer])
 print("✅ 已添加HistoryBuffer到PyTorch安全全局变量列表")
 
 # Monkey patch torch.load to use weights_only=False for checkpoint loading
-original_torch_load = torch.load
+# Store the original torch.load function before any patching to avoid recursion
+if not hasattr(torch, '_original_load'):
+    torch._original_load = torch.load
+
 def patched_torch_load(f, map_location=None, pickle_module=None, weights_only=None, **kwargs):
     """Patched torch.load that sets weights_only=False for checkpoint files"""
     # For checkpoint files, use weights_only=False to avoid unpickling errors
     if isinstance(f, str) and ('.pth' in f or 'checkpoint' in f):
         weights_only = False
         print(f"✅ 使用weights_only=False加载checkpoint: {f}")
-    return original_torch_load(f, map_location=map_location, pickle_module=pickle_module, weights_only=weights_only, **kwargs)
+    # Use the original torch.load function to avoid recursion
+    return torch._original_load(f, map_location=map_location, pickle_module=pickle_module, weights_only=weights_only, **kwargs)
 
-torch.load = patched_torch_load
-print("✅ 已修补torch.load以支持checkpoint加载")
+# Only patch if not already patched to avoid multiple patching
+if not hasattr(torch.load, '__name__') or torch.load.__name__ != 'patched_torch_load':
+    torch.load = patched_torch_load
+    print("✅ 已修补torch.load以支持checkpoint加载")
+else:
+    print("✅ torch.load已经被修补，跳过重复修补")
 
 # Completely disable visualization to avoid CUDA extension loading
 cfg.visualizer = None
