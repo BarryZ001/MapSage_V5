@@ -219,7 +219,16 @@ from mmcv.transforms import LoadImageFromFile, LoadAnnotations, Resize, RandomFl
 import cv2
 import numpy as np
 from mmengine.structures import PixelData
-from mmengine.structures import SegDataSample
+
+# Create minimal SegDataSample implementation to avoid import issues
+class MinimalSegDataSample:
+    """Minimal SegDataSample implementation to avoid dependencies"""
+    def __init__(self, gt_sem_seg=None, metainfo=None):
+        self.gt_sem_seg = gt_sem_seg
+        self.metainfo = metainfo or {}
+        
+    def set_metainfo(self, metainfo):
+        self.metainfo.update(metainfo)
 
 # Create minimal transform implementations to avoid mmseg imports
 class MinimalRandomCrop:
@@ -298,7 +307,7 @@ class MinimalPackSegInputs:
             
         # Pack segmentation map
         if 'gt_seg_map' in results:
-            packed_results['data_samples'] = SegDataSample(
+            packed_results['data_samples'] = MinimalSegDataSample(
                 gt_sem_seg=PixelData(data=results['gt_seg_map'][None, ...])
             )
             
@@ -311,7 +320,7 @@ class MinimalPackSegInputs:
         if 'data_samples' in packed_results:
             packed_results['data_samples'].set_metainfo(img_meta)
         else:
-            packed_results['data_samples'] = SegDataSample(metainfo=img_meta)
+            packed_results['data_samples'] = MinimalSegDataSample(metainfo=img_meta)
             
         return packed_results
 
