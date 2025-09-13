@@ -162,6 +162,31 @@ def main():
     except ImportError:
         print("⚠️ Could not import HOOKS registry")
     
+    # 确保CityscapesDataset已注册
+    try:
+        from mmengine.registry import DATASETS  # type: ignore
+        from mmseg.datasets import CityscapesDataset  # type: ignore
+        if 'CityscapesDataset' not in DATASETS.module_dict:
+            DATASETS.register_module(module=CityscapesDataset, force=True)
+            print("✅ CityscapesDataset registered to datasets registry")
+    except ImportError as e:
+        print(f"⚠️ Failed to import CityscapesDataset: {e}")
+        # 尝试从其他位置导入
+        try:
+            from mmengine.registry import DATASETS  # type: ignore
+            from mmseg.datasets.cityscapes import CityscapesDataset  # type: ignore
+            DATASETS.register_module(module=CityscapesDataset, force=True)
+            print("✅ CityscapesDataset imported and registered")
+        except ImportError:
+            print("❌ Could not import CityscapesDataset from any location")
+    
+    # 检查CityscapesDataset注册状态
+    try:
+        from mmengine.registry import DATASETS  # type: ignore
+        print(f"🔍 Final check - CityscapesDataset in DATASETS: {'CityscapesDataset' in DATASETS.module_dict}")
+    except ImportError:
+        print("⚠️ Could not import DATASETS registry")
+    
     # 确保可视化器已注册 - 同时注册到mmseg和mmengine注册表
     try:
         from mmseg.visualization import SegLocalVisualizer  # type: ignore
