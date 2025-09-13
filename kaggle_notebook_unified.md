@@ -227,11 +227,23 @@ print("✅ 数据集和checkpoint验证完成")
 
 # Import necessary functions (completely avoid mmseg imports to prevent CUDA loading)
 import os
+import torch
+import torch.nn as nn
+
+# Clear any existing optimizer registrations to avoid conflicts in Kaggle environment
+try:
+    from mmengine.registry import OPTIMIZERS
+    # Clear the Adafactor registration if it exists to avoid KeyError
+    if 'Adafactor' in OPTIMIZERS.module_dict:
+        del OPTIMIZERS.module_dict['Adafactor']
+        print("✅ 清理已存在的Adafactor注册以避免冲突")
+except Exception as e:
+    print(f"⚠️ 清理注册表时出现问题: {e}")
+
+# Now safely import mmengine components
 from mmengine.runner import Runner
 from mmengine.registry import MODELS as MMENGINE_MODELS
 from mmengine.model import BaseModel
-import torch
-import torch.nn as nn
 
 # 强制禁用MMCV CUDA扩展以避免符号未定义错误
 os.environ['MMCV_WITH_OPS'] = '0'
