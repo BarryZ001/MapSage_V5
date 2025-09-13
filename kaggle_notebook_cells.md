@@ -213,6 +213,29 @@ if 'EncoderDecoder' not in MMENGINE_MODELS.module_dict:
 else:
     print("✅ EncoderDecoder already registered, skipping registration")
 
+# Register essential transforms to avoid KeyError
+from mmengine.registry import TRANSFORMS
+from mmcv.transforms import LoadImageFromFile, LoadAnnotations, Resize, RandomCrop, RandomFlip, PackSegInputs
+from mmseg.datasets.transforms import PhotoMetricDistortion
+
+# Register transforms if not already registered
+transforms_to_register = [
+    ('LoadImageFromFile', LoadImageFromFile),
+    ('LoadAnnotations', LoadAnnotations),
+    ('Resize', Resize),
+    ('RandomCrop', RandomCrop),
+    ('RandomFlip', RandomFlip),
+    ('PhotoMetricDistortion', PhotoMetricDistortion),
+    ('PackSegInputs', PackSegInputs)
+]
+
+for name, transform_cls in transforms_to_register:
+    if name not in TRANSFORMS.module_dict:
+        TRANSFORMS.register_module(name=name, module=transform_cls)
+        print(f"✅ {name} registered to transforms registry")
+    else:
+        print(f"✅ {name} already registered")
+
 # Create a minimal LoveDADataset implementation to avoid mmseg imports
 from mmengine.dataset import BaseDataset
 from mmengine.registry import DATASETS
