@@ -123,10 +123,19 @@ print("📈 预期效果: 更丰富的场景多样性，提升模型泛化能力
 
 ## Cell 4: Model Training
 ```python
-# Build the model
+# Import necessary functions
 from mmengine.runner import Runner
+from mmseg.apis import init_model
+from mmseg.registry import MODELS
+from mmengine.registry import build_from_cfg
+from mmengine.checkpoint import load_checkpoint
+from mmseg.datasets import build_dataset
 
-model = build_segmentor(cfg.model, train_cfg=cfg.get('train_cfg'), test_cfg=cfg.get('test_cfg'))
+# Build the model using MODELS registry
+model = MODELS.build(cfg.model)
+
+# Alternative: use build_from_cfg if MODELS.build doesn't work
+# model = build_from_cfg(cfg.model, MODELS)
 
 # Load the pretrained checkpoint
 if cfg.load_from:
