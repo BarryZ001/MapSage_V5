@@ -26,11 +26,28 @@ def main():
     # 确保关键模型已注册到mmengine注册表
     try:
         from mmseg.models import EncoderDecoder  # type: ignore
+        # 注册到mmseg注册表（如果还没有）
+        if 'EncoderDecoder' not in MODELS.module_dict:
+            MODELS.register_module(module=EncoderDecoder, force=True)
+            print("✅ EncoderDecoder registered to mmseg registry")
+        # 注册到mmengine注册表
         if 'EncoderDecoder' not in MMENGINE_MODELS.module_dict:
             MMENGINE_MODELS.register_module(module=EncoderDecoder, force=True)
             print("✅ EncoderDecoder registered to mmengine registry")
+        
+        # 验证注册状态
+        print(f"🔍 Final check - EncoderDecoder in MODELS: {'EncoderDecoder' in MODELS.module_dict}")
+        print(f"🔍 Final check - EncoderDecoder in MMENGINE_MODELS: {'EncoderDecoder' in MMENGINE_MODELS.module_dict}")
     except ImportError as e:
         print(f"⚠️ Failed to import EncoderDecoder: {e}")
+        # 尝试从其他位置导入
+        try:
+            from mmseg.models.segmentors import EncoderDecoder  # type: ignore
+            MODELS.register_module(module=EncoderDecoder, force=True)
+            MMENGINE_MODELS.register_module(module=EncoderDecoder, force=True)
+            print("✅ EncoderDecoder imported from segmentors and registered")
+        except ImportError:
+            print("❌ Could not import EncoderDecoder from any location")
     
     # 确保可视化器已注册 - 同时注册到mmseg和mmengine注册表
     try:
