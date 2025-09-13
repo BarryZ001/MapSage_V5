@@ -213,6 +213,29 @@ if 'EncoderDecoder' not in MMENGINE_MODELS.module_dict:
 else:
     print("✅ EncoderDecoder already registered, skipping registration")
 
+# Import and register LoveDADataset to fix KeyError
+try:
+    from mmseg.datasets import LoveDADataset
+    from mmengine.registry import DATASETS
+    
+    # Register LoveDADataset if not already registered
+    if 'LoveDADataset' not in DATASETS.module_dict:
+        DATASETS.register_module(name='LoveDADataset', module=LoveDADataset)
+        print("✅ LoveDADataset registered to MMEngine dataset registry")
+    else:
+        print("✅ LoveDADataset already registered")
+except ImportError as e:
+    print(f"⚠️ 无法导入LoveDADataset: {e}")
+    print("将使用BaseSegDataset作为替代")
+    
+    # Fallback: use BaseSegDataset as LoveDADataset
+    from mmseg.datasets import BaseSegDataset
+    from mmengine.registry import DATASETS
+    
+    if 'LoveDADataset' not in DATASETS.module_dict:
+        DATASETS.register_module(name='LoveDADataset', module=BaseSegDataset)
+        print("✅ BaseSegDataset registered as LoveDADataset fallback")
+
 # Completely disable visualization to avoid CUDA extension loading
 cfg.visualizer = None
 # Remove visualization hook entirely
