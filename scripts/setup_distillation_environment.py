@@ -84,15 +84,24 @@ def main():
         import mmcv
         import mmengine
         import mmseg
-        import mmpretrain
-        import mmrazor
         
         print(f"✅ PyTorch version: {torch.__version__}")
         print(f"✅ MMCV version: {mmcv.__version__}")
         print(f"✅ MMEngine version: {mmengine.__version__}")
         print(f"✅ MMSegmentation version: {mmseg.__version__}")
-        print(f"✅ MMPretrain version: {mmpretrain.__version__}")
-        print(f"✅ MMRazor version: {mmrazor.__version__}")
+        
+        # Try to import optional packages
+        try:
+            import mmpretrain
+            print(f"✅ MMPretrain version: {mmpretrain.__version__}")
+        except ImportError:
+            print("⚠️  MMPretrain not available")
+        
+        try:
+            import mmrazor
+            print(f"✅ MMRazor version: {mmrazor.__version__}")
+        except ImportError:
+            print("⚠️  MMRazor not available")
         
         # Test CUDA availability
         if torch.cuda.is_available():
@@ -101,7 +110,7 @@ def main():
             print("⚠️  CUDA not available - using CPU")
         
         print("\n🎉 Environment setup completed successfully!")
-        print("You can now run knowledge distillation training with MMRazor.")
+        print("You can now run knowledge distillation training.")
         print("="*60)
         return True
         
