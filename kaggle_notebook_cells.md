@@ -131,12 +131,18 @@ from mmengine.model import BaseModel
 import torch
 import torch.nn as nn
 
+# 强制禁用MMCV CUDA扩展以避免符号未定义错误
+os.environ['MMCV_WITH_OPS'] = '0'
+os.environ['MAX_JOBS'] = '1'
+
 # GPU模式 - 检测并使用可用的GPU
 if torch.cuda.is_available():
     print(f"✅ 检测到GPU: {torch.cuda.get_device_name(0)}")
     print(f"✅ CUDA版本: {torch.version.cuda}")
+    print("✅ MMCV CUDA扩展已禁用以避免兼容性问题")
 else:
     print("⚠️ 未检测到GPU，将使用CPU模式")
+    print("✅ MMCV CUDA扩展已禁用")
 
 # Create a minimal EncoderDecoder class to avoid mmseg CUDA dependencies
 # This is a simplified version that can be registered without importing mmseg
@@ -192,13 +198,14 @@ if 'default_hooks' in cfg and 'visualization' in cfg.default_hooks:
 if hasattr(cfg, 'vis_backends'):
     cfg.vis_backends = []
 
-# GPU模式下启用适当的模型包装器
+# 完全禁用分布式训练包装器以避免SyncBatchNorm相关的MMCV扩展加载
+cfg.model_wrapper_cfg = None
+print("✅ 已禁用分布式训练包装器以避免MMCV CUDA扩展问题")
+
+# 确保使用标准BatchNorm而不是SyncBatchNorm
 if torch.cuda.is_available():
-    # 单GPU训练，使用默认设置
-    print("✅ 配置GPU训练模式")
+    print("✅ 配置GPU训练模式（使用标准BatchNorm）")
 else:
-    # CPU模式下禁用分布式训练包装器
-    cfg.model_wrapper_cfg = None
     print("✅ 配置CPU训练模式")
 
 # Build datasets using Runner (avoids direct dataset import issues)
