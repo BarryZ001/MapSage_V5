@@ -4,6 +4,10 @@
 # Import mmseg to register all components
 custom_imports = dict(imports=['mmseg'], allow_failed_imports=False)
 
+# Dataset configuration
+data_root = '/kaggle/input/loveda'
+num_classes = 7
+
 # Optimized crop size for P100 memory
 crop_size = (512, 512)
 

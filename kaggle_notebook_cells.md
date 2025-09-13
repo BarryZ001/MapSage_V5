@@ -100,8 +100,8 @@ print("Configuration loaded successfully!")
 print(f"Model type: {cfg.model.type}")
 print(f"Data root: {cfg.data_root}")
 print(f"Load from: {cfg.load_from}")
-print(f"Max iterations: {cfg.runner.max_iters}")
-print(f"Validation interval: {cfg.evaluation.interval}")
+print(f"Max iterations: {cfg.train_cfg.max_iters}")
+print(f"Validation interval: {cfg.train_cfg.val_interval}")
 
 # Verify LoveDA dataset structure
 print("\n📊 LoveDA数据集结构验证:")
