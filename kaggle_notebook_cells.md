@@ -2,12 +2,20 @@
 
 ## Cell 1: Environment Setup and Dependencies
 ```python
-# 使用预编译wheel包，避免编译耗时
+# 检查CUDA版本并安装兼容的MMCV
+import torch
+print(f"PyTorch version: {torch.__version__}")
+print(f"CUDA available: {torch.cuda.is_available()}")
+if torch.cuda.is_available():
+    print(f"CUDA version: {torch.version.cuda}")
+    print(f"GPU: {torch.cuda.get_device_name(0)}")
+
+# 安装基础依赖
 !pip install -U openmim
 !mim install mmengine
 
-# 直接安装预编译的MMCV wheel包
-!pip install mmcv==2.1.0 -f https://download.openmmlab.com/mmcv/dist/cu118/torch2.1/index.html
+# 根据Kaggle环境安装CPU版本MMCV（避免CUDA版本冲突）
+!pip install mmcv==2.1.0 -f https://download.openmmlab.com/mmcv/dist/cpu/torch2.1/index.html
 
 # 安装其他依赖
 !pip install "mmsegmentation>=1.0.0"
@@ -16,20 +24,22 @@
 
 # Import libraries
 import os
-import torch
 import numpy as np
 from mmengine import Config
-from mmseg.apis import init_model, inference_model
-from mmseg.datasets import build_dataloader, build_dataset
-from mmseg.models import build_segmentor
 from mmengine.runner import load_checkpoint
 import warnings
 warnings.filterwarnings('ignore')
 
-print(f"PyTorch version: {torch.__version__}")
-print(f"CUDA available: {torch.cuda.is_available()}")
-if torch.cuda.is_available():
-    print(f"GPU: {torch.cuda.get_device_name(0)}")
+# 延迟导入mmseg相关模块，避免CUDA冲突
+try:
+    from mmseg.apis import init_model, inference_model
+    from mmseg.datasets import build_dataloader, build_dataset
+    from mmseg.models import build_segmentor
+    print("✅ MMSeg模块导入成功！")
+except ImportError as e:
+    print(f"⚠️ MMSeg导入警告: {e}")
+    print("将在训练时重新尝试导入...")
+
 print("✅ 环境设置完成！")
 ```
 
