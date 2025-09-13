@@ -124,11 +124,16 @@ print("📈 预期效果: 更丰富的场景多样性，提升模型泛化能力
 ## Cell 4: Model Training
 ```python
 # Import necessary functions (completely avoid mmseg imports to prevent CUDA loading)
+import os
 from mmengine.runner import Runner
 from mmengine.registry import MODELS as MMENGINE_MODELS
 from mmengine.model import BaseModel
 import torch
 import torch.nn as nn
+
+# 设置CPU模式 - 禁用GPU可见性以避免CUDA依赖
+os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
+print("✅ 已设置CPU模式 (CUDA_VISIBLE_DEVICES=-1)")
 
 # Create a minimal EncoderDecoder class to avoid mmseg CUDA dependencies
 # This is a simplified version that can be registered without importing mmseg
@@ -184,6 +189,9 @@ if 'default_hooks' in cfg and 'visualization' in cfg.default_hooks:
 if hasattr(cfg, 'vis_backends'):
     cfg.vis_backends = []
 
+# 禁用分布式训练包装器以适应CPU模式
+cfg.model_wrapper_cfg = None
+
 # Build datasets using Runner (avoids direct dataset import issues)
 # This approach handles model building, dataset loading, and training in one go
 # Pass visualizer=None directly to Runner to bypass visualization entirely
@@ -206,6 +214,7 @@ model = runner.model
 
 print(f"Model type: {type(model).__name__}")
 print(f"Model device: {next(model.parameters()).device}")
+print("✅ 成功创建Runner (CPU模式)")
 
 # Load the pretrained checkpoint (Runner handles this automatically if cfg.load_from is set)
 if cfg.load_from:
