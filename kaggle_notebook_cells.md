@@ -48,7 +48,7 @@ print("✅ 环境设置完成！")
 # Verify dataset paths
 data_root = '/kaggle/input/loveda'
 checkpoint_path = '/kaggle/input/mapsage-stage02-checkpoint-6000/best_mIoU_iter_6000.pth'
-dinov3_path = '/kaggle/input/dinov3-weights/dinov3_vitl14_pretrain.pth'
+dinov3_path = '/kaggle/input/dinov3-vitl16-pretrain/dinov3_vitl16_pretrain_sat493m-eadcf0ff.pth'
 
 # Check if all required files exist
 print("Checking dataset and checkpoint availability:")
