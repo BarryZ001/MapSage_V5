@@ -187,6 +187,65 @@ def main():
     except ImportError:
         print("⚠️ Could not import DATASETS registry")
     
+    # 确保数据变换组件已注册
+    try:
+        from mmengine.registry import TRANSFORMS  # type: ignore
+        from mmseg.datasets.transforms import *  # type: ignore
+        
+        # 注册常用的数据变换
+        transform_classes = [
+            'RandomCrop', 'RandomFlip', 'PhotoMetricDistortion', 'Normalize',
+            'Pad', 'DefaultFormatBundle', 'Collect', 'LoadImageFromFile',
+            'LoadAnnotations', 'Resize', 'RandomResize', 'ResizeToMultiple',
+            'RandomRotate', 'AdjustGamma', 'CLAHE', 'Rerange', 'RGB2Gray',
+            'SegRescale', 'BioMedical3DRandomCrop', 'BioMedical3DPad',
+            'BioMedicalGaussianNoise', 'BioMedicalGaussianBlur', 'BioMedicalRandomGamma'
+        ]
+        
+        for transform_name in transform_classes:
+            try:
+                if transform_name not in TRANSFORMS.module_dict:
+                    # 尝试从全局命名空间获取类
+                    if transform_name in globals():
+                        transform_cls = globals()[transform_name]
+                        TRANSFORMS.register_module(name=transform_name, module=transform_cls, force=True)
+                        print(f"✅ {transform_name} registered to transforms registry")
+            except Exception as e:
+                print(f"⚠️ Failed to register {transform_name}: {e}")
+                
+    except ImportError as e:
+        print(f"⚠️ Failed to import transforms: {e}")
+        # 尝试单独导入关键变换
+        try:
+            from mmengine.registry import TRANSFORMS  # type: ignore
+            from mmseg.datasets.transforms.loading import LoadImageFromFile, LoadAnnotations  # type: ignore
+            from mmseg.datasets.transforms.transforms import RandomCrop, RandomFlip, Resize  # type: ignore
+            
+            key_transforms = {
+                'LoadImageFromFile': LoadImageFromFile,
+                'LoadAnnotations': LoadAnnotations,
+                'RandomCrop': RandomCrop,
+                'RandomFlip': RandomFlip,
+                'Resize': Resize
+            }
+            
+            for name, cls in key_transforms.items():
+                if name not in TRANSFORMS.module_dict:
+                    TRANSFORMS.register_module(name=name, module=cls, force=True)
+                    print(f"✅ {name} registered to transforms registry")
+                    
+        except ImportError as e2:
+            print(f"❌ Could not import key transforms: {e2}")
+    
+    # 检查关键变换注册状态
+    try:
+        from mmengine.registry import TRANSFORMS  # type: ignore
+        key_transforms = ['RandomCrop', 'RandomFlip', 'LoadImageFromFile', 'LoadAnnotations', 'Resize']
+        for transform_name in key_transforms:
+            print(f"🔍 Final check - {transform_name} in TRANSFORMS: {transform_name in TRANSFORMS.module_dict}")
+    except ImportError:
+        print("⚠️ Could not import TRANSFORMS registry")
+    
     # 确保可视化器已注册 - 同时注册到mmseg和mmengine注册表
     try:
         from mmseg.visualization import SegLocalVisualizer  # type: ignore
