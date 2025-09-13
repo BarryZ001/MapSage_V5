@@ -128,8 +128,8 @@ from mmengine.runner import Runner
 # Import mmseg to register model components
 import mmseg
 from mmseg.registry import MODELS
-# Ensure all mmseg models are registered
-from mmseg.models import *
+# Import only the necessary segmentor models to avoid CUDA loading
+from mmseg.models.segmentors import EncoderDecoder
 
 # Completely disable visualization to avoid CUDA extension loading
 cfg.visualizer = None
