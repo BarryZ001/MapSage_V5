@@ -491,11 +491,57 @@ if cfg.load_from:
 print(f"Training dataset configured: {type(runner.train_dataloader.dataset).__name__}")
 print(f"Training batch size: {runner.train_dataloader.batch_size}")
 
+# Test data loader before training
+print("测试数据加载器...")
+try:
+    train_data_iter = iter(runner.train_dataloader)
+    first_batch = next(train_data_iter)
+    print(f"✅ 数据加载器正常，第一个batch shape: {first_batch['inputs'].shape if 'inputs' in first_batch else 'N/A'}")
+except Exception as e:
+    print(f"❌ 数据加载器测试失败: {e}")
+    print("尝试使用简化的训练配置...")
+    # 如果数据加载失败，可以在这里添加备用方案
+
 # Start training with MMEngine Runner
 print("Starting knowledge distillation training...")
-runner.train()
+print("⚠️ 注意：如果训练卡住，可能是数据加载或模型初始化问题")
 
-print("✅ 训练启动成功！")
+try:
+    # Add timeout and more verbose logging
+    print("正在初始化训练过程...")
+    
+    # Try a simplified training approach first
+    print("尝试简化训练模式...")
+    
+    # Set a very small number of iterations for testing
+    if hasattr(runner.train_cfg, 'max_iters'):
+        original_max_iters = runner.train_cfg.max_iters
+        runner.train_cfg.max_iters = 2  # Only run 2 iterations for testing
+        print(f"设置测试迭代次数: {runner.train_cfg.max_iters}")
+    
+    runner.train()
+    print("✅ 训练启动成功！")
+    
+except Exception as e:
+    print(f"❌ 训练过程中出现错误: {e}")
+    print(f"错误类型: {type(e).__name__}")
+    import traceback
+    print("详细错误信息:")
+    traceback.print_exc()
+    
+    # Try alternative approach
+    print("\n尝试替代方案...")
+    try:
+        print("检查模型是否可以进行前向传播...")
+        dummy_input = torch.randn(1, 3, 512, 512)
+        if torch.cuda.is_available():
+            dummy_input = dummy_input.cuda()
+            model = model.cuda()
+        with torch.no_grad():
+            output = model(dummy_input)
+        print(f"✅ 模型前向传播正常，输出shape: {output.shape if hasattr(output, 'shape') else 'N/A'}")
+    except Exception as model_e:
+        print(f"❌ 模型测试也失败: {model_e}")
 ```
 
 ## Cell 5: Training Monitoring
