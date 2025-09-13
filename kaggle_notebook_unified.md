@@ -232,50 +232,63 @@ import torch.nn as nn
 
 # Clear any existing optimizer registrations to avoid conflicts in Kaggle environment
 try:
+    # First, completely reset mmengine's OPTIMIZERS registry
     from mmengine.registry import OPTIMIZERS
-    # Clear all torch optimizer registrations that might conflict
-    torch_optimizers = ['Adafactor', 'ASGD', 'Adam', 'AdamW', 'Adamax', 'SGD', 'RMSprop', 'Adadelta', 'Adagrad', 'SparseAdam', 'LBFGS', 'NAdam', 'RAdam']
-    cleared_count = 0
-    for opt_name in torch_optimizers:
-        if opt_name in OPTIMIZERS.module_dict:
-            del OPTIMIZERS.module_dict[opt_name]
-            cleared_count += 1
-    if cleared_count > 0:
-        print(f"✅ 清理了 {cleared_count} 个已存在的优化器注册以避免冲突")
-        
-    # Also clear torch.optim registry if it exists
+    print(f"🔍 原始OPTIMIZERS注册表内容: {list(OPTIMIZERS.module_dict.keys())}")
+    
+    # Clear the entire registry and rebuild it fresh
+    OPTIMIZERS.module_dict.clear()
+    print("✅ 完全清空mmengine OPTIMIZERS注册表")
+    
+    # Also clear torch.optim registries completely
     import torch.optim as torch_optim
+    
+    # Clear torch.optim._registry if it exists
     if hasattr(torch_optim, '_registry'):
-        registry = torch_optim._registry
-        torch_cleared = 0
-        for opt_name in torch_optimizers:
-            if opt_name.lower() in registry:
-                del registry[opt_name.lower()]
-                torch_cleared += 1
-            if opt_name in registry:
-                del registry[opt_name]
-                torch_cleared += 1
-        if torch_cleared > 0:
-            print(f"✅ 清理了 {torch_cleared} 个torch.optim注册以避免冲突")
-            
-    # Clear any global optimizer registry
+        torch_optim._registry.clear()
+        print("✅ 清空torch.optim._registry")
+    
+    # Clear torch.optim.optimizer._registry if it exists
     if hasattr(torch_optim, 'optimizer'):
         opt_module = torch_optim.optimizer
         if hasattr(opt_module, '_registry'):
-            opt_registry = opt_module._registry
-            opt_cleared = 0
-            for opt_name in torch_optimizers:
-                if opt_name.lower() in opt_registry:
-                    del opt_registry[opt_name.lower()]
-                    opt_cleared += 1
-                if opt_name in opt_registry:
-                    del opt_registry[opt_name]
-                    opt_cleared += 1
-            if opt_cleared > 0:
-                print(f"✅ 清理了 {opt_cleared} 个torch.optim.optimizer注册以避免冲突")
+            opt_module._registry.clear()
+            print("✅ 清空torch.optim.optimizer._registry")
+            
+    # Clear any other potential registries in torch.optim
+    for attr_name in dir(torch_optim):
+        if attr_name.endswith('_registry') or attr_name == 'registry':
+            try:
+                registry = getattr(torch_optim, attr_name)
+                if hasattr(registry, 'clear'):
+                    registry.clear()
+                    print(f"✅ 清空torch.optim.{attr_name}")
+            except:
+                pass
+                
+    # Also check for any module-level registries
+    import sys
+    for module_name in list(sys.modules.keys()):
+        if 'optim' in module_name.lower() and 'torch' in module_name.lower():
+            try:
+                module = sys.modules[module_name]
+                for attr_name in dir(module):
+                    if 'registry' in attr_name.lower():
+                        try:
+                            registry = getattr(module, attr_name)
+                            if hasattr(registry, 'clear') and hasattr(registry, '__len__'):
+                                if len(registry) > 0:
+                                    registry.clear()
+                                    print(f"✅ 清空{module_name}.{attr_name}")
+                        except:
+                            pass
+            except:
+                pass
                 
 except Exception as e:
     print(f"⚠️ 清理注册表时出现问题: {e}")
+    import traceback
+    traceback.print_exc()
 
 # Now safely import mmengine components
 from mmengine.runner import Runner
