@@ -125,30 +125,21 @@ print("📈 预期效果: 更丰富的场景多样性，提升模型泛化能力
 ```python
 # Import necessary functions (avoid CUDA-dependent imports)
 from mmengine.runner import Runner
-from mmengine.checkpoint import load_checkpoint
-
-# Build the model directly from config without importing mmseg.apis
-# This avoids CUDA extension loading issues in Kaggle
-from mmengine.registry import REGISTRIES
-from mmengine.config import Config
-
-# Build model using MMEngine's registry system
-model_cfg = cfg.model.copy()
-model_cfg['data_preprocessor'] = cfg.data_preprocessor
-model = REGISTRIES.build(model_cfg)
-
-# Alternative: use Runner to build model (recommended for MMSeg)
-# runner = Runner.from_cfg(cfg)
-# model = runner.model
-
-# Load the pretrained checkpoint
-if cfg.load_from:
-    print(f"Loading checkpoint from: {cfg.load_from}")
-    checkpoint = load_checkpoint(model, cfg.load_from, map_location='cpu')
-    print("Checkpoint loaded successfully!")
 
 # Build datasets using Runner (avoids direct dataset import issues)
+# This approach handles model building, dataset loading, and training in one go
 runner = Runner.from_cfg(cfg)
+model = runner.model
+
+print(f"Model type: {type(model).__name__}")
+print(f"Model device: {next(model.parameters()).device}")
+
+# Load the pretrained checkpoint (Runner handles this automatically if cfg.load_from is set)
+if cfg.load_from:
+    print(f"Checkpoint will be loaded from: {cfg.load_from}")
+    print("Checkpoint loading handled by Runner automatically!")
+
+# Display training configuration
 print(f"Training dataset configured: {type(runner.train_dataloader.dataset).__name__}")
 print(f"Training batch size: {runner.train_dataloader.batch_size}")
 
