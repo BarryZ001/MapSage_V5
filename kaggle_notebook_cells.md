@@ -345,6 +345,7 @@ for name, transform_cls in transforms_to_register:
 # Create a minimal LoveDADataset implementation to avoid mmseg imports
 from mmengine.dataset import BaseDataset
 from mmengine.registry import DATASETS
+import os
 import os.path as osp
 from PIL import Image
 import numpy as np
