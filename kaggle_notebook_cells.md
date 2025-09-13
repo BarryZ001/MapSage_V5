@@ -384,9 +384,9 @@ class MinimalLoveDADataset(BaseDataset):
         # Get subset of data information according to indices.
         if self._indices is not None:
             self.data_list = self._get_unserialized_subset(self._indices)
-        # Serialize data_list - COMPLETELY SKIP THIS STEP
-        # if self.serialize_data:
-        #     self.data_bytes, self.data_address = self._serialize_data()
+        # Initialize serialization attributes to avoid AttributeError
+        self.data_bytes = b''
+        self.data_address = np.array([0])
         # Set flag to mark the dataset as fully initialized.
         self._fully_initialized = True
         
