@@ -92,15 +92,31 @@ train_dataloader = dict(
     persistent_workers=True,
     sampler=dict(type='InfiniteSampler', shuffle=True),
     dataset=dict(
-        type='LoveDADataset',
-        data_root='/kaggle/input/loveda',
-        data_prefix=dict(
-            img_path='Train/Rural/images_png',
-            seg_map_path='Train/Rural/masks_png'
-        ),
-        img_suffix='.png',
-        seg_map_suffix='.png',
-        pipeline=train_pipeline
+        type='ConcatDataset',
+        datasets=[
+            dict(
+                type='LoveDADataset',
+                data_root='/kaggle/input/loveda',
+                data_prefix=dict(
+                    img_path='Train/Rural/images_png',
+                    seg_map_path='Train/Rural/masks_png'
+                ),
+                img_suffix='.png',
+                seg_map_suffix='.png',
+                pipeline=train_pipeline
+            ),
+            dict(
+                type='LoveDADataset',
+                data_root='/kaggle/input/loveda',
+                data_prefix=dict(
+                    img_path='Train/Urban/images_png',
+                    seg_map_path='Train/Urban/masks_png'
+                ),
+                img_suffix='.png',
+                seg_map_suffix='.png',
+                pipeline=train_pipeline
+            )
+        ]
     )
 )
 
@@ -110,15 +126,31 @@ val_dataloader = dict(
     persistent_workers=True,
     sampler=dict(type='DefaultSampler', shuffle=False),
     dataset=dict(
-        type='LoveDADataset',
-        data_root='/kaggle/input/loveda',
-        data_prefix=dict(
-            img_path='Val/Rural/images_png',
-            seg_map_path='Val/Rural/masks_png'
-        ),
-        img_suffix='.png',
-        seg_map_suffix='.png',
-        pipeline=val_pipeline
+        type='ConcatDataset',
+        datasets=[
+            dict(
+                type='LoveDADataset',
+                data_root='/kaggle/input/loveda',
+                data_prefix=dict(
+                    img_path='Val/Rural/images_png',
+                    seg_map_path='Val/Rural/masks_png'
+                ),
+                img_suffix='.png',
+                seg_map_suffix='.png',
+                pipeline=val_pipeline
+            ),
+            dict(
+                type='LoveDADataset',
+                data_root='/kaggle/input/loveda',
+                data_prefix=dict(
+                    img_path='Val/Urban/images_png',
+                    seg_map_path='Val/Urban/masks_png'
+                ),
+                img_suffix='.png',
+                seg_map_suffix='.png',
+                pipeline=val_pipeline
+            )
+        ]
     )
 )
 

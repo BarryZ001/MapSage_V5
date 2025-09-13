@@ -102,6 +102,23 @@ print(f"Data root: {cfg.data_root}")
 print(f"Load from: {cfg.load_from}")
 print(f"Max iterations: {cfg.runner.max_iters}")
 print(f"Validation interval: {cfg.evaluation.interval}")
+
+# Verify LoveDA dataset structure
+print("\n📊 LoveDA数据集结构验证:")
+loveda_root = '/kaggle/input/loveda'
+for split in ['Train', 'Val']:
+    for scene in ['Rural', 'Urban']:
+        img_path = f"{loveda_root}/{split}/{scene}/images_png"
+        mask_path = f"{loveda_root}/{split}/{scene}/masks_png"
+        if os.path.exists(img_path) and os.path.exists(mask_path):
+            img_count = len([f for f in os.listdir(img_path) if f.endswith('.png')])
+            mask_count = len([f for f in os.listdir(mask_path) if f.endswith('.png')])
+            print(f"✅ {split}/{scene}: {img_count} images, {mask_count} masks")
+        else:
+            print(f"❌ {split}/{scene}: 路径不存在")
+            
+print("\n🎯 训练配置: 使用Rural+Urban完整数据集进行知识蒸馏训练")
+print("📈 预期效果: 更丰富的场景多样性，提升模型泛化能力")
 ```
 
 ## Cell 4: Model Training
