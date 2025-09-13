@@ -37,7 +37,7 @@ model = dict(
         drop_rate=0.0,
         attn_drop_rate=0.0,
         drop_path_rate=0.1,
-        init_cfg=dict(type='Normal', layer='Linear', std=0.01)
+        # Remove init_cfg to use load_from checkpoint
     ),
     decode_head=dict(
         type='SegformerHead',
