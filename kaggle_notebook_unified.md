@@ -242,6 +242,38 @@ try:
             cleared_count += 1
     if cleared_count > 0:
         print(f"✅ 清理了 {cleared_count} 个已存在的优化器注册以避免冲突")
+        
+    # Also clear torch.optim registry if it exists
+    import torch.optim as torch_optim
+    if hasattr(torch_optim, '_registry'):
+        registry = torch_optim._registry
+        torch_cleared = 0
+        for opt_name in torch_optimizers:
+            if opt_name.lower() in registry:
+                del registry[opt_name.lower()]
+                torch_cleared += 1
+            if opt_name in registry:
+                del registry[opt_name]
+                torch_cleared += 1
+        if torch_cleared > 0:
+            print(f"✅ 清理了 {torch_cleared} 个torch.optim注册以避免冲突")
+            
+    # Clear any global optimizer registry
+    if hasattr(torch_optim, 'optimizer'):
+        opt_module = torch_optim.optimizer
+        if hasattr(opt_module, '_registry'):
+            opt_registry = opt_module._registry
+            opt_cleared = 0
+            for opt_name in torch_optimizers:
+                if opt_name.lower() in opt_registry:
+                    del opt_registry[opt_name.lower()]
+                    opt_cleared += 1
+                if opt_name in opt_registry:
+                    del opt_registry[opt_name]
+                    opt_cleared += 1
+            if opt_cleared > 0:
+                print(f"✅ 清理了 {opt_cleared} 个torch.optim.optimizer注册以避免冲突")
+                
 except Exception as e:
     print(f"⚠️ 清理注册表时出现问题: {e}")
 
