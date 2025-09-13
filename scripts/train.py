@@ -15,14 +15,19 @@ def main():
     # 注册所有模块 (非常重要!)
     register_all_modules(init_default_scope=False)
     
-    # 确保可视化器已注册
+    # 确保可视化器已注册 - 在加载配置之前
     try:
-        from mmseg.visualization import SegLocalVisualizer
-        VISUALIZERS.register_module(module=SegLocalVisualizer, force=True)
-    except ImportError:
+        from mmseg.visualization import SegLocalVisualizer  # type: ignore
+        # 检查是否已经注册
+        if 'SegLocalVisualizer' not in VISUALIZERS.module_dict:
+            VISUALIZERS.register_module(module=SegLocalVisualizer, force=True)
+            print("✅ SegLocalVisualizer registered successfully")
+    except ImportError as e:
+        print(f"⚠️ Failed to import SegLocalVisualizer: {e}")
         # 如果导入失败，尝试从mmengine导入基础可视化器
         from mmengine.visualization import Visualizer
         VISUALIZERS.register_module(name='SegLocalVisualizer', module=Visualizer, force=True)
+        print("✅ Fallback visualizer registered as SegLocalVisualizer")
 
     # 从文件加载配置
     cfg = Config.fromfile(args.config)
