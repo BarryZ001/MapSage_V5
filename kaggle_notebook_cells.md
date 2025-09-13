@@ -214,6 +214,7 @@ else:
 # Build datasets using Runner (avoids direct dataset import issues)
 # This approach handles model building, dataset loading, and training in one go
 # Pass visualizer=None directly to Runner to bypass visualization entirely
+# Set launcher='none' to completely skip model wrapping and avoid MMCV extensions
 runner = Runner(
     model=cfg['model'],
     work_dir=cfg['work_dir'],
@@ -227,6 +228,7 @@ runner = Runner(
     default_hooks=cfg['default_hooks'],
     load_from=cfg['load_from'],
     visualizer=None,  # Explicitly disable visualizer
+    launcher='none',  # Skip distributed training setup and model wrapping
     cfg=cfg
 )
 model = runner.model
