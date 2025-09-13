@@ -137,11 +137,24 @@ os.environ['MAX_JOBS'] = '1'
 
 # Monkey patch to completely bypass revert_sync_batchnorm function
 from mmengine.model import utils as mmengine_utils
+from mmengine.runner import runner as mmengine_runner
+
 def dummy_revert_sync_batchnorm(module):
     """Dummy function to replace revert_sync_batchnorm and avoid MMCV imports"""
     return module
+
+# Replace the function in both locations
 mmengine_utils.revert_sync_batchnorm = dummy_revert_sync_batchnorm
-print("✅ 已替换revert_sync_batchnorm函数以避免MMCV扩展加载")
+
+# Also monkey patch the Runner's wrap_model method to completely bypass model wrapping
+original_wrap_model = mmengine_runner.Runner.wrap_model
+def patched_wrap_model(self, model_wrapper_cfg, model):
+    """Patched wrap_model that completely bypasses all model wrapping"""
+    print("✅ 跳过模型包装以避免MMCV扩展问题")
+    return model
+
+mmengine_runner.Runner.wrap_model = patched_wrap_model
+print("✅ 已替换Runner.wrap_model方法以完全跳过模型包装")
 
 # GPU模式 - 检测并使用可用的GPU
 if torch.cuda.is_available():
