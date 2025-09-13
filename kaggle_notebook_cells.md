@@ -650,8 +650,20 @@ print("✅ 已添加HistoryBuffer到PyTorch安全全局变量列表")
 
 # Monkey patch torch.load to use weights_only=False for checkpoint loading
 # Store the original torch.load function before any patching to avoid recursion
-if not hasattr(torch, '_original_load'):
-    torch._original_load = torch.load
+# Use a more robust check to ensure we get the real original function
+if not hasattr(torch, '_real_original_load'):
+    # Find the real original torch.load by checking if it's already patched
+    current_load = torch.load
+    while hasattr(current_load, '__wrapped__') or (hasattr(current_load, '__name__') and 'patched' in current_load.__name__):
+        if hasattr(current_load, '__wrapped__'):
+            current_load = current_load.__wrapped__
+        elif hasattr(torch, '_original_load'):
+            current_load = torch._original_load
+            break
+        else:
+            break
+    torch._real_original_load = current_load
+    print(f"✅ 保存真正的原始torch.load函数: {torch._real_original_load}")
 
 def patched_torch_load(f, map_location=None, pickle_module=None, weights_only=None, **kwargs):
     """Patched torch.load that sets weights_only=False for checkpoint files"""
@@ -659,15 +671,12 @@ def patched_torch_load(f, map_location=None, pickle_module=None, weights_only=No
     if isinstance(f, str) and ('.pth' in f or 'checkpoint' in f):
         weights_only = False
         print(f"✅ 使用weights_only=False加载checkpoint: {f}")
-    # Use the original torch.load function to avoid recursion
-    return torch._original_load(f, map_location=map_location, pickle_module=pickle_module, weights_only=weights_only, **kwargs)
+    # Use the real original torch.load function to avoid recursion
+    return torch._real_original_load(f, map_location=map_location, pickle_module=pickle_module, weights_only=weights_only, **kwargs)
 
-# Only patch if not already patched to avoid multiple patching
-if not hasattr(torch.load, '__name__') or torch.load.__name__ != 'patched_torch_load':
-    torch.load = patched_torch_load
-    print("✅ 已修补torch.load以支持checkpoint加载")
-else:
-    print("✅ torch.load已经被修补，跳过重复修补")
+# Reset torch.load to avoid any existing patches and apply our patch
+torch.load = patched_torch_load
+print("✅ 已重置并修补torch.load以支持checkpoint加载")
 
 # Completely disable visualization to avoid CUDA extension loading
 cfg.visualizer = None
