@@ -216,17 +216,114 @@ else:
 # Register essential transforms to avoid KeyError
 from mmengine.registry import TRANSFORMS
 from mmcv.transforms import LoadImageFromFile, LoadAnnotations, Resize, RandomFlip
-from mmseg.datasets.transforms import PhotoMetricDistortion, RandomCrop, PackSegInputs
+import cv2
+import numpy as np
+from mmengine.structures import PixelData
+from mmengine.structures import SegDataSample
+
+# Create minimal transform implementations to avoid mmseg imports
+class MinimalRandomCrop:
+    """Minimal RandomCrop implementation to avoid CUDA dependencies"""
+    def __init__(self, crop_size, cat_max_ratio=1.0, ignore_index=255):
+        self.crop_size = crop_size if isinstance(crop_size, (list, tuple)) else (crop_size, crop_size)
+        self.cat_max_ratio = cat_max_ratio
+        self.ignore_index = ignore_index
+        
+    def __call__(self, results):
+        img = results['img']
+        gt_seg_map = results.get('gt_seg_map', None)
+        
+        h, w = img.shape[:2]
+        crop_h, crop_w = self.crop_size
+        
+        # Random crop coordinates
+        if h > crop_h:
+            top = np.random.randint(0, h - crop_h)
+        else:
+            top = 0
+        if w > crop_w:
+            left = np.random.randint(0, w - crop_w)
+        else:
+            left = 0
+            
+        # Crop image
+        results['img'] = img[top:top+crop_h, left:left+crop_w]
+        
+        # Crop segmentation map if exists
+        if gt_seg_map is not None:
+            results['gt_seg_map'] = gt_seg_map[top:top+crop_h, left:left+crop_w]
+            
+        return results
+
+class MinimalPhotoMetricDistortion:
+    """Minimal PhotoMetricDistortion implementation"""
+    def __init__(self, brightness_delta=32, contrast_range=(0.5, 1.5), 
+                 saturation_range=(0.5, 1.5), hue_delta=18):
+        self.brightness_delta = brightness_delta
+        self.contrast_range = contrast_range
+        self.saturation_range = saturation_range
+        self.hue_delta = hue_delta
+        
+    def __call__(self, results):
+        img = results['img'].astype(np.float32)
+        
+        # Random brightness
+        if np.random.randint(2):
+            delta = np.random.uniform(-self.brightness_delta, self.brightness_delta)
+            img += delta
+            
+        # Random contrast
+        if np.random.randint(2):
+            alpha = np.random.uniform(*self.contrast_range)
+            img *= alpha
+            
+        img = np.clip(img, 0, 255).astype(np.uint8)
+        results['img'] = img
+        return results
+
+class MinimalPackSegInputs:
+    """Minimal PackSegInputs implementation"""
+    def __init__(self, meta_keys=('img_path', 'seg_map_path', 'ori_shape', 'img_shape', 'pad_shape', 'scale_factor', 'flip', 'flip_direction')):
+        self.meta_keys = meta_keys
+        
+    def __call__(self, results):
+        packed_results = {}
+        
+        # Pack image
+        if 'img' in results:
+            img = results['img']
+            if len(img.shape) == 3:
+                img = np.transpose(img, (2, 0, 1))  # HWC to CHW
+            packed_results['inputs'] = img
+            
+        # Pack segmentation map
+        if 'gt_seg_map' in results:
+            packed_results['data_samples'] = SegDataSample(
+                gt_sem_seg=PixelData(data=results['gt_seg_map'][None, ...])
+            )
+            
+        # Pack meta info
+        img_meta = {}
+        for key in self.meta_keys:
+            if key in results:
+                img_meta[key] = results[key]
+        
+        if 'data_samples' in packed_results:
+            packed_results['data_samples'].set_metainfo(img_meta)
+        else:
+            packed_results['data_samples'] = SegDataSample(metainfo=img_meta)
+            
+        return packed_results
 
 # Register transforms if not already registered
 transforms_to_register = [
     ('LoadImageFromFile', LoadImageFromFile),
     ('LoadAnnotations', LoadAnnotations),
     ('Resize', Resize),
-    ('RandomCrop', RandomCrop),
+    ('RandomCrop', MinimalRandomCrop),
     ('RandomFlip', RandomFlip),
-    ('PhotoMetricDistortion', PhotoMetricDistortion),
-    ('PackSegInputs', PackSegInputs)
+    ('PhotoMetricDistortion', MinimalPhotoMetricDistortion),
+    ('PackSegInputs', MinimalPackSegInputs)
 ]
 
 for name, transform_cls in transforms_to_register:
