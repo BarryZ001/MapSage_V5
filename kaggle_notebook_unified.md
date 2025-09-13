@@ -230,9 +230,10 @@ import os
 import torch
 import torch.nn as nn
 
-# Prevent mmengine from auto-registering transformers optimizers by monkey patching
+# Prevent mmengine from auto-registering ANY optimizers by monkey patching
 # This must be done BEFORE any mmengine imports
 import sys
+import torch
 
 # Mock transformers to prevent Adafactor registration
 class MockTransformers:
@@ -250,20 +251,59 @@ sys.modules['transformers'] = MockTransformers()
 sys.modules['transformers.optimization'] = MockTransformers()
 print("✅ 已安装mock transformers模块以阻止Adafactor自动注册")
 
-# Also monkey patch the register_transformers_optimizers function
+# Create a mock OPTIMIZERS registry that accepts registrations without conflicts
+class MockOptimizersRegistry:
+    """Mock OPTIMIZERS registry that silently accepts all registrations"""
+    def __init__(self):
+        self.module_dict = {}
+        self.name = 'optimizer'
+        
+    def register_module(self, name=None, force=False, module=None):
+        """Mock register_module that always succeeds"""
+        if module is not None:
+            # Always allow registration, no conflicts
+            if name is None:
+                name = module.__name__
+            self.module_dict[name] = module
+            print(f"✅ Mock注册优化器: {name}")
+            return module
+        # Return decorator if called without module
+        def decorator(cls):
+            self.register_module(name=name, force=force, module=cls)
+            return cls
+        return decorator
+        
+    def get(self, name):
+        return self.module_dict.get(name)
+        
+    def __contains__(self, name):
+        return name in self.module_dict
+
+# Create mock registry instance
+mock_optimizers_registry = MockOptimizersRegistry()
+
+# Monkey patch the registry creation functions
+def mock_register_torch_optimizers():
+    """Mock function that returns empty list to prevent torch optimizer registration"""
+    print("✅ 跳过torch优化器注册以避免冲突")
+    return []
+    
 def mock_register_transformers_optimizers():
-    """Mock function that returns empty list to prevent any transformer optimizer registration"""
+    """Mock function that returns empty list to prevent transformer optimizer registration"""
     print("✅ 跳过transformers优化器注册以避免冲突")
     return []
 
-# Patch the function before mmengine import
-try:
-    import mmengine.optim.optimizer.builder as builder_module
-    builder_module.register_transformers_optimizers = mock_register_transformers_optimizers
-    print("✅ 已替换register_transformers_optimizers函数")
-except ImportError:
-    # Module not yet imported, will be patched when imported
-    pass
+# Pre-patch mmengine modules before they are imported
+class MockMMEngineModule:
+    """Mock mmengine module to intercept optimizer registration"""
+    def __init__(self):
+        self.OPTIMIZERS = mock_optimizers_registry
+        self.register_torch_optimizers = mock_register_torch_optimizers
+        self.register_transformers_optimizers = mock_register_transformers_optimizers
+        
+# Install mock mmengine modules
+sys.modules['mmengine.optim.optimizer.builder'] = MockMMEngineModule()
+print("✅ 已安装mock mmengine.optim.optimizer.builder模块")
 
 # Clear any existing optimizer registrations to avoid conflicts in Kaggle environment
 try:
@@ -298,18 +338,28 @@ except Exception as e:
     import traceback
     traceback.print_exc()
 
-# Now safely import mmengine components
-from mmengine.runner import Runner
-from mmengine.registry import MODELS as MMENGINE_MODELS, OPTIMIZERS
-from mmengine.model import BaseModel
-
-# Clear mmengine OPTIMIZERS registry after import
+# Now safely import mmengine components with our mock registry
 try:
-    print(f"🔍 导入后OPTIMIZERS注册表内容: {list(OPTIMIZERS.module_dict.keys())}")
-    OPTIMIZERS.module_dict.clear()
-    print("✅ 清空mmengine OPTIMIZERS注册表")
+    from mmengine.runner import Runner
+    from mmengine.registry import MODELS as MMENGINE_MODELS
+    from mmengine.model import BaseModel
+    print("✅ 成功导入mmengine核心组件")
 except Exception as e:
-    print(f"⚠️ 清理mmengine OPTIMIZERS注册表时出现问题: {e}")
+    print(f"⚠️ 导入mmengine组件时出现问题: {e}")
+    import traceback
+    traceback.print_exc()
+
+# Use our mock OPTIMIZERS registry instead of the real one
+OPTIMIZERS = mock_optimizers_registry
+print(f"✅ 使用mock OPTIMIZERS注册表，当前内容: {list(OPTIMIZERS.module_dict.keys())}")
+
+# Patch mmengine.registry to use our mock OPTIMIZERS
+try:
+    import mmengine.registry as mmengine_registry
+    mmengine_registry.OPTIMIZERS = mock_optimizers_registry
+    print("✅ 已将mmengine.registry.OPTIMIZERS替换为mock注册表")
+except Exception as e:
+    print(f"⚠️ 替换mmengine.registry.OPTIMIZERS时出现问题: {e}")
 
 # 强制禁用MMCV CUDA扩展以避免符号未定义错误
 os.environ['MMCV_WITH_OPS'] = '0'
