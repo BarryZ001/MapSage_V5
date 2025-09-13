@@ -215,8 +215,8 @@ else:
 
 # Register essential transforms to avoid KeyError
 from mmengine.registry import TRANSFORMS
-from mmcv.transforms import LoadImageFromFile, LoadAnnotations, Resize, RandomCrop, RandomFlip, PackSegInputs
-from mmseg.datasets.transforms import PhotoMetricDistortion
+from mmcv.transforms import LoadImageFromFile, LoadAnnotations, Resize, RandomFlip, PackSegInputs
+from mmseg.datasets.transforms import PhotoMetricDistortion, RandomCrop
 
 # Register transforms if not already registered
 transforms_to_register = [
