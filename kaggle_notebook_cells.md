@@ -372,6 +372,23 @@ class MinimalLoveDADataset(BaseDataset):
     def _serialize_data(self):
         """Override to disable data serialization completely."""
         return b'', np.array([0])
+    
+    def full_init(self):
+        """Override full_init to skip serialization completely."""
+        if self._fully_initialized:
+            return
+        # Load data information from annotation file.
+        self.data_list = self.load_data_list()
+        # Filter data information if needed.
+        self.data_list = self.filter_data()
+        # Get subset of data information according to indices.
+        if self._indices is not None:
+            self.data_list = self._get_unserialized_subset(self._indices)
+        # Serialize data_list - COMPLETELY SKIP THIS STEP
+        # if self.serialize_data:
+        #     self.data_bytes, self.data_address = self._serialize_data()
+        # Set flag to mark the dataset as fully initialized.
+        self._fully_initialized = True
         
     def load_data_list(self):
         """Load annotation file to get data list."""
