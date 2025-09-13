@@ -105,6 +105,26 @@ def main():
         except ImportError:
             print("❌ Could not import SegformerHead from any location")
     
+    # 确保CrossEntropyLoss已注册
+    try:
+        from mmseg.models.losses import CrossEntropyLoss  # type: ignore
+        if 'CrossEntropyLoss' not in MODELS.module_dict:
+            MODELS.register_module(module=CrossEntropyLoss, force=True)
+            print("✅ CrossEntropyLoss registered to mmseg registry")
+        if 'CrossEntropyLoss' not in MMENGINE_MODELS.module_dict:
+            MMENGINE_MODELS.register_module(module=CrossEntropyLoss, force=True)
+            print("✅ CrossEntropyLoss registered to mmengine registry")
+    except ImportError as e:
+        print(f"⚠️ Failed to import CrossEntropyLoss: {e}")
+        # 尝试从其他位置导入
+        try:
+            from mmseg.models import CrossEntropyLoss  # type: ignore
+            MODELS.register_module(module=CrossEntropyLoss, force=True)
+            MMENGINE_MODELS.register_module(module=CrossEntropyLoss, force=True)
+            print("✅ CrossEntropyLoss imported and registered")
+        except ImportError:
+            print("❌ Could not import CrossEntropyLoss from any location")
+    
     # 验证注册状态
     print(f"🔍 Final check - EncoderDecoder in MODELS: {'EncoderDecoder' in MODELS.module_dict}")
     print(f"🔍 Final check - EncoderDecoder in MMENGINE_MODELS: {'EncoderDecoder' in MMENGINE_MODELS.module_dict}")
@@ -114,6 +134,8 @@ def main():
     print(f"🔍 Final check - MixVisionTransformer in MMENGINE_MODELS: {'MixVisionTransformer' in MMENGINE_MODELS.module_dict}")
     print(f"🔍 Final check - SegformerHead in MODELS: {'SegformerHead' in MODELS.module_dict}")
     print(f"🔍 Final check - SegformerHead in MMENGINE_MODELS: {'SegformerHead' in MMENGINE_MODELS.module_dict}")
+    print(f"🔍 Final check - CrossEntropyLoss in MODELS: {'CrossEntropyLoss' in MODELS.module_dict}")
+    print(f"🔍 Final check - CrossEntropyLoss in MMENGINE_MODELS: {'CrossEntropyLoss' in MMENGINE_MODELS.module_dict}")
     
     # 确保可视化器已注册 - 同时注册到mmseg和mmengine注册表
     try:
