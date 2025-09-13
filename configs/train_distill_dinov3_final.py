@@ -38,10 +38,35 @@ train_dataloader = dict(
                 pipeline=train_pipeline)
         ]))
 
-# --- 4. 验证与测试组件 (保持不变) ---
-val_dataloader = _base_.test_dataloader
-val_evaluator = _base_.test_evaluator
-# 关键：补上缺失的顶层 test_cfg 以满足Runner的要求
+# --- 4. 验证与测试组件 ---
+val_pipeline = [
+    dict(type='LoadImageFromFile'),
+    dict(type='LoadAnnotations'),
+    dict(type='Resize', scale=(1024, 1024), keep_ratio=True),
+    dict(type='PackSegInputs')
+]
+
+val_dataloader = dict(
+    batch_size=1,
+    num_workers=4,
+    persistent_workers=True,
+    sampler=dict(type='DefaultSampler', shuffle=False),
+    dataset=dict(
+        type='ConcatDataset',
+        datasets=[
+            dict(
+                type=dataset_type, data_root=data_root,
+                data_prefix=dict(img_path='Val/Rural/images_png', seg_map_path='Val/Rural/masks_png'),
+                pipeline=val_pipeline),
+            dict(
+                type=dataset_type, data_root=data_root,
+                data_prefix=dict(img_path='Val/Urban/images_png', seg_map_path='Val/Urban/masks_png'),
+                pipeline=val_pipeline)
+        ]))
+
+test_dataloader = val_dataloader
+val_evaluator = dict(type='IoUMetric', iou_metrics=['mIoU'])
+test_evaluator = val_evaluator
 test_cfg = dict(type='TestLoop')
 
 # --- 5. 训练策略 ---
@@ -86,7 +111,21 @@ student_model = dict(
         seg_pad_val=255,
         size=(512, 512) # 训练时需要padding size
     ),
-    backbone=_base_.model.backbone,
+    backbone=dict(
+        type='MixVisionTransformer',
+        in_channels=3,
+        embed_dims=[64, 128, 320, 512],
+        num_stages=4,
+        num_layers=[3, 4, 6, 3],
+        num_heads=[1, 2, 5, 8],
+        patch_sizes=[7, 3, 3, 3],
+        sr_ratios=[8, 4, 2, 1],
+        out_indices=(0, 1, 2, 3),
+        mlp_ratio=4,
+        qkv_bias=True,
+        drop_rate=0.0,
+        attn_drop_rate=0.0,
+        drop_path_rate=0.1),
     decode_head=dict(
         type='SegformerHead',
         in_channels=[64, 128, 320, 512], in_index=[0, 1, 2, 3],
@@ -99,7 +138,7 @@ student_model = dict(
             dict(type='LovaszLoss', loss_weight=0.1, reduction='none')
         ]
     ),
-    test_cfg=_base_.model.test_cfg
+    test_cfg=dict(mode='whole')
 )
 
 # --- 7. 最终模型：知识蒸馏封装 ---
