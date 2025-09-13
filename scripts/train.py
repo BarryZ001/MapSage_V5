@@ -7,6 +7,7 @@ from mmengine.runner import Runner
 from mmseg.utils import register_all_modules  # type: ignore
 from mmseg.registry import MODELS, DATASETS, TRANSFORMS, VISUALIZERS  # type: ignore
 from mmengine.registry import VISUALIZERS as MMENGINE_VISUALIZERS  # type: ignore
+from mmengine.registry import MODELS as MMENGINE_MODELS  # type: ignore
 
 def main():
     parser = argparse.ArgumentParser(description='MMSegmentation training script')
@@ -15,6 +16,21 @@ def main():
 
     # 注册所有模块 (非常重要!)
     register_all_modules(init_default_scope=False)
+    
+    # 检查关键模型是否已注册
+    print(f"📋 MODELS registry has {len(MODELS.module_dict)} modules")
+    print(f"📋 EncoderDecoder in MODELS: {'EncoderDecoder' in MODELS.module_dict}")
+    print(f"📋 MMENGINE_MODELS registry has {len(MMENGINE_MODELS.module_dict)} modules")
+    print(f"📋 EncoderDecoder in MMENGINE_MODELS: {'EncoderDecoder' in MMENGINE_MODELS.module_dict}")
+    
+    # 确保关键模型已注册到mmengine注册表
+    try:
+        from mmseg.models import EncoderDecoder  # type: ignore
+        if 'EncoderDecoder' not in MMENGINE_MODELS.module_dict:
+            MMENGINE_MODELS.register_module(module=EncoderDecoder, force=True)
+            print("✅ EncoderDecoder registered to mmengine registry")
+    except ImportError as e:
+        print(f"⚠️ Failed to import EncoderDecoder: {e}")
     
     # 确保可视化器已注册 - 同时注册到mmseg和mmengine注册表
     try:
