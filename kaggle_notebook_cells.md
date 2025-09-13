@@ -125,6 +125,9 @@ print("📈 预期效果: 更丰富的场景多样性，提升模型泛化能力
 ```python
 # Import necessary functions (avoid CUDA-dependent imports)
 from mmengine.runner import Runner
+# Import mmseg to register model components
+import mmseg
+from mmseg.registry import MODELS
 
 # Completely disable visualization to avoid CUDA extension loading
 cfg.visualizer = None
