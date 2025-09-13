@@ -230,20 +230,47 @@ import os
 import torch
 import torch.nn as nn
 
+# Prevent mmengine from auto-registering transformers optimizers by monkey patching
+# This must be done BEFORE any mmengine imports
+import sys
+
+# Mock transformers to prevent Adafactor registration
+class MockTransformers:
+    """Mock transformers module to prevent optimizer registration"""
+    def __getattr__(self, name):
+        if name == 'Adafactor':
+            # Return a dummy class that won't cause registration conflicts
+            class DummyAdafactor:
+                pass
+            return DummyAdafactor
+        raise AttributeError(f"module 'transformers' has no attribute '{name}'")
+
+# Install mock transformers before mmengine import
+sys.modules['transformers'] = MockTransformers()
+sys.modules['transformers.optimization'] = MockTransformers()
+print("✅ 已安装mock transformers模块以阻止Adafactor自动注册")
+
+# Also monkey patch the register_transformers_optimizers function
+def mock_register_transformers_optimizers():
+    """Mock function that returns empty list to prevent any transformer optimizer registration"""
+    print("✅ 跳过transformers优化器注册以避免冲突")
+    return []
+
+# Patch the function before mmengine import
+try:
+    import mmengine.optim.optimizer.builder as builder_module
+    builder_module.register_transformers_optimizers = mock_register_transformers_optimizers
+    print("✅ 已替换register_transformers_optimizers函数")
+except ImportError:
+    # Module not yet imported, will be patched when imported
+    pass
+
 # Clear any existing optimizer registrations to avoid conflicts in Kaggle environment
 try:
-    # First, completely reset mmengine's OPTIMIZERS registry
-    from mmengine.registry import OPTIMIZERS
-    print(f"🔍 原始OPTIMIZERS注册表内容: {list(OPTIMIZERS.module_dict.keys())}")
-    
-    # Clear the entire registry and rebuild it fresh
-    OPTIMIZERS.module_dict.clear()
-    print("✅ 完全清空mmengine OPTIMIZERS注册表")
-    
-    # Also clear torch.optim registries completely
+    # Import torch.optim first and clear any existing registries
     import torch.optim as torch_optim
     
-    # Clear torch.optim._registry if it exists
+    # Clear torch.optim registries completely
     if hasattr(torch_optim, '_registry'):
         torch_optim._registry.clear()
         print("✅ 清空torch.optim._registry")
@@ -266,34 +293,23 @@ try:
             except:
                 pass
                 
-    # Also check for any module-level registries
-    import sys
-    for module_name in list(sys.modules.keys()):
-        if 'optim' in module_name.lower() and 'torch' in module_name.lower():
-            try:
-                module = sys.modules[module_name]
-                for attr_name in dir(module):
-                    if 'registry' in attr_name.lower():
-                        try:
-                            registry = getattr(module, attr_name)
-                            if hasattr(registry, 'clear') and hasattr(registry, '__len__'):
-                                if len(registry) > 0:
-                                    registry.clear()
-                                    print(f"✅ 清空{module_name}.{attr_name}")
-                        except:
-                            pass
-            except:
-                pass
-                
 except Exception as e:
-    print(f"⚠️ 清理注册表时出现问题: {e}")
+    print(f"⚠️ 清理torch.optim注册表时出现问题: {e}")
     import traceback
     traceback.print_exc()
 
 # Now safely import mmengine components
 from mmengine.runner import Runner
-from mmengine.registry import MODELS as MMENGINE_MODELS
+from mmengine.registry import MODELS as MMENGINE_MODELS, OPTIMIZERS
 from mmengine.model import BaseModel
+
+# Clear mmengine OPTIMIZERS registry after import
+try:
+    print(f"🔍 导入后OPTIMIZERS注册表内容: {list(OPTIMIZERS.module_dict.keys())}")
+    OPTIMIZERS.module_dict.clear()
+    print("✅ 清空mmengine OPTIMIZERS注册表")
+except Exception as e:
+    print(f"⚠️ 清理mmengine OPTIMIZERS注册表时出现问题: {e}")
 
 # 强制禁用MMCV CUDA扩展以避免符号未定义错误
 os.environ['MMCV_WITH_OPS'] = '0'
