@@ -156,6 +156,25 @@ def patched_wrap_model(self, model_wrapper_cfg, model):
 mmengine_runner.Runner.wrap_model = patched_wrap_model
 print("✅ 已替换Runner.wrap_model方法以完全跳过模型包装")
 
+# Monkey patch to bypass MMCV ops import in optimizer constructor
+from mmengine.optim.optimizer import default_constructor
+
+original_add_params = default_constructor.DefaultOptimWrapperConstructor.add_params
+def patched_add_params(self, params, module):
+    """Patched add_params that bypasses MMCV ops import"""
+    # Skip the MMCV ops import that causes the error
+    # Just add all parameters without special handling for deformable convs
+    for name, param in module.named_parameters():
+        if not param.requires_grad:
+            continue
+        if len(params) == 0:
+            params.append({'params': []})
+        params[0]['params'].append(param)
+    print("✅ 跳过MMCV ops导入以避免符号未定义错误")
+
+default_constructor.DefaultOptimWrapperConstructor.add_params = patched_add_params
+print("✅ 已替换OptimWrapperConstructor.add_params方法以避免MMCV扩展问题")
+
 # GPU模式 - 检测并使用可用的GPU
 if torch.cuda.is_available():
     print(f"✅ 检测到GPU: {torch.cuda.get_device_name(0)}")
@@ -398,32 +417,80 @@ class MinimalLoveDADataset(BaseDataset):
         base_img_path = self.data_prefix.get('img_path', '')
         base_seg_path = self.data_prefix.get('seg_map_path', '')
         
-        # Try LoveDA structure first
-        loveda_subdirs = ['Train/Rural', 'Train/Urban', 'Val/Rural', 'Val/Urban']
+        # Debug: Print data_root and check what's actually there
+        print(f"🔍 检查数据根目录: {self.data_root}")
+        if osp.exists(self.data_root):
+            print(f"✅ 数据根目录存在，内容: {os.listdir(self.data_root)}")
+            # Check for any subdirectories
+            for item in os.listdir(self.data_root):
+                item_path = osp.join(self.data_root, item)
+                if osp.isdir(item_path):
+                    print(f"📁 发现子目录: {item} -> {os.listdir(item_path) if len(os.listdir(item_path)) < 10 else f'{len(os.listdir(item_path))} items'}")
+        else:
+            print(f"❌ 数据根目录不存在: {self.data_root}")
         
-        for subdir in loveda_subdirs:
-            img_dir = osp.join(self.data_root, subdir, 'images_png')
-            seg_dir = osp.join(self.data_root, subdir, 'masks_png')
-            
-            if osp.exists(img_dir):
-                print(f"✅ 找到LoveDA数据目录: {img_dir}")
-                for img_name in os.listdir(img_dir):
-                    if img_name.endswith(self.img_suffix):
-                        seg_name = img_name.replace(self.img_suffix, self.seg_map_suffix)
-                        seg_path = osp.join(seg_dir, seg_name)
+        # Try multiple possible LoveDA structures
+        possible_structures = [
+            # Standard LoveDA structure
+            ['Train/Rural', 'Train/Urban', 'Val/Rural', 'Val/Urban'],
+            # Alternative structures
+            ['train/Rural', 'train/Urban', 'val/Rural', 'val/Urban'],
+            ['Rural', 'Urban'],
+            ['train', 'val'],
+            ['Train', 'Val'],
+            # Direct structure
+            ['.']
+        ]
+        
+        for structure in possible_structures:
+            print(f"🔍 尝试结构: {structure}")
+            for subdir in structure:
+                # Try different image/mask folder names
+                possible_img_dirs = ['images_png', 'images', 'img']
+                possible_seg_dirs = ['masks_png', 'masks', 'labels', 'gt']
+                
+                for img_folder in possible_img_dirs:
+                    for seg_folder in possible_seg_dirs:
+                        if subdir == '.':
+                            img_dir = osp.join(self.data_root, img_folder)
+                            seg_dir = osp.join(self.data_root, seg_folder)
+                        else:
+                            img_dir = osp.join(self.data_root, subdir, img_folder)
+                            seg_dir = osp.join(self.data_root, subdir, seg_folder)
                         
-                        # Only add if mask exists or create dummy mask path
-                        if not osp.exists(seg_path):
-                            seg_path = osp.join(seg_dir, img_name)  # Try same name
-                        
-                        data_info = {
-                            'img_path': osp.join(img_dir, img_name),
-                            'seg_map_path': seg_path,
-                            'label_map': None,
-                            'reduce_zero_label': False,
-                            'seg_fields': []
-                        }
-                        data_list.append(data_info)
+                        if osp.exists(img_dir):
+                            print(f"✅ 找到图像目录: {img_dir}")
+                            img_files = [f for f in os.listdir(img_dir) if f.endswith(self.img_suffix)]
+                            print(f"📊 图像文件数量: {len(img_files)}")
+                            
+                            for img_name in img_files[:100]:  # Limit to first 100 files
+                                seg_name = img_name.replace(self.img_suffix, self.seg_map_suffix)
+                                seg_path = osp.join(seg_dir, seg_name)
+                                
+                                # Try different mask naming conventions
+                                if not osp.exists(seg_path):
+                                    seg_path = osp.join(seg_dir, img_name)  # Same name
+                                if not osp.exists(seg_path):
+                                    seg_path = osp.join(seg_dir, img_name.replace('.png', '_mask.png'))  # _mask suffix
+                                
+                                data_info = {
+                                    'img_path': osp.join(img_dir, img_name),
+                                    'seg_map_path': seg_path,
+                                    'label_map': None,
+                                    'reduce_zero_label': False,
+                                    'seg_fields': []
+                                }
+                                data_list.append(data_info)
+                            
+                            if data_list:
+                                print(f"✅ 成功从 {img_dir} 加载 {len(data_list)} 个样本")
+                                break
+                    if data_list:
+                        break
+                if data_list:
+                    break
+            if data_list:
+                break
         
         # Fallback to original structure if LoveDA structure not found
         if not data_list:
