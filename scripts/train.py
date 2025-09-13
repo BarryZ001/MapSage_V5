@@ -125,6 +125,24 @@ def main():
         except ImportError:
             print("❌ Could not import CrossEntropyLoss from any location")
     
+    # 确保SegVisualizationHook已注册
+    try:
+        from mmengine.registry import HOOKS  # type: ignore
+        from mmseg.engine.hooks import SegVisualizationHook  # type: ignore
+        if 'SegVisualizationHook' not in HOOKS.module_dict:
+            HOOKS.register_module(module=SegVisualizationHook, force=True)
+            print("✅ SegVisualizationHook registered to hooks registry")
+    except ImportError as e:
+        print(f"⚠️ Failed to import SegVisualizationHook: {e}")
+        # 尝试从其他位置导入
+        try:
+            from mmengine.registry import HOOKS  # type: ignore
+            from mmseg.engine import SegVisualizationHook  # type: ignore
+            HOOKS.register_module(module=SegVisualizationHook, force=True)
+            print("✅ SegVisualizationHook imported and registered")
+        except ImportError:
+            print("❌ Could not import SegVisualizationHook from any location")
+    
     # 验证注册状态
     print(f"🔍 Final check - EncoderDecoder in MODELS: {'EncoderDecoder' in MODELS.module_dict}")
     print(f"🔍 Final check - EncoderDecoder in MMENGINE_MODELS: {'EncoderDecoder' in MMENGINE_MODELS.module_dict}")
@@ -136,6 +154,13 @@ def main():
     print(f"🔍 Final check - SegformerHead in MMENGINE_MODELS: {'SegformerHead' in MMENGINE_MODELS.module_dict}")
     print(f"🔍 Final check - CrossEntropyLoss in MODELS: {'CrossEntropyLoss' in MODELS.module_dict}")
     print(f"🔍 Final check - CrossEntropyLoss in MMENGINE_MODELS: {'CrossEntropyLoss' in MMENGINE_MODELS.module_dict}")
+    
+    # 检查SegVisualizationHook注册状态
+    try:
+        from mmengine.registry import HOOKS  # type: ignore
+        print(f"🔍 Final check - SegVisualizationHook in HOOKS: {'SegVisualizationHook' in HOOKS.module_dict}")
+    except ImportError:
+        print("⚠️ Could not import HOOKS registry")
     
     # 确保可视化器已注册 - 同时注册到mmseg和mmengine注册表
     try:
