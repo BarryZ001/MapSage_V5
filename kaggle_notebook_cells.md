@@ -255,7 +255,15 @@ runner = Runner(
 model = runner.model
 
 print(f"Model type: {type(model).__name__}")
-print(f"Model device: {next(model.parameters()).device}")
+# Safely check model device - handle case where model has no parameters
+try:
+    model_device = next(model.parameters()).device
+    print(f"Model device: {model_device}")
+except StopIteration:
+    print("Model has no parameters (using placeholder model)")
+    model_device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    print(f"Target device: {model_device}")
+
 device_mode = "GPU" if torch.cuda.is_available() else "CPU"
 print(f"✅ 成功创建Runner ({device_mode}模式)")
 
