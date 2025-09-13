@@ -125,24 +125,22 @@ print("📈 预期效果: 更丰富的场景多样性，提升模型泛化能力
 ```python
 # Import necessary functions (avoid CUDA-dependent imports)
 from mmengine.runner import Runner
-# Import mmseg registry only, avoid importing models to prevent CUDA loading
+# Import mmseg to register model components
 import mmseg
 from mmseg.registry import MODELS
-# Manually register EncoderDecoder without importing the module
-from mmengine.registry import MODELS as MMENGINE_MODELS
 
-# Register EncoderDecoder class dynamically to avoid CUDA imports
-try:
-    # Try to get EncoderDecoder from registry if already registered
-    encoder_decoder_cls = MODELS.get('EncoderDecoder')
-    if encoder_decoder_cls is None:
-        # If not found, register it manually without importing the full module
-        from mmseg.models.segmentors.encoder_decoder import EncoderDecoder
-        MODELS.register_module(name='EncoderDecoder', module=EncoderDecoder)
-except ImportError:
-    # If import fails due to CUDA, skip registration and let Runner handle it
-    print("Warning: Could not register EncoderDecoder due to CUDA dependencies")
-    pass
+# Use custom_imports in config to register models safely
+# This approach avoids direct imports that might trigger CUDA loading
+if not hasattr(cfg, 'custom_imports'):
+    cfg.custom_imports = dict(
+        imports=['mmseg.models.segmentors.encoder_decoder'],
+        allow_failed_imports=True
+    )
+else:
+    # Ensure mmseg models are in custom_imports
+    if 'mmseg.models.segmentors.encoder_decoder' not in cfg.custom_imports.get('imports', []):
+        cfg.custom_imports.setdefault('imports', []).append('mmseg.models.segmentors.encoder_decoder')
+        cfg.custom_imports.setdefault('allow_failed_imports', True)
 
 # Completely disable visualization to avoid CUDA extension loading
 cfg.visualizer = None
