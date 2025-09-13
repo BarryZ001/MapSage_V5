@@ -65,11 +65,33 @@ def main():
         except ImportError:
             print("❌ Could not import SegDataPreProcessor from any location")
     
+    # 确保MixVisionTransformer已注册
+    try:
+        from mmseg.models.backbones import MixVisionTransformer  # type: ignore
+        if 'MixVisionTransformer' not in MODELS.module_dict:
+            MODELS.register_module(module=MixVisionTransformer, force=True)
+            print("✅ MixVisionTransformer registered to mmseg registry")
+        if 'MixVisionTransformer' not in MMENGINE_MODELS.module_dict:
+            MMENGINE_MODELS.register_module(module=MixVisionTransformer, force=True)
+            print("✅ MixVisionTransformer registered to mmengine registry")
+    except ImportError as e:
+        print(f"⚠️ Failed to import MixVisionTransformer: {e}")
+        # 尝试从其他位置导入
+        try:
+            from mmseg.models import MixVisionTransformer  # type: ignore
+            MODELS.register_module(module=MixVisionTransformer, force=True)
+            MMENGINE_MODELS.register_module(module=MixVisionTransformer, force=True)
+            print("✅ MixVisionTransformer imported and registered")
+        except ImportError:
+            print("❌ Could not import MixVisionTransformer from any location")
+    
     # 验证注册状态
     print(f"🔍 Final check - EncoderDecoder in MODELS: {'EncoderDecoder' in MODELS.module_dict}")
     print(f"🔍 Final check - EncoderDecoder in MMENGINE_MODELS: {'EncoderDecoder' in MMENGINE_MODELS.module_dict}")
     print(f"🔍 Final check - SegDataPreProcessor in MODELS: {'SegDataPreProcessor' in MODELS.module_dict}")
     print(f"🔍 Final check - SegDataPreProcessor in MMENGINE_MODELS: {'SegDataPreProcessor' in MMENGINE_MODELS.module_dict}")
+    print(f"🔍 Final check - MixVisionTransformer in MODELS: {'MixVisionTransformer' in MODELS.module_dict}")
+    print(f"🔍 Final check - MixVisionTransformer in MMENGINE_MODELS: {'MixVisionTransformer' in MMENGINE_MODELS.module_dict}")
     
     # 确保可视化器已注册 - 同时注册到mmseg和mmengine注册表
     try:
