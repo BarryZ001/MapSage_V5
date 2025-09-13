@@ -2,10 +2,14 @@
 
 ## Cell 1: Environment Setup and Dependencies
 ```python
-# Install required packages with proper compatibility
+# 使用预编译wheel包，避免编译耗时
 !pip install -U openmim
 !mim install mmengine
-!mim install "mmcv>=2.0.0"
+
+# 直接安装预编译的MMCV wheel包
+!pip install mmcv==2.1.0 -f https://download.openmmlab.com/mmcv/dist/cu118/torch2.1/index.html
+
+# 安装其他依赖
 !pip install "mmsegmentation>=1.0.0"
 !pip install mmrazor
 !pip install ftfy regex
