@@ -771,7 +771,7 @@ for epoch in range(num_epochs):
     num_batches = 0
     
     # 真实数据训练
-     for batch_idx, (inputs, targets) in enumerate(train_loader):
+    for batch_idx, (inputs, targets) in enumerate(train_loader):
          inputs = inputs.to(device)
          targets = targets.to(device)
          
