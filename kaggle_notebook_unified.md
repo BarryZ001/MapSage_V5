@@ -276,6 +276,24 @@ if 'mmengine.optim' not in sys.modules:
     sys.modules['mmengine.optim'] = MinimalOptimModule()
     print("✅ 已安装轻量级mmengine.optim mock")
 
+# Pre-install _ParamScheduler fallback before any mmengine import
+class _ParamScheduler:
+    def __init__(self, *args, **kwargs): pass
+    def step(self): pass
+    def state_dict(self): return {}
+    def load_state_dict(self, state_dict): pass
+
+# Install _ParamScheduler in multiple locations to ensure coverage
+sys.modules['mmengine.optim']._ParamScheduler = _ParamScheduler
+if 'mmengine' not in sys.modules:
+    import types
+    mmengine_mock = types.ModuleType('mmengine')
+    mmengine_mock.optim = types.ModuleType('mmengine.optim')
+    mmengine_mock.optim._ParamScheduler = _ParamScheduler
+    sys.modules['mmengine'] = mmengine_mock
+    sys.modules['mmengine.optim'] = mmengine_mock.optim
+print("✅ 已预安装_ParamScheduler fallback")
+
 # Step 4: Quick registry cleanup without deep introspection
 try:
     import torch.optim
@@ -292,16 +310,8 @@ try:
     from mmengine.registry import MODELS as MMENGINE_MODELS
     from mmengine.model import BaseModel
     
-    # Fix _ParamScheduler import issue
-    try:
-        from mmengine.optim import _ParamScheduler
-    except ImportError:
-        # Create a simple fallback for _ParamScheduler
-        class _ParamScheduler:
-            def __init__(self, *args, **kwargs): pass
-            def step(self): pass
-        import mmengine.optim
-        mmengine.optim._ParamScheduler = _ParamScheduler
+    # _ParamScheduler should already be available from pre-installation
+    print("✅ _ParamScheduler已预安装，跳过重复处理")
     
     # Get mock components
     mock_optim = sys.modules['mmengine.optim']
