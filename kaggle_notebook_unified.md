@@ -824,7 +824,7 @@ for epoch in range(num_epochs):
              
              optimizer.step()
              
-        except RuntimeError as e:
+         except RuntimeError as e:
              if "CUDA error" in str(e) or "assert" in str(e) or "out of range" in str(e):
                  print(f"❌ 运行时错误：{e}")
                  print(f"📊 输入形状: {inputs.shape}, 标签形状: {targets.shape}")
