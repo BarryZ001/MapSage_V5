@@ -10,7 +10,7 @@
 # Install required packages with proper mmcv installation
 !pip install -q mmengine==0.10.1 ftfy regex
 !pip install -q -U openmim
-!mim install mmcv==2.1.0
+!mim install mmcv-full==1.7.2 -f https://download.openmmlab.com/mmcv/dist/cu118/torch2.0/index.html
 !pip install -q mmsegmentation==1.2.2
 !pip install -q opencv-python-headless pillow numpy torch torchvision
 
@@ -291,6 +291,17 @@ try:
     from mmengine.runner import Runner
     from mmengine.registry import MODELS as MMENGINE_MODELS
     from mmengine.model import BaseModel
+    
+    # Fix _ParamScheduler import issue
+    try:
+        from mmengine.optim import _ParamScheduler
+    except ImportError:
+        # Create a simple fallback for _ParamScheduler
+        class _ParamScheduler:
+            def __init__(self, *args, **kwargs): pass
+            def step(self): pass
+        import mmengine.optim
+        mmengine.optim._ParamScheduler = _ParamScheduler
     
     # Get mock components
     mock_optim = sys.modules['mmengine.optim']
