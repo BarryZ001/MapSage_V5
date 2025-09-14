@@ -243,27 +243,22 @@ import sys
 import torch
 import torch.nn as nn
 
-# Critical: Enhanced MMCV version validation and environment check
+# Critical: MMCV version check BEFORE any registry operations
 print("🔍 开始MMCV环境验证...")
 
-# Step 1: Clear any cached imports
-import sys
+# Step 1: Clear any cached imports first
 mmcv_modules = [k for k in sys.modules.keys() if k.startswith('mmcv')]
 for module in mmcv_modules:
     if module in sys.modules:
         del sys.modules[module]
 print(f"✅ 已清理 {len(mmcv_modules)} 个MMCV缓存模块")
 
-# Step 2: Force reimport and check version
+# Step 2: Check MMCV version WITHOUT importing transforms
 try:
-    import mmcv
-    mmcv_version = mmcv.__version__
+    # Import only the core mmcv module to check version
+    import mmcv.version
+    mmcv_version = mmcv.version.__version__
     print(f"🔍 检测到MMCV版本: {mmcv_version}")
-    
-    # Parse version to check compatibility
-    version_parts = mmcv_version.split('.')
-    major_version = int(version_parts[0])
-    minor_version = int(version_parts[1]) if len(version_parts) > 1 else 0
     
     # Check for exact version match
     if mmcv_version != "2.1.0":
@@ -425,7 +420,7 @@ if hasattr(MMENGINE_MODELS, 'register_module'):
     else:
         print("✅ EncoderDecoder模型已存在，跳过注册")
 
-# Simple transform registration
+# Simple transform registration - ONLY if needed for fallback
 import numpy as np
 from PIL import Image
 
@@ -433,24 +428,9 @@ class SimpleTransform:
     def __init__(self, **kwargs): pass
     def __call__(self, results): return results
 
-# Register basic transforms - compatible with mmcv 2.0+
-try:
-    from mmcv.transforms import TRANSFORMS
-    for name in ['LoadImageFromFile', 'LoadAnnotations', 'Resize', 'RandomCrop', 
-                 'RandomFlip', 'PhotoMetricDistortion', 'PackSegInputs']:
-        if hasattr(TRANSFORMS, 'register_module') and name not in TRANSFORMS:
-            TRANSFORMS.register_module(name=name, module=SimpleTransform)
-    print("✅ 已注册简化transforms (mmcv 2.0+)")
-except:
-    # Fallback to mmengine registry
-    try:
-        from mmengine.registry import TRANSFORMS
-        for name in ['LoadImageFromFile', 'LoadAnnotations', 'Resize', 'RandomCrop', 
-                     'RandomFlip', 'PhotoMetricDistortion', 'PackSegInputs']:
-            if hasattr(TRANSFORMS, 'register_module') and name not in TRANSFORMS:
-                TRANSFORMS.register_module(name=name, module=SimpleTransform)
-        print("✅ 已注册简化transforms (fallback)")
-    except: pass
+# Skip transform registration to avoid conflicts with MMCV 2.1.0
+# MMCV 2.1.0 has built-in transforms that should be used directly
+print("✅ 跳过transforms注册，使用MMCV 2.1.0内置transforms")
 
 # Simple dataset registration
 try:
