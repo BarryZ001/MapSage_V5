@@ -12,10 +12,12 @@
 !pip install -q -U openmim
 # Force remove any existing mmcv installations to avoid conflicts
 !pip uninstall -y mmcv mmcv-full mmcv-lite
+# Clear pip cache to ensure clean installation
+!pip cache purge
 # Use mmcv==2.1.0 for stable compatibility with updated mmsegmentation
-!mim install "mmcv==2.1.0" -f https://download.openmmlab.com/mmcv/dist/cu118/torch2.0/index.html
+!mim install "mmcv==2.1.0" --force-reinstall -f https://download.openmmlab.com/mmcv/dist/cu118/torch2.0/index.html
 # Use compatible mmsegmentation version for mmcv 2.0+
-!pip install -q "mmsegmentation>=1.2.0"
+!pip install -q "mmsegmentation>=1.2.0" --force-reinstall
 !pip install -q opencv-python-headless pillow numpy torch torchvision
 
 # Important: Restart kernel after installing new mmcv version
@@ -241,7 +243,18 @@ import sys
 import torch
 import torch.nn as nn
 
-# Critical: Check MMCV version before proceeding
+# Critical: Enhanced MMCV version validation and environment check
+print("🔍 开始MMCV环境验证...")
+
+# Step 1: Clear any cached imports
+import sys
+mmcv_modules = [k for k in sys.modules.keys() if k.startswith('mmcv')]
+for module in mmcv_modules:
+    if module in sys.modules:
+        del sys.modules[module]
+print(f"✅ 已清理 {len(mmcv_modules)} 个MMCV缓存模块")
+
+# Step 2: Force reimport and check version
 try:
     import mmcv
     mmcv_version = mmcv.__version__
@@ -250,20 +263,29 @@ try:
     # Parse version to check compatibility
     version_parts = mmcv_version.split('.')
     major_version = int(version_parts[0])
+    minor_version = int(version_parts[1]) if len(version_parts) > 1 else 0
     
-    if major_version < 2:
+    # Check for exact version match
+    if mmcv_version != "2.1.0":
         print(f"❌ 错误：检测到MMCV {mmcv_version}，但需要mmcv==2.1.0")
-        print("🔧 解决方案：")
-        print("   1. 重启内核：Kernel -> Restart Kernel")
-        print("   2. 重新运行Cell 1进行依赖安装")
-        print("   3. 确认安装了正确版本后再运行此Cell")
-        raise RuntimeError(f"MMCV版本不兼容：{mmcv_version} < 2.0.0")
+        print("🔧 强制解决方案：")
+        print("   1. 立即重启内核：Kernel -> Restart Kernel")
+        print("   2. 重新运行Cell 1（包含--force-reinstall参数）")
+        print("   3. 等待安装完成后再运行此Cell")
+        print("   4. 如果问题持续，请检查Kaggle环境是否有预装的旧版本MMCV")
+        raise RuntimeError(f"MMCV版本不匹配：期望2.1.0，实际{mmcv_version}")
     else:
-        print(f"✅ MMCV版本兼容：{mmcv_version} >= 2.0.0 (推荐使用2.1.0)")
-except ImportError:
-    print("⚠️ 未检测到MMCV，将尝试继续执行")
+        print(f"✅ MMCV版本完全匹配：{mmcv_version} == 2.1.0")
+        
+except ImportError as e:
+    print(f"❌ MMCV导入失败：{e}")
+    print("🔧 解决方案：重启内核并重新运行Cell 1")
+    raise RuntimeError("MMCV未正确安装")
 except Exception as e:
-    print(f"⚠️ MMCV版本检查失败：{e}，将尝试继续执行")
+    print(f"❌ MMCV版本检查失败：{e}")
+    raise RuntimeError(f"MMCV环境验证失败：{e}")
+
+print("✅ MMCV环境验证通过，继续训练...")
 
 # Lightweight mock strategy - only block problematic imports without complex classes
 print("🚀 开始轻量级mmengine冲突预防...")
