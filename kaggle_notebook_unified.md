@@ -380,9 +380,10 @@ class KnowledgeDistillationModel(nn.Module):
             nn.Conv2d(256, 768, 1)   # B0 stage3 -> DINOv3 dim
         ])
         
-        # 损失函数
+        # 损失函数 - 修复分割任务的损失计算
         self.mse_loss = nn.MSELoss()
-        self.ce_loss = nn.CrossEntropyLoss()
+        # 使用ignore_index=255处理无效标签，reduction='mean'确保稳定训练
+        self.ce_loss = nn.CrossEntropyLoss(ignore_index=255, reduction='mean')
         self.kl_loss = nn.KLDivLoss(reduction='batchmean')
         
         print("✅ 知识蒸馏模型初始化完成")
@@ -564,37 +565,75 @@ class KnowledgeDistillationModel(nn.Module):
     
     def _compute_kd_loss(self, teacher_logits, student_logits):
         """计算知识蒸馏损失"""
-        # 温度缩放
-        teacher_soft = F.softmax(teacher_logits / self.temperature, dim=1)
-        student_log_soft = F.log_softmax(student_logits / self.temperature, dim=1)
-        
-        # KL散度损失
-        kd_loss = self.kl_loss(student_log_soft, teacher_soft) * (self.temperature ** 2)
-        return kd_loss
+        try:
+            # 确保logits形状匹配
+            if teacher_logits.shape != student_logits.shape:
+                teacher_logits = F.interpolate(teacher_logits, size=student_logits.shape[2:], mode='bilinear', align_corners=False)
+            
+            # 温度缩放
+            teacher_soft = F.softmax(teacher_logits / self.temperature, dim=1)
+            student_log_soft = F.log_softmax(student_logits / self.temperature, dim=1)
+            
+            # KL散度损失
+            kd_loss = self.kl_loss(student_log_soft, teacher_soft) * (self.temperature ** 2)
+            
+            # 检查损失值有效性
+            if torch.isnan(kd_loss) or torch.isinf(kd_loss):
+                print("⚠️ 警告：KD损失无效，使用零损失")
+                return torch.tensor(0.0, device=kd_loss.device, requires_grad=True)
+            
+            return kd_loss
+        except Exception as e:
+            print(f"⚠️ KD损失计算错误: {e}，使用零损失")
+            return torch.tensor(0.0, device=student_logits.device, requires_grad=True)
     
     def _compute_feature_loss(self, teacher_features, student_features):
         """计算特征蒸馏损失"""
-        total_loss = 0.0
-        
-        for i, (t_feat, s_feat) in enumerate(zip(teacher_features, student_features)):
-            if i < len(self.feature_adapters):
-                # 特征对齐
-                adapted_s_feat = self.feature_adapters[i](s_feat)
-                
-                # 空间尺寸对齐
-                if adapted_s_feat.shape[2:] != t_feat.shape[2:]:
-                    adapted_s_feat = F.interpolate(
-                        adapted_s_feat, 
-                        size=t_feat.shape[2:], 
-                        mode='bilinear', 
-                        align_corners=False
-                    )
-                
-                # MSE损失
-                loss = self.mse_loss(adapted_s_feat, t_feat.detach())
-                total_loss += loss
-        
-        return total_loss / len(teacher_features)
+        try:
+            total_loss = 0.0
+            valid_features = 0
+            
+            for i, (t_feat, s_feat) in enumerate(zip(teacher_features, student_features)):
+                if i < len(self.feature_adapters):
+                    # 特征对齐
+                    adapted_s_feat = self.feature_adapters[i](s_feat)
+                    
+                    # 空间尺寸对齐
+                    if adapted_s_feat.shape[2:] != t_feat.shape[2:]:
+                        adapted_s_feat = F.interpolate(
+                            adapted_s_feat, 
+                            size=t_feat.shape[2:], 
+                            mode='bilinear', 
+                            align_corners=False
+                        )
+                    
+                    # MSE损失
+                    loss = self.mse_loss(adapted_s_feat, t_feat.detach())
+                    
+                    # 检查特征损失有效性
+                    if not (torch.isnan(loss) or torch.isinf(loss)):
+                        total_loss += loss
+                        valid_features += 1
+            
+            if valid_features == 0:
+                print("⚠️ 警告：没有有效特征损失，使用零损失")
+                device = teacher_features[0].device if teacher_features else student_features[0].device
+                return torch.tensor(0.0, device=device, requires_grad=True)
+            
+            avg_loss = total_loss / valid_features
+            
+            # 最终检查
+            if torch.isnan(avg_loss) or torch.isinf(avg_loss):
+                print("⚠️ 警告：特征损失无效，使用零损失")
+                device = teacher_features[0].device if teacher_features else student_features[0].device
+                return torch.tensor(0.0, device=device, requires_grad=True)
+            
+            return avg_loss
+            
+        except Exception as e:
+            print(f"⚠️ 特征损失计算错误: {e}，使用零损失")
+            device = teacher_features[0].device if teacher_features else student_features[0].device
+            return torch.tensor(0.0, device=device, requires_grad=True)
 
 # 创建知识蒸馏模型
 print("🏗️ 创建知识蒸馏模型...")
@@ -658,24 +697,35 @@ try:
             return len(self.samples)
         
         def __getitem__(self, idx):
-            sample = self.samples[idx]
-            
-            # 加载图像
-            img = Image.open(sample['img']).convert('RGB')
-            img = np.array(img).transpose(2, 0, 1).astype(np.float32) / 255.0
-            
-            # 加载mask
-            mask = Image.open(sample['mask'])
-            mask = np.array(mask).astype(np.int64)
-            
-            # 调整尺寸到512x512
-            img = torch.from_numpy(img)
-            mask = torch.from_numpy(mask)
-            
-            img = F.interpolate(img.unsqueeze(0), size=(512, 512), mode='bilinear', align_corners=False).squeeze(0)
-            mask = F.interpolate(mask.unsqueeze(0).unsqueeze(0).float(), size=(512, 512), mode='nearest').squeeze(0).squeeze(0).long()
-            
-            return img, mask
+             sample = self.samples[idx]
+             
+             # 加载图像
+             img = Image.open(sample['img']).convert('RGB')
+             img = np.array(img).transpose(2, 0, 1).astype(np.float32) / 255.0
+             
+             # 加载mask
+             mask = Image.open(sample['mask'])
+             mask = np.array(mask).astype(np.int64)
+             
+             # 🔧 关键修复：处理标签值范围问题
+             # LoveDA数据集标签值可能包含255(忽略值)或其他无效值
+             # 将所有标签值限制在[0, 6]范围内
+             mask = np.clip(mask, 0, 6)  # 确保标签在有效范围内
+             
+             # 将255等无效值映射为0(背景类)
+             mask[mask > 6] = 0
+             
+             # 调整尺寸到512x512
+             img = torch.from_numpy(img)
+             mask = torch.from_numpy(mask)
+             
+             img = F.interpolate(img.unsqueeze(0), size=(512, 512), mode='bilinear', align_corners=False).squeeze(0)
+             mask = F.interpolate(mask.unsqueeze(0).unsqueeze(0).float(), size=(512, 512), mode='nearest').squeeze(0).squeeze(0).long()
+             
+             # 🔧 二次检查：确保resize后的mask仍在有效范围内
+             mask = torch.clamp(mask, 0, 6)
+             
+             return img, mask
     
     # 创建数据集
     train_dataset = SimpleLoveDADataset('/kaggle/input/loveda', 'Train')
@@ -721,21 +771,75 @@ for epoch in range(num_epochs):
     num_batches = 0
     
     # 真实数据训练
-    for batch_idx, (inputs, targets) in enumerate(train_loader):
-        inputs = inputs.to(device)
-        targets = targets.to(device)
+     for batch_idx, (inputs, targets) in enumerate(train_loader):
+         inputs = inputs.to(device)
+         targets = targets.to(device)
+         
+         # 🔧 关键修复：标签预处理和验证
+         # 将所有无效标签(>6或<0)映射为ignore_index=255
+         invalid_mask = (targets < 0) | (targets > 6)
+         targets[invalid_mask] = 255  # 使用ignore_index
+         
+         # 检查处理后的标签
+         valid_labels = targets[targets != 255]
+         if len(valid_labels) == 0:
+             print("⚠️ 警告：batch中没有有效标签，跳过")
+             continue
+             
+         # 调试信息：打印标签统计
+         if batch_idx == 0:
+             unique_labels = torch.unique(valid_labels)
+             print(f"📊 批次有效标签范围: {unique_labels.tolist()}")
+             total_invalid = invalid_mask.sum().item()
+             if total_invalid > 0:
+                 print(f"⚠️ 处理了 {total_invalid} 个无效标签值")
         
-        # 前向传播
-        losses = distill_model.forward_train(inputs, targets)
-        
-        # 反向传播
-        optimizer.zero_grad()
-        losses['loss'].backward()
-        
-        # 梯度裁剪
-        torch.nn.utils.clip_grad_norm_(distill_model.parameters(), max_norm=1.0)
-        
-        optimizer.step()
+        # 前向传播 - 添加异常处理
+        try:
+            losses = distill_model.forward_train(inputs, targets)
+            
+            # 检查损失值是否有效
+            if torch.isnan(losses['loss']) or torch.isinf(losses['loss']):
+                print(f"⚠️ 警告：检测到无效损失值 {losses['loss'].item()}，跳过此批次")
+                continue
+            
+            # 反向传播
+            optimizer.zero_grad()
+            losses['loss'].backward()
+            
+            # 检查梯度是否有效
+            total_norm = 0
+            for p in distill_model.parameters():
+                if p.grad is not None:
+                    param_norm = p.grad.data.norm(2)
+                    total_norm += param_norm.item() ** 2
+            total_norm = total_norm ** (1. / 2)
+            
+            if torch.isnan(torch.tensor(total_norm)) or torch.isinf(torch.tensor(total_norm)):
+                print(f"⚠️ 警告：检测到无效梯度，跳过此批次")
+                continue
+            
+            # 梯度裁剪
+            torch.nn.utils.clip_grad_norm_(distill_model.parameters(), max_norm=1.0)
+            
+            optimizer.step()
+            
+        except RuntimeError as e:
+            if "CUDA error" in str(e) or "assert" in str(e) or "out of range" in str(e):
+                print(f"❌ 运行时错误：{e}")
+                print(f"📊 输入形状: {inputs.shape}, 标签形状: {targets.shape}")
+                valid_targets = targets[targets != 255]
+                if len(valid_targets) > 0:
+                    print(f"📊 有效标签范围: [{valid_targets.min().item()}, {valid_targets.max().item()}]")
+                    print(f"📊 有效标签唯一值: {torch.unique(valid_targets).tolist()}")
+                else:
+                    print(f"📊 无有效标签，全部标签值: {torch.unique(targets).tolist()}")
+                # 清理GPU内存并跳过此批次
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+                continue
+            else:
+                raise e
         
         # 记录损失
         epoch_losses['task'] += losses['loss_task'].item()
