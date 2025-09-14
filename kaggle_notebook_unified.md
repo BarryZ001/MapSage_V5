@@ -10,9 +10,12 @@
 # Install required packages with proper mmcv installation
 !pip install -q mmengine==0.10.1 ftfy regex
 !pip install -q -U openmim
-# Use mmcv>=2.0.0rc4 for compatibility
+# Force remove any existing mmcv installations to avoid conflicts
+!pip uninstall -y mmcv mmcv-full mmcv-lite
+# Use mmcv>=2.0.0rc4 for compatibility with updated mmsegmentation
 !mim install "mmcv>=2.0.0rc4" -f https://download.openmmlab.com/mmcv/dist/cu118/torch2.0/index.html
-!pip install -q mmsegmentation==1.2.2
+# Use compatible mmsegmentation version for mmcv 2.0+
+!pip install -q "mmsegmentation>=1.2.0"
 !pip install -q opencv-python-headless pillow numpy torch torchvision
 
 print("✅ 所有依赖包安装完成")
