@@ -12,8 +12,8 @@
 !pip install -q -U openmim
 # Force remove any existing mmcv installations to avoid conflicts
 !pip uninstall -y mmcv mmcv-full mmcv-lite
-# Use mmcv>=2.0.0rc4 for compatibility with updated mmsegmentation
-!mim install "mmcv>=2.0.0rc4" -f https://download.openmmlab.com/mmcv/dist/cu118/torch2.0/index.html
+# Use mmcv==2.1.0 for stable compatibility with updated mmsegmentation
+!mim install "mmcv==2.1.0" -f https://download.openmmlab.com/mmcv/dist/cu118/torch2.0/index.html
 # Use compatible mmsegmentation version for mmcv 2.0+
 !pip install -q "mmsegmentation>=1.2.0"
 !pip install -q opencv-python-headless pillow numpy torch torchvision
@@ -252,14 +252,14 @@ try:
     major_version = int(version_parts[0])
     
     if major_version < 2:
-        print(f"❌ 错误：检测到MMCV {mmcv_version}，但需要mmcv>=2.0.0rc4")
+        print(f"❌ 错误：检测到MMCV {mmcv_version}，但需要mmcv==2.1.0")
         print("🔧 解决方案：")
         print("   1. 重启内核：Kernel -> Restart Kernel")
         print("   2. 重新运行Cell 1进行依赖安装")
         print("   3. 确认安装了正确版本后再运行此Cell")
         raise RuntimeError(f"MMCV版本不兼容：{mmcv_version} < 2.0.0")
     else:
-        print(f"✅ MMCV版本兼容：{mmcv_version} >= 2.0.0")
+        print(f"✅ MMCV版本兼容：{mmcv_version} >= 2.0.0 (推荐使用2.1.0)")
 except ImportError:
     print("⚠️ 未检测到MMCV，将尝试继续执行")
 except Exception as e:
