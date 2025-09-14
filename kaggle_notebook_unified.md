@@ -5,7 +5,59 @@
 ## 统一Cell - 完整训练代码
 
 ```python
-# ===== Cell 1: 环境设置和依赖安装 =====
+# ===== Cell 1: 重启后环境快速检查 =====
+
+# 🔄 Kaggle内核重启后的快速环境检查和恢复
+print("🔄 检查Kaggle内核重启后的环境状态...")
+
+import sys
+import subprocess
+import importlib.util
+
+# 检查关键包是否已安装
+required_packages = {
+    'mmcv': '2.1.0',
+    'mmengine': '0.10.1', 
+    'mmsegmentation': None  # 任意兼容版本
+}
+
+missing_packages = []
+for package, expected_version in required_packages.items():
+    spec = importlib.util.find_spec(package)
+    if spec is None:
+        missing_packages.append(package)
+        print(f"❌ {package} 未安装")
+    else:
+        try:
+            module = importlib.import_module(package)
+            version = getattr(module, '__version__', 'unknown')
+            if expected_version and version != expected_version:
+                print(f"⚠️ {package} 版本不匹配: {version} (期望: {expected_version})")
+                missing_packages.append(package)
+            else:
+                print(f"✅ {package} 已安装: {version}")
+        except ImportError:
+            missing_packages.append(package)
+            print(f"❌ {package} 导入失败")
+
+if missing_packages:
+    print(f"\n🚨 检测到 {len(missing_packages)} 个包需要重新安装")
+    print("📋 请运行下一个Cell进行完整的环境设置")
+else:
+    print("\n✅ 所有关键包已正确安装，可以直接跳转到训练Cell")
+    print("💡 提示: 如果遇到导入错误，请运行下一个Cell重新安装依赖")
+
+# 检查GPU状态
+import torch
+if torch.cuda.is_available():
+    print(f"🎮 GPU可用: {torch.cuda.get_device_name(0)}")
+    print(f"💾 GPU内存: {torch.cuda.get_device_properties(0).total_memory / 1024**3:.1f}GB")
+else:
+    print("⚠️ GPU不可用，将使用CPU训练")
+
+print("\n" + "="*50)
+
+# ===== Cell 2: 环境设置和依赖安装 =====
 
 # Install required packages with proper mmcv installation
 !pip install -q mmengine==0.10.1 ftfy regex
@@ -25,7 +77,7 @@ print("✅ 所有依赖包安装完成")
 print("⚠️ 重要提示：安装完成后请重启内核(Restart Kernel)以确保新版本MMCV生效")
 print("📋 步骤：Kernel -> Restart Kernel，然后重新运行所有Cell")
 
-# ===== Cell 2: 配置文件创建 =====
+# ===== Cell 3: 配置文件创建 =====
 
 # Create the training configuration
 config_content = '''
@@ -182,7 +234,7 @@ with open('/kaggle/working/train_config.py', 'w') as f:
 
 print("✅ 训练配置文件已创建: /kaggle/working/train_config.py")
 
-# ===== Cell 3: 数据集验证 =====
+# ===== Cell 4: 数据集验证 =====
 
 import os
 
@@ -235,7 +287,7 @@ else:
 
 print("✅ 数据集和checkpoint验证完成")
 
-# ===== Cell 4: 知识蒸馏训练执行 =====
+# ===== Cell 5: 知识蒸馏训练执行 =====
 
 # Import necessary functions for knowledge distillation training
 import os
