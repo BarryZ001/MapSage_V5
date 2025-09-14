@@ -389,7 +389,7 @@ class KnowledgeDistillationModel(nn.Module):
         print("✅ 知识蒸馏模型初始化完成")
     
     def _create_teacher_model(self):
-        """创建教师模型 (简化的DINOv3)"""
+        """创建教师模型 (DINOv3) - 从预训练权重加载"""
         class TeacherModel(nn.Module):
             def __init__(self):
                 super().__init__()
@@ -415,6 +415,67 @@ class KnowledgeDistillationModel(nn.Module):
                     nn.ReLU(inplace=True),
                     nn.ConvTranspose2d(128, 7, 4, 2, 1)  # 7 classes for LoveDA
                 )
+                
+                # 🔧 加载DINOv3预训练权重
+                self._load_dinov3_weights()
+            
+            def _load_dinov3_weights(self):
+                """加载DINOv3预训练权重"""
+                try:
+                    dinov3_path = '/kaggle/input/dinov3-vitl16-pretrain/dinov3_vitl16_pretrain_sat493m-eadcf0ff.pth'
+                    if os.path.exists(dinov3_path):
+                        print(f"📥 正在加载DINOv3预训练权重: {dinov3_path}")
+                        checkpoint = torch.load(dinov3_path, map_location='cpu')
+                        
+                        # 提取模型状态字典
+                        if 'model' in checkpoint:
+                            state_dict = checkpoint['model']
+                        elif 'state_dict' in checkpoint:
+                            state_dict = checkpoint['state_dict']
+                        else:
+                            state_dict = checkpoint
+                        
+                        # 过滤并加载兼容的权重 (主要是backbone部分)
+                        model_state_dict = self.state_dict()
+                        filtered_state_dict = {}
+                        
+                        for k, v in state_dict.items():
+                            # 映射DINOv3权重到我们的模型
+                            if 'patch_embed' in k and 'patch_embed.weight' in model_state_dict:
+                                if v.shape == model_state_dict['patch_embed.weight'].shape:
+                                    filtered_state_dict['patch_embed.weight'] = v
+                            elif 'pos_embed' in k and 'pos_embed' in model_state_dict:
+                                # 调整位置编码尺寸
+                                if v.shape[1] >= model_state_dict['pos_embed'].shape[1]:
+                                    filtered_state_dict['pos_embed'] = v[:, :model_state_dict['pos_embed'].shape[1]]
+                            elif 'blocks.' in k:
+                                # 映射transformer blocks
+                                new_key = k.replace('blocks.', 'blocks.')
+                                if new_key in model_state_dict and v.shape == model_state_dict[new_key].shape:
+                                    filtered_state_dict[new_key] = v
+                            elif 'norm.' in k:
+                                new_key = k.replace('norm.', 'norm.')
+                                if new_key in model_state_dict and v.shape == model_state_dict[new_key].shape:
+                                    filtered_state_dict[new_key] = v
+                        
+                        # 加载权重
+                        missing_keys, unexpected_keys = self.load_state_dict(filtered_state_dict, strict=False)
+                        print(f"✅ 成功加载 {len(filtered_state_dict)} 个DINOv3权重参数")
+                        if missing_keys:
+                            print(f"⚠️ 缺失的权重: {len(missing_keys)} 个 (decode_head将使用随机初始化)")
+                        
+                        # 冻结backbone参数
+                        for name, param in self.named_parameters():
+                            if not name.startswith('decode_head'):
+                                param.requires_grad = False
+                        print("🔒 已冻结DINOv3 backbone参数")
+                        
+                    else:
+                        print(f"⚠️ DINOv3权重文件不存在: {dinov3_path}")
+                        print("🔄 使用随机初始化权重")
+                except Exception as e:
+                    print(f"❌ 加载DINOv3权重失败: {e}")
+                    print("🔄 使用随机初始化权重")
             
             def forward(self, x):
                 B, C, H, W = x.shape
@@ -447,7 +508,7 @@ class KnowledgeDistillationModel(nn.Module):
         return TeacherModel()
     
     def _create_student_model(self):
-        """创建学生模型 (SegFormer-B0)"""
+        """创建学生模型 (SegFormer-B0) - 从预训练权重加载"""
         class StudentModel(nn.Module):
             def __init__(self):
                 super().__init__()
@@ -482,6 +543,49 @@ class KnowledgeDistillationModel(nn.Module):
                     nn.Dropout2d(0.1),
                     nn.Conv2d(256, 7, 1)  # 7 classes for LoveDA
                 )
+                
+                # 🔧 加载预训练权重
+                self._load_pretrained_weights()
+            
+            def _load_pretrained_weights(self):
+                """加载学生模型的预训练权重"""
+                try:
+                    checkpoint_path = '/kaggle/input/mapsage-stage02-checkpoint-6000/best_mIoU_iter_6000.pth'
+                    if os.path.exists(checkpoint_path):
+                        print(f"📥 正在加载学生模型预训练权重: {checkpoint_path}")
+                        checkpoint = torch.load(checkpoint_path, map_location='cpu')
+                        
+                        # 提取模型状态字典
+                        if 'state_dict' in checkpoint:
+                            state_dict = checkpoint['state_dict']
+                        elif 'model' in checkpoint:
+                            state_dict = checkpoint['model']
+                        else:
+                            state_dict = checkpoint
+                        
+                        # 过滤并加载兼容的权重
+                        model_state_dict = self.state_dict()
+                        filtered_state_dict = {}
+                        
+                        for k, v in state_dict.items():
+                            # 移除可能的前缀
+                            key = k.replace('backbone.', '').replace('decode_head.', '')
+                            if key in model_state_dict and v.shape == model_state_dict[key].shape:
+                                filtered_state_dict[key] = v
+                        
+                        # 加载权重
+                        missing_keys, unexpected_keys = self.load_state_dict(filtered_state_dict, strict=False)
+                        print(f"✅ 成功加载 {len(filtered_state_dict)} 个权重参数")
+                        if missing_keys:
+                            print(f"⚠️ 缺失的权重: {len(missing_keys)} 个 (将使用随机初始化)")
+                        if unexpected_keys:
+                            print(f"⚠️ 未使用的权重: {len(unexpected_keys)} 个")
+                    else:
+                        print(f"⚠️ 预训练权重文件不存在: {checkpoint_path}")
+                        print("🔄 使用随机初始化权重")
+                except Exception as e:
+                    print(f"❌ 加载预训练权重失败: {e}")
+                    print("🔄 使用随机初始化权重")
             
             def forward(self, x):
                 B, C, H, W = x.shape
