@@ -365,8 +365,12 @@ class SimpleEncoderDecoder(BaseModel):
         return {'loss': torch.tensor(0.0, requires_grad=True)}
 
 if hasattr(MMENGINE_MODELS, 'register_module'):
-    MMENGINE_MODELS.register_module(name='EncoderDecoder', module=SimpleEncoderDecoder)
-    print("✅ 已注册简化模型")
+    # Check if already registered to avoid KeyError
+    if 'EncoderDecoder' not in MMENGINE_MODELS:
+        MMENGINE_MODELS.register_module(name='EncoderDecoder', module=SimpleEncoderDecoder)
+        print("✅ 已注册简化模型")
+    else:
+        print("✅ EncoderDecoder模型已存在，跳过注册")
 
 # Simple transform registration
 import numpy as np
@@ -381,7 +385,7 @@ try:
     from mmengine.registry import TRANSFORMS
     for name in ['LoadImageFromFile', 'LoadAnnotations', 'Resize', 'RandomCrop', 
                  'RandomFlip', 'PhotoMetricDistortion', 'PackSegInputs']:
-        if hasattr(TRANSFORMS, 'register_module'):
+        if hasattr(TRANSFORMS, 'register_module') and name not in TRANSFORMS:
             TRANSFORMS.register_module(name=name, module=SimpleTransform)
     print("✅ 已注册简化transforms")
 except: pass
@@ -399,9 +403,11 @@ try:
         def __len__(self): return 1
         def __getitem__(self, idx): return self.data_list[0]
     
-    if hasattr(DATASETS, 'register_module'):
+    if hasattr(DATASETS, 'register_module') and 'LoveDADataset' not in DATASETS:
         DATASETS.register_module(name='LoveDADataset', module=SimpleDataset)
         print("✅ 已注册简化数据集")
+    elif 'LoveDADataset' in DATASETS:
+        print("✅ LoveDADataset已存在，跳过注册")
 except: pass
 # Simple metric registration
 try:
@@ -412,9 +418,11 @@ try:
         def process(self, data_batch, data_samples): pass
         def compute_metrics(self, results): return {'mIoU': 0.5}
     
-    if hasattr(METRICS, 'register_module'):
+    if hasattr(METRICS, 'register_module') and 'IoUMetric' not in METRICS:
         METRICS.register_module(name='IoUMetric', module=SimpleMetric)
         print("✅ 已注册简化评估器")
+    elif 'IoUMetric' in METRICS:
+        print("✅ IoUMetric已存在，跳过注册")
 except: pass
 # Simple training execution with proper config handling
 try:
