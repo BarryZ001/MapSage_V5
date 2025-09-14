@@ -7,8 +7,11 @@
 ```python
 # ===== Cell 1: 环境设置和依赖安装 =====
 
-# Install required packages
-!pip install -q mmengine==0.10.1 mmcv==2.1.0 mmsegmentation==1.2.2 ftfy regex
+# Install required packages with proper mmcv installation
+!pip install -q mmengine==0.10.1 ftfy regex
+!pip install -q -U openmim
+!mim install mmcv==2.1.0
+!pip install -q mmsegmentation==1.2.2
 !pip install -q opencv-python-headless pillow numpy torch torchvision
 
 print("✅ 所有依赖包安装完成")
