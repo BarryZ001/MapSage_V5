@@ -231,7 +231,7 @@ import sys
 import torch
 import torch.nn as nn
 
-# Create comprehensive mock modules to prevent mmengine optimizer import conflicts
+# Create comprehensive mock modules to prevent ALL mmengine optimizer import conflicts
 # This must be done BEFORE any mmengine imports
 class MockRegistry:
     """Mock registry that accepts all registrations without conflicts"""
@@ -259,15 +259,72 @@ class MockRegistry:
     def clear(self):
         self.module_dict.clear()
 
-# Create mock optimizer builder module
-class MockOptimizerBuilder:
-    """Mock optimizer builder module"""
+# Create comprehensive mock optimizer wrappers
+class MockOptimWrapper:
+    """Mock OptimWrapper that provides all expected interfaces"""
+    def __init__(self, optimizer, **kwargs):
+        self.optimizer = optimizer
+        
+    def update_params(self, loss):
+        loss.backward()
+        self.optimizer.step()
+        self.optimizer.zero_grad()
+        
+    def zero_grad(self):
+        self.optimizer.zero_grad()
+        
+    def step(self):
+        self.optimizer.step()
+
+class MockAmpOptimWrapper(MockOptimWrapper):
+    """Mock AmpOptimWrapper"""
+    pass
+
+class MockApexOptimWrapper(MockOptimWrapper):
+    """Mock ApexOptimWrapper"""
+    pass
+
+class MockBaseOptimWrapper(MockOptimWrapper):
+    """Mock BaseOptimWrapper"""
+    pass
+
+class MockOptimWrapperDict:
+    """Mock OptimWrapperDict"""
+    def __init__(self, **kwargs):
+        self.optimizers = kwargs
+        
+class MockZeroRedundancyOptimizer:
+    """Mock ZeroRedundancyOptimizer"""
+    def __init__(self, *args, **kwargs):
+        pass
+
+class MockDefaultOptimWrapperConstructor:
+    """Mock DefaultOptimWrapperConstructor"""
+    def __init__(self, *args, **kwargs):
+        pass
+        
+    def __call__(self, *args, **kwargs):
+        return MockOptimWrapper(torch.optim.Adam([torch.nn.Parameter(torch.tensor(0.0))]))
+
+# Create complete mock optimizer module with ALL required components
+class MockOptimModule:
+    """Complete mock for mmengine.optim module"""
     def __init__(self):
+        # Registries
         self.OPTIMIZERS = MockRegistry('optimizer')
         self.OPTIM_WRAPPER_CONSTRUCTORS = MockRegistry('optim_wrapper_constructor')
         
+        # Wrapper classes
+        self.OptimWrapper = MockOptimWrapper
+        self.AmpOptimWrapper = MockAmpOptimWrapper
+        self.ApexOptimWrapper = MockApexOptimWrapper
+        self.BaseOptimWrapper = MockBaseOptimWrapper
+        self.OptimWrapperDict = MockOptimWrapperDict
+        self.ZeroRedundancyOptimizer = MockZeroRedundancyOptimizer
+        self.DefaultOptimWrapperConstructor = MockDefaultOptimWrapperConstructor
+        
     def build_optim_wrapper(self, *args, **kwargs):
-        return None
+        return MockOptimWrapper(torch.optim.Adam([torch.nn.Parameter(torch.tensor(0.0))]))
         
     def register_torch_optimizers(self):
         return []
@@ -275,19 +332,12 @@ class MockOptimizerBuilder:
     def register_transformers_optimizers(self):
         return []
 
-# Install mock modules in sys.modules BEFORE any mmengine imports
-mock_builder = MockOptimizerBuilder()
-sys.modules['mmengine.optim.optimizer.builder'] = mock_builder
-
-# Also create a mock for the entire optimizer module
-class MockOptimizerModule:
-    def __init__(self):
-        self.OPTIMIZERS = mock_builder.OPTIMIZERS
-        self.OPTIM_WRAPPER_CONSTRUCTORS = mock_builder.OPTIM_WRAPPER_CONSTRUCTORS
-        self.build_optim_wrapper = mock_builder.build_optim_wrapper
-        
-sys.modules['mmengine.optim.optimizer'] = MockOptimizerModule()
-print("✅ 已安装mock mmengine.optim.optimizer模块")
+# Install complete mock optimizer module in sys.modules BEFORE any mmengine imports
+mock_optim = MockOptimModule()
+sys.modules['mmengine.optim'] = mock_optim
+sys.modules['mmengine.optim.optimizer'] = mock_optim
+sys.modules['mmengine.optim.optimizer.builder'] = mock_optim
+print("✅ 已安装完整的mock mmengine.optim模块")
 
 # Clear torch.optim registries as additional safety measure
 try:
@@ -317,17 +367,19 @@ try:
 except Exception as e:
     print(f"⚠️ 清理torch.optim注册表时出现问题: {e}")
 
-# Now safely import mmengine components with mock protection
+# Now safely import mmengine components with comprehensive mock protection
 try:
     from mmengine.runner import Runner
     from mmengine.registry import MODELS as MMENGINE_MODELS
     from mmengine.model import BaseModel
     
     # Use our mock OPTIMIZERS registry
-    OPTIMIZERS = mock_builder.OPTIMIZERS
+    OPTIMIZERS = mock_optim.OPTIMIZERS
+    OptimWrapper = mock_optim.OptimWrapper
     
     print("✅ 成功导入mmengine核心组件")
     print(f"✅ 使用mock OPTIMIZERS注册表，当前内容: {list(OPTIMIZERS.module_dict.keys())}")
+    print("✅ 使用mock OptimWrapper以避免AmpOptimWrapper导入问题")
     
 except Exception as e:
     print(f"⚠️ 导入mmengine组件时出现问题: {e}")
@@ -346,6 +398,7 @@ except Exception as e:
     Runner = BasicRunner
     MMENGINE_MODELS = MockRegistry('models')
     OPTIMIZERS = MockRegistry('optimizers')
+    OptimWrapper = MockOptimWrapper
     
     class BasicModel(torch.nn.Module):
         def __init__(self, *args, **kwargs):
