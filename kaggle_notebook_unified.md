@@ -1,12 +1,10 @@
 # Kaggle Notebook - 统一Cell版本
 
-这个文件将Cell 1-4的所有代码合并到一个Cell中，以避免Kaggle环境中多个Cell之间的状态冲突问题。
+这个文件将所有代码合并到一个Cell中，以避免Kaggle环境中多个Cell之间的状态冲突问题。
 
 ## 统一Cell - 完整训练代码
 
 ```python
-# ===== Cell 1: 重启后环境快速检查 =====
-
 # 🔄 Kaggle内核重启后的快速环境检查和恢复
 print("🔄 检查Kaggle内核重启后的环境状态...")
 
@@ -57,7 +55,7 @@ else:
 
 print("\n" + "="*50)
 
-# ===== Cell 2: 环境设置和依赖安装 =====
+# 环境设置和依赖安装
 
 # Install required packages with proper mmcv installation
 !pip install -q mmengine==0.10.1 ftfy regex
@@ -77,7 +75,7 @@ print("✅ 所有依赖包安装完成")
 print("⚠️ 重要提示：安装完成后请重启内核(Restart Kernel)以确保新版本MMCV生效")
 print("📋 步骤：Kernel -> Restart Kernel，然后重新运行所有Cell")
 
-# ===== Cell 3: 配置文件创建 =====
+# 配置文件创建
 
 # Create the training configuration
 config_content = '''
@@ -234,7 +232,7 @@ with open('/kaggle/working/train_config.py', 'w') as f:
 
 print("✅ 训练配置文件已创建: /kaggle/working/train_config.py")
 
-# ===== Cell 4: 数据集验证 =====
+# 数据集验证
 
 import os
 
@@ -287,7 +285,7 @@ else:
 
 print("✅ 数据集和checkpoint验证完成")
 
-# ===== Cell 5: 知识蒸馏训练执行 =====
+# 知识蒸馏训练执行
 
 # Import necessary functions for knowledge distillation training
 import os
