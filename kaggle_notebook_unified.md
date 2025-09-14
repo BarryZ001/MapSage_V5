@@ -18,7 +18,10 @@
 !pip install -q "mmsegmentation>=1.2.0"
 !pip install -q opencv-python-headless pillow numpy torch torchvision
 
+# Important: Restart kernel after installing new mmcv version
 print("✅ 所有依赖包安装完成")
+print("⚠️ 重要提示：安装完成后请重启内核(Restart Kernel)以确保新版本MMCV生效")
+print("📋 步骤：Kernel -> Restart Kernel，然后重新运行所有Cell")
 
 # ===== Cell 2: 配置文件创建 =====
 
@@ -237,6 +240,30 @@ import os
 import sys
 import torch
 import torch.nn as nn
+
+# Critical: Check MMCV version before proceeding
+try:
+    import mmcv
+    mmcv_version = mmcv.__version__
+    print(f"🔍 检测到MMCV版本: {mmcv_version}")
+    
+    # Parse version to check compatibility
+    version_parts = mmcv_version.split('.')
+    major_version = int(version_parts[0])
+    
+    if major_version < 2:
+        print(f"❌ 错误：检测到MMCV {mmcv_version}，但需要mmcv>=2.0.0rc4")
+        print("🔧 解决方案：")
+        print("   1. 重启内核：Kernel -> Restart Kernel")
+        print("   2. 重新运行Cell 1进行依赖安装")
+        print("   3. 确认安装了正确版本后再运行此Cell")
+        raise RuntimeError(f"MMCV版本不兼容：{mmcv_version} < 2.0.0")
+    else:
+        print(f"✅ MMCV版本兼容：{mmcv_version} >= 2.0.0")
+except ImportError:
+    print("⚠️ 未检测到MMCV，将尝试继续执行")
+except Exception as e:
+    print(f"⚠️ MMCV版本检查失败：{e}，将尝试继续执行")
 
 # Lightweight mock strategy - only block problematic imports without complex classes
 print("🚀 开始轻量级mmengine冲突预防...")
