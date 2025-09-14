@@ -369,15 +369,15 @@ class KnowledgeDistillationModel(nn.Module):
         self.teacher_model = self._create_teacher_model()
         self.teacher_model.eval()  # 教师模型始终处于评估模式
         
-        # 学生模型 (SegFormer-B0)
+        # 学生模型 (SegFormer-B2)
         self.student_model = self._create_student_model()
         
-        # 特征对齐层
+        # 特征对齐层 (B2架构)
         self.feature_adapters = nn.ModuleList([
-            nn.Conv2d(32, 768, 1),   # B0 stage0 -> DINOv3 dim
-            nn.Conv2d(64, 768, 1),   # B0 stage1 -> DINOv3 dim
-            nn.Conv2d(160, 768, 1),  # B0 stage2 -> DINOv3 dim
-            nn.Conv2d(256, 768, 1)   # B0 stage3 -> DINOv3 dim
+            nn.Conv2d(64, 768, 1),   # B2 stage0 -> DINOv3 dim
+            nn.Conv2d(128, 768, 1),  # B2 stage1 -> DINOv3 dim
+            nn.Conv2d(320, 768, 1),  # B2 stage2 -> DINOv3 dim
+            nn.Conv2d(512, 768, 1)   # B2 stage3 -> DINOv3 dim
         ])
         
         # 损失函数 - 修复分割任务的损失计算
@@ -508,36 +508,36 @@ class KnowledgeDistillationModel(nn.Module):
         return TeacherModel()
     
     def _create_student_model(self):
-        """创建学生模型 (SegFormer-B0) - 从预训练权重加载"""
+        """创建学生模型 (SegFormer-B2) - 从预训练权重加载"""
         class StudentModel(nn.Module):
             def __init__(self):
                 super().__init__()
-                # 简化的MixViT backbone
+                # MIT-B2架构的MixViT backbone
                 self.patch_embeds = nn.ModuleList([
-                    nn.Conv2d(3, 32, 7, 4, 3),      # Stage 0
-                    nn.Conv2d(32, 64, 3, 2, 1),     # Stage 1
-                    nn.Conv2d(64, 160, 3, 2, 1),    # Stage 2
-                    nn.Conv2d(160, 256, 3, 2, 1)    # Stage 3
+                    nn.Conv2d(3, 64, 7, 4, 3),      # Stage 0
+                    nn.Conv2d(64, 128, 3, 2, 1),    # Stage 1
+                    nn.Conv2d(128, 320, 3, 2, 1),   # Stage 2
+                    nn.Conv2d(320, 512, 3, 2, 1)    # Stage 3
                 ])
                 
                 self.norms = nn.ModuleList([
-                    nn.LayerNorm(32),
                     nn.LayerNorm(64),
-                    nn.LayerNorm(160),
-                    nn.LayerNorm(256)
+                    nn.LayerNorm(128),
+                    nn.LayerNorm(320),
+                    nn.LayerNorm(512)
                 ])
                 
-                # 简化的注意力层
+                # MIT-B2的注意力层配置
                 self.attentions = nn.ModuleList([
-                    nn.MultiheadAttention(32, 1, batch_first=True),
-                    nn.MultiheadAttention(64, 2, batch_first=True),
-                    nn.MultiheadAttention(160, 5, batch_first=True),
-                    nn.MultiheadAttention(256, 8, batch_first=True)
+                    nn.MultiheadAttention(64, 1, batch_first=True),
+                    nn.MultiheadAttention(128, 2, batch_first=True),
+                    nn.MultiheadAttention(320, 5, batch_first=True),
+                    nn.MultiheadAttention(512, 8, batch_first=True)
                 ])
                 
-                # SegFormer decode head
+                # SegFormer decode head (B2配置)
                 self.decode_head = nn.Sequential(
-                    nn.Conv2d(32+64+160+256, 256, 1),
+                    nn.Conv2d(64+128+320+512, 256, 1),
                     nn.BatchNorm2d(256),
                     nn.ReLU(inplace=True),
                     nn.Dropout2d(0.1),
