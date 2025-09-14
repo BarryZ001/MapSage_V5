@@ -439,24 +439,24 @@ class KnowledgeDistillationModel(nn.Module):
                         model_state_dict = self.state_dict()
                         filtered_state_dict = {}
                         
+                        # 打印一些键名用于调试
+                        print(f"📋 DINOv3权重键名示例: {list(state_dict.keys())[:5]}")
+                        print(f"📋 模型权重键名示例: {list(model_state_dict.keys())[:5]}")
+                        
                         for k, v in state_dict.items():
-                            # 映射DINOv3权重到我们的模型
-                            if 'patch_embed' in k and 'patch_embed.weight' in model_state_dict:
-                                if v.shape == model_state_dict['patch_embed.weight'].shape:
-                                    filtered_state_dict['patch_embed.weight'] = v
-                            elif 'pos_embed' in k and 'pos_embed' in model_state_dict:
-                                # 调整位置编码尺寸
-                                if v.shape[1] >= model_state_dict['pos_embed'].shape[1]:
-                                    filtered_state_dict['pos_embed'] = v[:, :model_state_dict['pos_embed'].shape[1]]
-                            elif 'blocks.' in k:
-                                # 映射transformer blocks
-                                new_key = k.replace('blocks.', 'blocks.')
-                                if new_key in model_state_dict and v.shape == model_state_dict[new_key].shape:
-                                    filtered_state_dict[new_key] = v
-                            elif 'norm.' in k:
-                                new_key = k.replace('norm.', 'norm.')
-                                if new_key in model_state_dict and v.shape == model_state_dict[new_key].shape:
-                                    filtered_state_dict[new_key] = v
+                            # 直接尝试匹配键名
+                            if k in model_state_dict and v.shape == model_state_dict[k].shape:
+                                filtered_state_dict[k] = v
+                            # 尝试移除可能的前缀
+                            elif k.startswith('backbone.') and k[9:] in model_state_dict:
+                                target_key = k[9:]
+                                if v.shape == model_state_dict[target_key].shape:
+                                    filtered_state_dict[target_key] = v
+                            # 尝试添加可能的前缀
+                            elif f'backbone.{k}' in model_state_dict:
+                                target_key = f'backbone.{k}'
+                                if v.shape == model_state_dict[target_key].shape:
+                                    filtered_state_dict[target_key] = v
                         
                         # 加载权重
                         missing_keys, unexpected_keys = self.load_state_dict(filtered_state_dict, strict=False)
@@ -553,7 +553,8 @@ class KnowledgeDistillationModel(nn.Module):
                     checkpoint_path = '/kaggle/input/mapsage-stage02-checkpoint-6000/best_mIoU_iter_6000.pth'
                     if os.path.exists(checkpoint_path):
                         print(f"📥 正在加载学生模型预训练权重: {checkpoint_path}")
-                        checkpoint = torch.load(checkpoint_path, map_location='cpu')
+                        # 设置weights_only=False以兼容包含mmengine组件的checkpoint
+                        checkpoint = torch.load(checkpoint_path, map_location='cpu', weights_only=False)
                         
                         # 提取模型状态字典
                         if 'state_dict' in checkpoint:
