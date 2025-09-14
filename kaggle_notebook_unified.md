@@ -243,21 +243,45 @@ import sys
 import torch
 import torch.nn as nn
 
-# Critical: MMCV version check BEFORE any registry operations
+# Critical: Complete registry cleanup BEFORE any MMCV imports
 print("🔍 开始MMCV环境验证...")
 
-# Step 1: Clear any cached imports first
+# Step 1: Clear ALL cached imports and registries
 mmcv_modules = [k for k in sys.modules.keys() if k.startswith('mmcv')]
-for module in mmcv_modules:
+mmengine_modules = [k for k in sys.modules.keys() if k.startswith('mmengine')]
+for module in mmcv_modules + mmengine_modules:
     if module in sys.modules:
         del sys.modules[module]
-print(f"✅ 已清理 {len(mmcv_modules)} 个MMCV缓存模块")
+print(f"✅ 已清理 {len(mmcv_modules + mmengine_modules)} 个缓存模块")
 
-# Step 2: Check MMCV version WITHOUT importing transforms
+# Step 2: Clear all global registries that might conflict
 try:
-    # Import only the core mmcv module to check version
-    import mmcv.version
-    mmcv_version = mmcv.version.__version__
+    # Clear any existing transform registries
+    import gc
+    gc.collect()
+    
+    # Remove any __main__ registry references
+    if hasattr(__builtins__, '__main__'):
+        main_attrs = [attr for attr in dir(__builtins__['__main__']) if 'registry' in attr.lower() or 'transform' in attr.lower()]
+        for attr in main_attrs:
+            try:
+                delattr(__builtins__['__main__'], attr)
+            except: pass
+    
+    print("✅ 已清理全局注册表")
+except: pass
+
+# Step 3: Check MMCV version with isolated import
+try:
+    # Use exec to isolate the import and avoid registry conflicts
+    version_check_code = '''
+import mmcv
+mmcv_version = mmcv.__version__
+'''
+    local_vars = {}
+    exec(version_check_code, {}, local_vars)
+    mmcv_version = local_vars['mmcv_version']
+    
     print(f"🔍 检测到MMCV版本: {mmcv_version}")
     
     # Check for exact version match
@@ -271,6 +295,19 @@ try:
         raise RuntimeError(f"MMCV版本不匹配：期望2.1.0，实际{mmcv_version}")
     else:
         print(f"✅ MMCV版本完全匹配：{mmcv_version} == 2.1.0")
+        
+        # Step 4: Clear MMCV's auto-registered transforms to prevent conflicts
+        try:
+            # Clear the TRANSFORMS registry that was auto-populated during mmcv import
+            clear_registry_code = '''
+import mmcv.transforms
+if hasattr(mmcv.transforms, 'TRANSFORMS'):
+    mmcv.transforms.TRANSFORMS.module_dict.clear()
+    print("✅ 已清理MMCV transforms注册表")
+'''
+            exec(clear_registry_code, {}, {})
+        except Exception as clear_e:
+            print(f"⚠️ 清理MMCV注册表时出现警告: {clear_e}")
         
 except ImportError as e:
     print(f"❌ MMCV导入失败：{e}")
