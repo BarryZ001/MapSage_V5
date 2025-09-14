@@ -10,7 +10,8 @@
 # Install required packages with proper mmcv installation
 !pip install -q mmengine==0.10.1 ftfy regex
 !pip install -q -U openmim
-!mim install mmcv-full==1.7.2 -f https://download.openmmlab.com/mmcv/dist/cu118/torch2.0/index.html
+# Use mmcv>=2.0.0rc4 for compatibility
+!mim install "mmcv>=2.0.0rc4" -f https://download.openmmlab.com/mmcv/dist/cu118/torch2.0/index.html
 !pip install -q mmsegmentation==1.2.2
 !pip install -q opencv-python-headless pillow numpy torch torchvision
 
@@ -380,15 +381,24 @@ class SimpleTransform:
     def __init__(self, **kwargs): pass
     def __call__(self, results): return results
 
-# Register basic transforms
+# Register basic transforms - compatible with mmcv 2.0+
 try:
-    from mmengine.registry import TRANSFORMS
+    from mmcv.transforms import TRANSFORMS
     for name in ['LoadImageFromFile', 'LoadAnnotations', 'Resize', 'RandomCrop', 
                  'RandomFlip', 'PhotoMetricDistortion', 'PackSegInputs']:
         if hasattr(TRANSFORMS, 'register_module') and name not in TRANSFORMS:
             TRANSFORMS.register_module(name=name, module=SimpleTransform)
-    print("✅ 已注册简化transforms")
-except: pass
+    print("✅ 已注册简化transforms (mmcv 2.0+)")
+except:
+    # Fallback to mmengine registry
+    try:
+        from mmengine.registry import TRANSFORMS
+        for name in ['LoadImageFromFile', 'LoadAnnotations', 'Resize', 'RandomCrop', 
+                     'RandomFlip', 'PhotoMetricDistortion', 'PackSegInputs']:
+            if hasattr(TRANSFORMS, 'register_module') and name not in TRANSFORMS:
+                TRANSFORMS.register_module(name=name, module=SimpleTransform)
+        print("✅ 已注册简化transforms (fallback)")
+    except: pass
 
 # Simple dataset registration
 try:
