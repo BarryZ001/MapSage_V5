@@ -793,72 +793,72 @@ for epoch in range(num_epochs):
              total_invalid = invalid_mask.sum().item()
              if total_invalid > 0:
                  print(f"⚠️ 处理了 {total_invalid} 个无效标签值")
-        
-        # 前向传播 - 添加异常处理
-        try:
-            losses = distill_model.forward_train(inputs, targets)
-            
-            # 检查损失值是否有效
-            if torch.isnan(losses['loss']) or torch.isinf(losses['loss']):
-                print(f"⚠️ 警告：检测到无效损失值 {losses['loss'].item()}，跳过此批次")
-                continue
-            
-            # 反向传播
-            optimizer.zero_grad()
-            losses['loss'].backward()
-            
-            # 检查梯度是否有效
-            total_norm = 0
-            for p in distill_model.parameters():
-                if p.grad is not None:
-                    param_norm = p.grad.data.norm(2)
-                    total_norm += param_norm.item() ** 2
-            total_norm = total_norm ** (1. / 2)
-            
-            if torch.isnan(torch.tensor(total_norm)) or torch.isinf(torch.tensor(total_norm)):
-                print(f"⚠️ 警告：检测到无效梯度，跳过此批次")
-                continue
-            
-            # 梯度裁剪
-            torch.nn.utils.clip_grad_norm_(distill_model.parameters(), max_norm=1.0)
-            
-            optimizer.step()
+         
+         # 前向传播 - 添加异常处理
+         try:
+             losses = distill_model.forward_train(inputs, targets)
+             
+             # 检查损失值是否有效
+             if torch.isnan(losses['loss']) or torch.isinf(losses['loss']):
+                 print(f"⚠️ 警告：检测到无效损失值 {losses['loss'].item()}，跳过此批次")
+                 continue
+             
+             # 反向传播
+             optimizer.zero_grad()
+             losses['loss'].backward()
+             
+             # 检查梯度是否有效
+             total_norm = 0
+             for p in distill_model.parameters():
+                 if p.grad is not None:
+                     param_norm = p.grad.data.norm(2)
+                     total_norm += param_norm.item() ** 2
+             total_norm = total_norm ** (1. / 2)
+             
+             if torch.isnan(torch.tensor(total_norm)) or torch.isinf(torch.tensor(total_norm)):
+                 print(f"⚠️ 警告：检测到无效梯度，跳过此批次")
+                 continue
+             
+             # 梯度裁剪
+             torch.nn.utils.clip_grad_norm_(distill_model.parameters(), max_norm=1.0)
+             
+             optimizer.step()
             
         except RuntimeError as e:
-            if "CUDA error" in str(e) or "assert" in str(e) or "out of range" in str(e):
-                print(f"❌ 运行时错误：{e}")
-                print(f"📊 输入形状: {inputs.shape}, 标签形状: {targets.shape}")
-                valid_targets = targets[targets != 255]
-                if len(valid_targets) > 0:
-                    print(f"📊 有效标签范围: [{valid_targets.min().item()}, {valid_targets.max().item()}]")
-                    print(f"📊 有效标签唯一值: {torch.unique(valid_targets).tolist()}")
-                else:
-                    print(f"📊 无有效标签，全部标签值: {torch.unique(targets).tolist()}")
-                # 清理GPU内存并跳过此批次
-                if torch.cuda.is_available():
-                    torch.cuda.empty_cache()
-                continue
-            else:
-                raise e
-        
-        # 记录损失
-        epoch_losses['task'] += losses['loss_task'].item()
-        epoch_losses['kd'] += losses['loss_kd'].item()
-        epoch_losses['feature'] += losses['loss_feature'].item()
-        epoch_losses['total'] += losses['loss'].item()
-        num_batches += 1
-        
-        if batch_idx % 20 == 0:
-            print(f"Epoch {epoch+1}/{num_epochs}, Batch {batch_idx}/{len(train_loader)}: "
-                  f"Total={losses['loss'].item():.4f}, "
-                  f"Task={losses['loss_task'].item():.4f}, "
-                  f"KD={losses['loss_kd'].item():.4f}, "
-                  f"Feature={losses['loss_feature'].item():.4f}")
-            
-            # GPU内存监控
-            if torch.cuda.is_available():
-                memory_used = torch.cuda.memory_allocated() / 1024**3
-                print(f"    GPU内存使用: {memory_used:.1f}GB")
+             if "CUDA error" in str(e) or "assert" in str(e) or "out of range" in str(e):
+                 print(f"❌ 运行时错误：{e}")
+                 print(f"📊 输入形状: {inputs.shape}, 标签形状: {targets.shape}")
+                 valid_targets = targets[targets != 255]
+                 if len(valid_targets) > 0:
+                     print(f"📊 有效标签范围: [{valid_targets.min().item()}, {valid_targets.max().item()}]")
+                     print(f"📊 有效标签唯一值: {torch.unique(valid_targets).tolist()}")
+                 else:
+                     print(f"📊 无有效标签，全部标签值: {torch.unique(targets).tolist()}")
+                 # 清理GPU内存并跳过此批次
+                 if torch.cuda.is_available():
+                     torch.cuda.empty_cache()
+                 continue
+             else:
+                 raise e
+         
+         # 记录损失
+         epoch_losses['task'] += losses['loss_task'].item()
+         epoch_losses['kd'] += losses['loss_kd'].item()
+         epoch_losses['feature'] += losses['loss_feature'].item()
+         epoch_losses['total'] += losses['loss'].item()
+         num_batches += 1
+         
+         if batch_idx % 20 == 0:
+             print(f"Epoch {epoch+1}/{num_epochs}, Batch {batch_idx}/{len(train_loader)}: "
+                   f"Total={losses['loss'].item():.4f}, "
+                   f"Task={losses['loss_task'].item():.4f}, "
+                   f"KD={losses['loss_kd'].item():.4f}, "
+                   f"Feature={losses['loss_feature'].item():.4f}")
+             
+             # GPU内存监控
+             if torch.cuda.is_available():
+                 memory_used = torch.cuda.memory_allocated() / 1024**3
+                 print(f"    GPU内存使用: {memory_used:.1f}GB")
     
     # 更新学习率
     scheduler.step()
