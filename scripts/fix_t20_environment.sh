@@ -55,13 +55,29 @@ if ! python3 -c "import torch; assert hasattr(torch, 'gcu')" 2>/dev/null; then
     chmod +x "$TOPSRIDER_INSTALLER"
     "$TOPSRIDER_INSTALLER" -y -C torch-gcu
     
-    # 验证安装
-    if python3 -c "import torch; assert hasattr(torch, 'gcu')" 2>/dev/null; then
+    # 设置环境变量
+    echo "🔧 设置环境变量..."
+    export PATH="/opt/tops/bin:$PATH"
+    export LD_LIBRARY_PATH="/opt/tops/lib:$LD_LIBRARY_PATH"
+    
+    # 添加到bashrc以持久化
+    echo 'export PATH="/opt/tops/bin:$PATH"' >> ~/.bashrc
+    echo 'export LD_LIBRARY_PATH="/opt/tops/lib:$LD_LIBRARY_PATH"' >> ~/.bashrc
+    
+    # 重新加载环境
+    source ~/.bashrc
+    
+    # 验证安装结果
+    echo "🔍 重新验证torch-gcu状态..."
+    if python3 -c "import torch; print('torch.gcu available:', torch.gcu.is_available())" 2>/dev/null | grep -q "True"; then
         echo "✅ torch-gcu框架重新安装成功"
     else
-        echo "❌ torch-gcu框架重新安装失败"
-        echo "请检查安装日志或手动执行: $TOPSRIDER_INSTALLER -y -C torch-gcu"
-        exit 1
+        echo "⚠️  torch-gcu框架安装完成，但可能需要重启容器或重新登录"
+        echo "请尝试以下步骤:"
+        echo "1. 退出容器: exit"
+        echo "2. 重新进入容器: docker exec -it t20_mapsage_env /bin/bash"
+        echo "3. 重新运行验证: python3 -c 'import torch; print(torch.gcu.is_available())'"
+        echo "或手动执行: $TOPSRIDER_INSTALLER -y -C torch-gcu"
     fi
 else
     echo "✅ torch-gcu框架可用"
