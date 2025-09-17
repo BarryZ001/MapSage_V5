@@ -16,7 +16,7 @@ from mmengine.runner import Runner
 from mmengine.registry import TRANSFORMS
 
 # ============================== 控制面板 ==============================
-CHECKPOINT_PATH = '/kaggle/input/mapsage-stage02-checkpoint-6000/best_mIoU_iter_6000.pth'
+CHECKPOINT_PATH = '/workspace/weights/best_mIoU_iter_6000.pth'
 # ====================================================================
 
 # -------- 自定义数据转换 --------
@@ -51,7 +51,7 @@ _base_ = ['mmseg::_base_/default_runtime.py']
 
 # 基本配置
 dataset_type = 'LoveDADataset'
-data_root = '/kaggle/input/loveda'
+data_root = '/workspace/data/loveda'
 num_classes = 7
 crop_size = (1024, 1024)
 palette = [[255, 255, 255], [255, 0, 0], [255, 255, 0], [0, 0, 255], [159, 129, 183], [0, 255, 0], [255, 195, 128]]
