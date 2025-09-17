@@ -8,6 +8,7 @@
 import os
 import sys
 import torch
+import importlib
 import importlib.util
 from pathlib import Path
 from typing import List, Tuple
@@ -74,7 +75,12 @@ def check_torch_gcu() -> Tuple[bool, str]:
 def check_ptex() -> Tuple[bool, str]:
     """检查ptex模块"""
     try:
-        import ptex
+        # 使用importlib动态导入ptex以避免静态分析错误
+        ptex_spec = importlib.util.find_spec('ptex')
+        if ptex_spec is None:
+            return False, "❌ ptex模块未安装"
+        
+        ptex = importlib.import_module('ptex')
         version = ptex.__version__
         device_count = ptex.device_count()
         return True, f"✅ ptex {version}, {device_count}个XLA设备"
@@ -261,15 +267,20 @@ def main():
     if is_t20_gcu:
         print("\n🖥️  XLA设备信息:")
         try:
-            import ptex
-            device_count = ptex.device_count()
-            if device_count > 0:
-                for i in range(device_count):
-                    print(f"  XLA设备 {i}: 燧原T20 GCU")
+            # 使用importlib动态导入ptex以避免静态分析错误
+            ptex_spec = importlib.util.find_spec('ptex')
+            if ptex_spec is None:
+                print("  ❌ ptex模块未安装，无法检查XLA设备")
             else:
-                print("  ❌ 无可用XLA设备")
-        except ImportError:
-            print("  ❌ ptex模块未安装，无法检查XLA设备")
+                ptex = importlib.import_module('ptex')
+                device_count = ptex.device_count()
+                if device_count > 0:
+                    for i in range(device_count):
+                        print(f"  XLA设备 {i}: 燧原T20 GCU")
+                else:
+                    print("  ❌ 无可用XLA设备")
+        except Exception as e:
+            print(f"  ❌ XLA设备检查错误: {e}")
     else:
         print("\n🖥️  GPU信息:")
         if torch.cuda.is_available():
