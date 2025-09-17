@@ -158,6 +158,32 @@ echo "
 🔍 诊断torch-gcu问题..."
 python3 scripts/diagnose_torch_gcu.py
 
+# 检查是否需要修复TOPS软件栈
+echo "
+🔧 检查TOPS软件栈状态..."
+if [ ! -f "/opt/tops/bin/tops-smi" ] || [ ! -f "/opt/tops/lib/libtops.so" ]; then
+    echo "⚠️ 检测到TOPS软件栈核心文件缺失"
+    echo "是否需要尝试修复TOPS软件栈？(需要root权限)"
+    echo "输入 'y' 继续修复，或按任意键跳过:"
+    read -t 10 -n 1 response
+    echo
+    if [ "$response" = "y" ] || [ "$response" = "Y" ]; then
+        echo "🔧 开始修复TOPS软件栈..."
+        sudo python3 scripts/fix_tops_stack.py
+        if [ $? -eq 0 ]; then
+            echo "✅ TOPS软件栈修复完成"
+            # 重新加载环境变量
+            source /etc/profile 2>/dev/null || true
+        else
+            echo "❌ TOPS软件栈修复失败，请手动检查"
+        fi
+    else
+        echo "⏭️ 跳过TOPS软件栈修复"
+    fi
+else
+    echo "✅ TOPS软件栈核心文件存在"
+fi
+
 # 5. 运行完整环境验证
 echo "
 🔍 运行完整环境验证..."
