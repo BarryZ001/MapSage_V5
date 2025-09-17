@@ -81,9 +81,9 @@ def check_ptex() -> Tuple[bool, str]:
             return False, "❌ ptex模块未安装"
         
         ptex = importlib.import_module('ptex')
-        version = ptex.__version__
-        device_count = ptex.device_count()
-        return True, f"✅ ptex {version}, {device_count}个XLA设备"
+        # 尝试创建XLA设备来验证可用性
+        device = ptex.device('xla')
+        return True, f"✅ ptex模块可用, XLA设备: {device}"
     except ImportError:
         return False, "❌ ptex模块未安装"
     except Exception as e:
@@ -273,12 +273,9 @@ def main():
                 print("  ❌ ptex模块未安装，无法检查XLA设备")
             else:
                 ptex = importlib.import_module('ptex')
-                device_count = ptex.device_count()
-                if device_count > 0:
-                    for i in range(device_count):
-                        print(f"  XLA设备 {i}: 燧原T20 GCU")
-                else:
-                    print("  ❌ 无可用XLA设备")
+                # 尝试创建XLA设备来验证可用性
+                device = ptex.device('xla')
+                print(f"  ✅ XLA设备可用: {device}")
         except Exception as e:
             print(f"  ❌ XLA设备检查错误: {e}")
     else:

@@ -148,16 +148,33 @@ else
     exit 1
 fi
 
-# 4. 运行完整环境验证
+# 4. 修复QuantStub兼容性问题
+echo "
+🔧 修复QuantStub兼容性问题..."
+cd /workspace/code/MapSage_V5
+python3 scripts/fix_quantstub_compatibility.py
+
+# 5. 运行完整环境验证
 echo "
 🔍 运行完整环境验证..."
-cd /workspace/code/MapSage_V5
-python3 scripts/validate_training_env.py
+validation_result=$(python3 scripts/validate_training_env.py 2>&1)
+echo "$validation_result"
+
+echo "================================================"
+echo "🎉 T20环境修复完成！"
+echo "
+# 检查验证结果中是否包含torch-gcu不可用的信息
+if echo "$validation_result" | grep -q "torch-gcu框架不可用"; then
+    echo "⚠️  torch-gcu框架仍不可用，需要重启容器"
+    echo "请运行重启指导脚本:"
+    echo "bash scripts/restart_container_guide.sh"
+else
+    echo "✅ 环境修复成功，可以开始训练！"
+fi
 
 echo "
-================================================"
-echo "🎉 T20环境修复完成！"
-echo "如果验证脚本仍显示错误，请检查:"
+💡 如果验证脚本仍显示错误，请检查:"
 echo "1. TopsRider软件栈是否完整安装"
 echo "2. 是否在正确的容器环境中"
 echo "3. 权限设置是否正确"
+echo "4. 是否需要重启容器让torch-gcu生效"
