@@ -1,0 +1,101 @@
+{
+  "timestamp": "20250915_012810",
+  "config": {
+    "stage1_task_focus": {
+      "epochs": 8,
+      "task_weight": 1.0,
+      "distill_weight": 0.0,
+      "feature_weight": 0.0,
+      "learning_rate": 0.001,
+      "description": "纯任务学习阶段 - 建立基础任务能力"
+    },
+    "stage2_gentle_distill": {
+      "epochs": 12,
+      "task_weight": 0.8,
+      "distill_weight": 0.15,
+      "feature_weight": 0.05,
+      "learning_rate": 0.0008,
+      "description": "温和蒸馏阶段 - 逐步引入教师知识"
+    },
+    "stage3_balanced_learning": {
+      "epochs": 8,
+      "task_weight": 0.65,
+      "distill_weight": 0.25,
+      "feature_weight": 0.1,
+      "learning_rate": 0.0005,
+      "description": "平衡学习阶段 - 优化最终性能"
+    }
+  },
+  "results": {
+    "stage1_task_focus": {
+      "config": {
+        "epochs": 8,
+        "task_weight": 1.0,
+        "distill_weight": 0.0,
+        "feature_weight": 0.0,
+        "learning_rate": 0.001,
+        "description": "纯任务学习阶段 - 建立基础任务能力"
+      },
+      "final_task_loss": 2.328438973426819,
+      "improvement": 0.03145512342452994,
+      "loss_history": [
+        2.359894096851349,
+        2.353571116924286,
+        2.3742281436920165,
+        2.3551399946212768,
+        2.3705789685249328,
+        2.340489888191223,
+        2.344999408721924,
+        2.328438973426819
+      ]
+    },
+    "stage2_gentle_distill": {
+      "config": {
+        "epochs": 12,
+        "task_weight": 0.8,
+        "distill_weight": 0.15,
+        "feature_weight": 0.05,
+        "learning_rate": 0.0008,
+        "description": "温和蒸馏阶段 - 逐步引入教师知识"
+      },
+      "final_task_loss": 2.3518972873687742,
+      "improvement": 0.012175679206848145,
+      "loss_history": [
+        2.3640729665756224,
+        2.361173713207245,
+        2.3481966972351076,
+        2.3556872487068174,
+        2.3406155467033387,
+        2.344430756568909,
+        2.349575471878052,
+        2.354183053970337,
+        2.336038684844971,
+        2.3416602969169618,
+        2.3546431064605713,
+        2.3518972873687742
+      ]
+    },
+    "stage3_balanced_learning": {
+      "config": {
+        "epochs": 8,
+        "task_weight": 0.65,
+        "distill_weight": 0.25,
+        "feature_weight": 0.1,
+        "learning_rate": 0.0005,
+        "description": "平衡学习阶段 - 优化最终性能"
+      },
+      "final_task_loss": 2.3286998510360717,
+      "improvement": 0.00668908357620257,
+      "loss_history": [
+        2.3353889346122743,
+        2.33513822555542,
+        2.328024160861969,
+        2.335559356212616,
+        2.3437334537506103,
+        2.338216519355774,
+        2.3346381306648256,
+        2.3286998510360717
+      ]
+    }
+  }
+}

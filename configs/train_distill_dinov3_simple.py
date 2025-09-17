@@ -1,10 +1,8 @@
 # Simple Knowledge Distillation Configuration for DINOv3 -> SegFormer
 # This configuration uses standard MMSegmentation without external dependencies
 
-_base_ = './final_standalone_config.py'
-
-# Override model configuration for knowledge distillation
-# We'll use a custom training approach with feature matching
+# Import mmseg to register all components
+custom_imports = dict(imports=['mmseg'], allow_failed_imports=False)
 
 # Crop size
 crop_size = (512, 1024)
@@ -23,7 +21,6 @@ data_preprocessor = dict(
 # Student model (SegFormer-B0) - Main model for training
 model = dict(
     type='EncoderDecoder',
-    data_preprocessor=data_preprocessor,
     backbone=dict(
         type='MixVisionTransformer',
         in_channels=3,
@@ -38,8 +35,7 @@ model = dict(
         qkv_bias=True,
         drop_rate=0.0,
         attn_drop_rate=0.0,
-        drop_path_rate=0.1,
-        init_cfg=dict(type='Pretrained', checkpoint='/kaggle/input/mit-b0-pretrain/mit_b0_20220624-7e0fe6dd.pth')
+        drop_path_rate=0.1
     ),
     decode_head=dict(
         type='SegformerHead',
@@ -53,41 +49,41 @@ model = dict(
         loss_decode=dict(
             type='CrossEntropyLoss', use_sigmoid=False, loss_weight=1.0
         )
-    ),
-    train_cfg=dict(),
-    test_cfg=dict(mode='whole')
+    )
 )
 
-# Training pipeline with data augmentation
+# Training pipeline with data augmentation (compatible with old mmseg)
 train_pipeline = [
     dict(type='LoadImageFromFile'),
     dict(type='LoadAnnotations'),
-    dict(
-        type='RandomResize',
-        scale=(2048, 1024),
-        ratio_range=(0.5, 2.0),
-        keep_ratio=True
-    ),
+    dict(type='Resize', img_scale=(2048, 1024), keep_ratio=True),
     dict(type='RandomCrop', crop_size=crop_size, cat_max_ratio=0.75),
-    dict(type='RandomFlip', prob=0.5),
+    dict(type='RandomFlip', flip_ratio=0.5),
     dict(type='PhotoMetricDistortion'),
-    dict(type='PackSegInputs')
+    dict(type='Normalize', **dict(mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_rgb=True)),
+    dict(type='Pad', size=crop_size, pad_val=0, seg_pad_val=255),
+    dict(type='DefaultFormatBundle'),
+    dict(type='Collect', keys=['img', 'gt_semantic_seg'])
 ]
 
-# Validation pipeline
+# Validation pipeline (compatible with old mmseg)
 val_pipeline = [
     dict(type='LoadImageFromFile'),
-    dict(type='Resize', scale=(2048, 1024), keep_ratio=True),
+    dict(type='Resize', img_scale=(2048, 1024), keep_ratio=True),
     dict(type='LoadAnnotations'),
-    dict(type='PackSegInputs')
+    dict(type='Normalize', **dict(mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_rgb=True)),
+    dict(type='ImageToTensor', keys=['img']),
+    dict(type='Collect', keys=['img', 'gt_semantic_seg'])
 ]
 
-# Test pipeline
+# Test pipeline (compatible with old mmseg)
 test_pipeline = [
     dict(type='LoadImageFromFile'),
-    dict(type='Resize', scale=(2048, 1024), keep_ratio=True),
+    dict(type='Resize', img_scale=(2048, 1024), keep_ratio=True),
     dict(type='LoadAnnotations'),
-    dict(type='PackSegInputs')
+    dict(type='Normalize', **dict(mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_rgb=True)),
+    dict(type='ImageToTensor', keys=['img']),
+    dict(type='Collect', keys=['img', 'gt_semantic_seg'])
 ]
 
 # Dataset configuration
@@ -139,7 +135,7 @@ test_dataloader = dict(
     )
 )
 
-# Evaluation configuration
+# Evaluation metrics
 val_evaluator = dict(type='IoUMetric', iou_metrics=['mIoU'])
 test_evaluator = dict(type='IoUMetric', iou_metrics=['mIoU'])
 
@@ -190,7 +186,7 @@ param_scheduler = [
     )
 ]
 
-# Runtime settings
+# Runtime hooks
 default_hooks = dict(
     timer=dict(type='IterTimerHook'),
     logger=dict(type='LoggerHook', interval=50, log_metric_by_epoch=False),
@@ -205,27 +201,18 @@ default_hooks = dict(
     visualization=dict(type='SegVisualizationHook')
 )
 
-# Enable automatic mixed precision
+# Mixed precision training
 fp16 = dict(loss_scale=512.)
 
-# Environment settings
+# Environment configuration
 env_cfg = dict(
     cudnn_benchmark=True,
     mp_cfg=dict(mp_start_method='fork', opencv_num_threads=0),
     dist_cfg=dict(backend='nccl')
 )
 
-# Visualization settings
-vis_backends = [
-    dict(type='LocalVisBackend'),
-    dict(type='TensorboardVisBackend')
-]
-
-visualizer = dict(
-    type='SegLocalVisualizer',
-    vis_backends=vis_backends,
-    name='visualizer'
-)
+# Disable visualizer to avoid registration issues
+visualizer = None
 
 # Log settings
 log_processor = dict(by_epoch=False)
@@ -237,3 +224,30 @@ resume_from = None
 
 # Work directory
 work_dir = './work_dirs/train_distill_dinov3_simple'
+
+# Legacy data configuration for compatibility
+data = dict(
+    samples_per_gpu=2,
+    workers_per_gpu=2,
+    train=dict(
+        type='CityscapesDataset',
+        data_root='data/cityscapes/',
+        img_dir='leftImg8bit/train',
+        ann_dir='gtFine/train',
+        pipeline=train_pipeline
+    ),
+    val=dict(
+        type='CityscapesDataset',
+        data_root='data/cityscapes/',
+        img_dir='leftImg8bit/val',
+        ann_dir='gtFine/val',
+        pipeline=val_pipeline
+    ),
+    test=dict(
+        type='CityscapesDataset',
+        data_root='data/cityscapes/',
+        img_dir='leftImg8bit/val',
+        ann_dir='gtFine/val',
+        pipeline=test_pipeline
+    )
+)

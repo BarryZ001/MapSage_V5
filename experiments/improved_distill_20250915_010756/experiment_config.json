@@ -1,0 +1,22 @@
+{
+  "project_name": "MapSage_V5_Improved_Distillation",
+  "experiment_name": "improved_distill_20250915_010756",
+  "device": "cpu",
+  "epochs": 25,
+  "batch_size": 4,
+  "learning_rate": 0.0001,
+  "distill_config": {
+    "task_weight": 0.6,
+    "distill_weight": 0.3,
+    "feature_weight": 0.1,
+    "attention_weight": 0.05,
+    "initial_temperature": 6.0,
+    "final_temperature": 3.0,
+    "warmup_epochs": 5
+  },
+  "scheduler_config": {
+    "type": "cosine",
+    "T_max": 25,
+    "eta_min": 1.0000000000000002e-06
+  }
+}
