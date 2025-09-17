@@ -79,14 +79,18 @@ apt-get install -y python3-pip vim git wget curl
 echo '设置Python3为默认python...'
 update-alternatives --install /usr/bin/python python /usr/bin/python3 1
 
+echo '卸载可能存在的旧版本包...'
+pip3 uninstall -y torch torchvision torchaudio torch-gcu tops-extension tops-models 2>/dev/null || true
+pip3 cache purge
+
 echo '✓ 基础环境配置完成'
 "
 
 echo -e "${GREEN}✓ 基础环境配置完成${NC}"
 echo
 
-echo -e "${BLUE}步骤5: 安装TopsRider软件栈${NC}"
-echo -e "${YELLOW}注意: 这是关键步骤，必须在安装其他Python包之前完成${NC}"
+echo -e "${BLUE}步骤5: 安装TopsRider软件栈（全新安装）${NC}"
+echo -e "${YELLOW}注意: 这是关键步骤，已清理旧版本，现在进行全新安装${NC}"
 
 docker exec t20_mapsage_env bash -c "
 set -e
