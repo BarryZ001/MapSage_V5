@@ -26,12 +26,18 @@ if ! python3 -c "import torch; assert hasattr(torch, 'gcu')" 2>/dev/null; then
     echo "❌ torch-gcu框架不可用，需要重新安装TopsRider软件栈"
     echo "🔧 开始重新安装TopsRider软件栈..."
     
-    # 查找TopsRider安装程序
-    TOPSRIDER_INSTALLER=$(find /usr/local/topsrider -name "TopsRider*.run" -type f | head -1)
+    # 查找TopsRider安装程序（优先查找/root目录）
+    TOPSRIDER_INSTALLER=$(find /root -name "TopsRider*.run" -type f 2>/dev/null | head -1)
+    
+    if [ -z "$TOPSRIDER_INSTALLER" ]; then
+        # 如果/root目录没找到，再查找/usr/local/topsrider目录
+        TOPSRIDER_INSTALLER=$(find /usr/local/topsrider -name "TopsRider*.run" -type f 2>/dev/null | head -1)
+    fi
     
     if [ -z "$TOPSRIDER_INSTALLER" ]; then
         echo "❌ 未找到TopsRider安装程序"
-        echo "请确保TopsRider软件栈已正确下载到容器中"
+        echo "请确保TopsRider软件栈安装文件存在于/root或/usr/local/topsrider目录中"
+        echo "可以手动查找: find /root -name 'TopsRider*.run' -type f"
         exit 1
     fi
     
@@ -47,6 +53,7 @@ if ! python3 -c "import torch; assert hasattr(torch, 'gcu')" 2>/dev/null; then
         echo "✅ torch-gcu框架重新安装成功"
     else
         echo "❌ torch-gcu框架重新安装失败"
+        echo "请检查安装日志或手动执行: $TOPSRIDER_INSTALLER -y -C torch-gcu"
         exit 1
     fi
 else
