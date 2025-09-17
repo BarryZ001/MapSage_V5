@@ -7,7 +7,7 @@ echo "🚀 燧原T20 DINOv3 + MMRS-1M 训练启动"
 echo "================================================"
 
 # 检查是否在T20容器环境中
-if [ ! -f "/opt/tops/bin/tops-smi" ]; then
+if [ ! -f "/opt/tops/bin/tops-smi" ] && [ ! -d "/opt/tops" ]; then
     echo "❌ 未检测到T20环境，请确保在正确的容器中运行"
     exit 1
 fi
