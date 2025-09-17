@@ -162,8 +162,8 @@ def check_pretrained_weights() -> List[Tuple[bool, str]]:
     """检查预训练权重"""
     results = []
     
-    # T20服务器权重路径 - 修正为正确的权重路径
-    t20_weights_path = Path("/weights/pretrained/dinov3/dinov3_vitl16_pretrain_sat493m-eadcf0ff.pth")
+    # T20服务器权重路径 - 用户提供的正确路径
+    t20_weights_path = Path("/workspace/weights/pretrained/dinov3/dinov3_vitl16_pretrain_sat493m-eadcf0ff.pth")
     if t20_weights_path.exists():
         results.append((True, f"✅ T20预训练权重存在: {t20_weights_path}"))
     else:

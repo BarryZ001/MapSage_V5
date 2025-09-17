@@ -27,7 +27,7 @@ if [ ! -d "/workspace/data/mmrs1m" ]; then
 fi
 
 # 检查DINOv3预训练权重
-if [ ! -f "/workspace/weights/dinov3_vitl16_pretrain_sat493m-eadcf0ff.pth" ]; then
+if [ ! -f "/workspace/weights/pretrained/dinov3/dinov3_vitl16_pretrain_sat493m-eadcf0ff.pth" ]; then
     echo "⚠️  DINOv3预训练权重不存在，将使用官方权重"
     echo "建议下载遥感预训练权重以获得更好效果"
 fi
