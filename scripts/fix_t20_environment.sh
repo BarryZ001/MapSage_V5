@@ -154,6 +154,10 @@ echo "
 cd /workspace/code/MapSage_V5
 python3 scripts/fix_quantstub_compatibility.py
 
+echo "
+🔍 诊断torch-gcu问题..."
+python3 scripts/diagnose_torch_gcu.py
+
 # 5. 运行完整环境验证
 echo "
 🔍 运行完整环境验证..."

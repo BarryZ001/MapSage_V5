@@ -1,0 +1,163 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+燧原T20 torch-gcu诊断脚本
+用于深入分析torch-gcu不可用的原因
+"""
+
+import os
+import sys
+import subprocess
+import importlib.util
+
+def check_environment_variables():
+    """检查环境变量"""
+    print("🔍 环境变量检查:")
+    
+    env_vars = {
+        'PATH': '/opt/tops/bin',
+        'LD_LIBRARY_PATH': '/opt/tops/lib',
+        'PYTHONPATH': '/workspace/code/MapSage_V5'
+    }
+    
+    for var, expected_path in env_vars.items():
+        value = os.environ.get(var, '')
+        if expected_path in value:
+            print(f"  ✅ {var}: {value}")
+        else:
+            print(f"  ❌ {var}: {value} (缺少 {expected_path})")
+
+def check_tops_installation():
+    """检查TOPS软件栈安装"""
+    print("\n🔍 TOPS软件栈检查:")
+    
+    # 检查关键文件和目录
+    paths_to_check = [
+        '/opt/tops',
+        '/opt/tops/bin',
+        '/opt/tops/lib',
+        '/opt/tops/bin/tops-smi',
+        '/opt/tops/lib/libtops.so'
+    ]
+    
+    for path in paths_to_check:
+        if os.path.exists(path):
+            print(f"  ✅ {path} 存在")
+        else:
+            print(f"  ❌ {path} 不存在")
+    
+    # 检查tops-smi命令
+    try:
+        result = subprocess.run(['tops-smi'], capture_output=True, text=True, timeout=10)
+        if result.returncode == 0:
+            print("  ✅ tops-smi 命令可用")
+            print(f"    输出: {result.stdout.strip()[:100]}...")
+        else:
+            print(f"  ❌ tops-smi 命令失败: {result.stderr}")
+    except Exception as e:
+        print(f"  ❌ tops-smi 命令异常: {e}")
+
+def check_pytorch_installation():
+    """检查PyTorch安装"""
+    print("\n🔍 PyTorch安装检查:")
+    
+    try:
+        import torch
+        print(f"  ✅ PyTorch版本: {torch.__version__}")
+        print(f"  📍 PyTorch路径: {torch.__file__}")
+        
+        # 检查torch模块的属性
+        torch_attrs = dir(torch)
+        gcu_related = [attr for attr in torch_attrs if 'gcu' in attr.lower()]
+        if gcu_related:
+            print(f"  🔍 torch中的GCU相关属性: {gcu_related}")
+        else:
+            print("  ❌ torch中未找到GCU相关属性")
+        
+        # 尝试导入torch.gcu
+        try:
+            import torch.gcu
+            print("  ✅ torch.gcu模块可导入")
+            print(f"  📍 torch.gcu路径: {torch.gcu.__file__}")
+        except ImportError as e:
+            print(f"  ❌ torch.gcu模块导入失败: {e}")
+        
+        # 检查hasattr
+        has_gcu = hasattr(torch, 'gcu')
+        print(f"  🔍 hasattr(torch, 'gcu'): {has_gcu}")
+        
+    except ImportError as e:
+        print(f"  ❌ PyTorch导入失败: {e}")
+
+def check_ptex_installation():
+    """检查ptex安装"""
+    print("\n🔍 ptex安装检查:")
+    
+    try:
+        import ptex
+        print("  ✅ ptex模块可导入")
+        print(f"  📍 ptex路径: {ptex.__file__}")
+        
+        # 检查ptex设备
+        try:
+            device = ptex.device('xla')
+            print(f"  ✅ XLA设备可用: {device}")
+        except Exception as e:
+            print(f"  ❌ XLA设备创建失败: {e}")
+            
+    except ImportError as e:
+        print(f"  ❌ ptex导入失败: {e}")
+
+def check_library_dependencies():
+    """检查库依赖"""
+    print("\n🔍 库依赖检查:")
+    
+    # 检查关键的共享库
+    libs_to_check = [
+        '/opt/tops/lib/libtops.so',
+        '/opt/tops/lib/libtorch_gcu.so',
+        '/opt/tops/lib/libptex.so'
+    ]
+    
+    for lib in libs_to_check:
+        if os.path.exists(lib):
+            print(f"  ✅ {lib} 存在")
+            # 检查库的符号
+            try:
+                result = subprocess.run(['ldd', lib], capture_output=True, text=True)
+                if result.returncode == 0:
+                    missing_deps = [line for line in result.stdout.split('\n') if 'not found' in line]
+                    if missing_deps:
+                        print(f"    ⚠️ 缺少依赖: {missing_deps}")
+                    else:
+                        print(f"    ✅ 依赖完整")
+            except Exception as e:
+                print(f"    ⚠️ 依赖检查失败: {e}")
+        else:
+            print(f"  ❌ {lib} 不存在")
+
+def suggest_solutions():
+    """建议解决方案"""
+    print("\n💡 可能的解决方案:")
+    print("1. 重新安装TopsRider软件栈")
+    print("2. 检查容器镜像是否包含完整的torch-gcu支持")
+    print("3. 验证环境变量设置")
+    print("4. 重启容器以重新加载环境")
+    print("5. 联系T20环境管理员")
+
+def main():
+    print("🔧 燧原T20 torch-gcu深度诊断")
+    print("=" * 50)
+    
+    check_environment_variables()
+    check_tops_installation()
+    check_pytorch_installation()
+    check_ptex_installation()
+    check_library_dependencies()
+    suggest_solutions()
+    
+    print("\n" + "=" * 50)
+    print("🎯 诊断完成")
+
+if __name__ == '__main__':
+    main()

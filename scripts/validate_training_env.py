@@ -10,6 +10,7 @@ import sys
 import torch
 import importlib
 import importlib.util
+import subprocess
 from pathlib import Path
 from typing import List, Tuple
 
@@ -103,6 +104,18 @@ def check_mmseg() -> Tuple[bool, str]:
 def check_custom_modules() -> List[Tuple[bool, str]]:
     """检查自定义模块"""
     results = []
+    
+    # 先运行QuantStub兼容性修复
+    try:
+        import subprocess
+        result = subprocess.run([sys.executable, 'scripts/fix_quantstub_compatibility.py'], 
+                              capture_output=True, text=True, cwd='/workspace/code/MapSage_V5')
+        if result.returncode == 0:
+            results.append((True, "✅ QuantStub兼容性修复完成"))
+        else:
+            results.append((False, f"⚠️ QuantStub修复警告: {result.stderr}"))
+    except Exception as e:
+        results.append((False, f"⚠️ QuantStub修复失败: {e}"))
     
     # 检查自定义数据集
     try:
