@@ -20,7 +20,7 @@ exp_name = 'dinov3_mmrs1m_stage1'
 
 # 数据集配置
 dataset_type = 'MMRS1MDataset'
-data_root = '/workspace/data/mmrs1m'  # T20服务器路径
+data_root = '/workspace/data/mmrs1m/data'  # T20服务器路径 - 修正为正确路径
 local_data_root = '/Users/barryzhang/myDev3/MapSage_V5/data'  # 本地开发路径
 
 # 图像配置
@@ -59,7 +59,7 @@ model = dict(
         drop_path_rate=0.1,
         init_cfg=dict(
             type='Pretrained',
-            checkpoint='/workspace/weights/dinov3_vitl16_pretrain_sat493m-eadcf0ff.pth',
+            checkpoint='/weights/pretrained/dinov3/dinov3_vitl16_pretrain_sat493m-eadcf0ff.pth',  # 修正为正确权重路径
             prefix='backbone.'
         )
     ),

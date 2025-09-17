@@ -84,8 +84,8 @@ def check_data_paths() -> List[Tuple[bool, str]]:
     """检查数据路径"""
     results = []
     
-    # T20服务器路径
-    t20_data_path = Path("/workspace/data/mmrs1m")
+    # T20服务器路径 - 修正为正确的数据路径
+    t20_data_path = Path("/workspace/data/mmrs1m/data")
     if t20_data_path.exists():
         results.append((True, f"✅ T20数据路径存在: {t20_data_path}"))
         
@@ -114,8 +114,8 @@ def check_pretrained_weights() -> List[Tuple[bool, str]]:
     """检查预训练权重"""
     results = []
     
-    # T20服务器权重路径
-    t20_weights_path = Path("/workspace/weights/dinov3_vitl16_pretrain_sat493m-eadcf0ff.pth")
+    # T20服务器权重路径 - 修正为正确的权重路径
+    t20_weights_path = Path("/weights/pretrained/dinov3/dinov3_vitl16_pretrain_sat493m-eadcf0ff.pth")
     if t20_weights_path.exists():
         results.append((True, f"✅ T20预训练权重存在: {t20_weights_path}"))
     else:
