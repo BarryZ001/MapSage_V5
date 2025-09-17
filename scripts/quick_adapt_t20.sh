@@ -61,7 +61,7 @@ echo "📋 步骤3：干运行检查需要修改的内容..."
 echo "执行干运行模式，查看将要进行的修改..."
 echo ""
 
-python3 scripts/adapt_to_enflame_t20.py --dry-run "${FILES_TO_ADAPT[@]}"
+python3 scripts/adapt_to_enflame_t20.py --dry_run
 
 echo ""
 echo "🤔 请检查上述修改内容是否合理"
@@ -75,7 +75,7 @@ fi
 # 步骤4：更新路径配置
 echo "📋 步骤4：更新路径配置..."
 echo "执行路径配置更新..."
-python3 scripts/update_paths_for_t20.py --dry-run "${FILES_TO_ADAPT[@]}"
+python3 scripts/update_paths_for_t20.py --dry-run
 
 echo ""
 read -p "确认路径更新正确？(y/N): " -n 1 -r
@@ -85,13 +85,13 @@ if [[ ! $REPLY =~ ^[Yy]$ ]]; then
     exit 1
 fi
 
-python3 scripts/update_paths_for_t20.py "${FILES_TO_ADAPT[@]}"
+python3 scripts/update_paths_for_t20.py
 echo "✅ 路径配置更新完成"
 echo ""
 
 # 步骤5：执行实际适配
 echo "📋 步骤5：执行实际适配..."
-python3 scripts/adapt_to_enflame_t20.py "${FILES_TO_ADAPT[@]}"
+python3 scripts/adapt_to_enflame_t20.py
 
 echo "✅ 代码适配完成"
 echo ""
