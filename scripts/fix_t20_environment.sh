@@ -101,14 +101,14 @@ echo "✅ 找到ptex wheel包: $PTEX_WHEEL"
 # 检查ptex是否已安装
 if python3 -c "import ptex" 2>/dev/null; then
     echo "✅ ptex模块已安装"
-    python3 -c "import ptex; print('ptex version:', ptex.__version__)"
+    python3 -c "import ptex; print('ptex模块导入成功')"
 else
     echo "🔧 安装ptex模块..."
     pip3 install "$PTEX_WHEEL" --force-reinstall
     
     if python3 -c "import ptex" 2>/dev/null; then
         echo "✅ ptex模块安装成功"
-        python3 -c "import ptex; print('ptex version:', ptex.__version__)"
+        python3 -c "import ptex; print('ptex模块导入成功')"
     else
         echo "❌ ptex模块安装失败"
         exit 1
@@ -122,8 +122,8 @@ python3 -c "
 import ptex
 import torch
 
-print('ptex version:', ptex.__version__)
-print('XLA device count:', ptex.device_count())
+print('ptex模块导入成功')
+print('ptex可用函数:', [attr for attr in dir(ptex) if not attr.startswith('_')][:5])
 
 # 测试设备创建
 try:
