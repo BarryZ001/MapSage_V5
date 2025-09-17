@@ -76,9 +76,9 @@ def check_pytorch_installation():
         
         # 尝试导入torch.gcu
         try:
-            import torch.gcu
+            torch_gcu = importlib.import_module('torch.gcu')
             print("  ✅ torch.gcu模块可导入")
-            print(f"  📍 torch.gcu路径: {torch.gcu.__file__}")
+            print(f"  📍 torch.gcu路径: {torch_gcu.__file__}")
         except ImportError as e:
             print(f"  ❌ torch.gcu模块导入失败: {e}")
         
@@ -94,7 +94,7 @@ def check_ptex_installation():
     print("\n🔍 ptex安装检查:")
     
     try:
-        import ptex
+        ptex = importlib.import_module('ptex')
         print("  ✅ ptex模块可导入")
         print(f"  📍 ptex路径: {ptex.__file__}")
         
