@@ -136,30 +136,39 @@ def main():
     # PyTorch基础检查
     total_checks += 1
     torch_success, torch_module = check_python_import("torch", "PyTorch模块")
-    if torch_success:
+    if torch_success and torch_module is not None:
         passed_checks += 1
         try:
-            print(f"  PyTorch版本: {torch_module.__version__}")
+            if hasattr(torch_module, '__version__'):
+                print(f"  PyTorch版本: {torch_module.__version__}")
+            else:
+                print("  无法获取PyTorch版本")
         except:
             print("  无法获取PyTorch版本")
     
     # torch.gcu检查
-    if torch_success:
+    if torch_success and torch_module is not None:
         total_checks += 1
         try:
-            gcu_available = torch_module.gcu.is_available()
-            if gcu_available:
-                print("✓ torch.gcu可用性: True")
-                passed_checks += 1
-                
-                # GCU设备数量
-                try:
-                    device_count = torch_module.gcu.device_count()
-                    print(f"  GCU设备数量: {device_count}")
-                except:
-                    print("  无法获取GCU设备数量")
+            if hasattr(torch_module, 'gcu'):
+                gcu_available = torch_module.gcu.is_available()
+                if gcu_available:
+                    print("✓ torch.gcu可用性: True")
+                    passed_checks += 1
+                    
+                    # GCU设备数量
+                    try:
+                        if hasattr(torch_module.gcu, 'device_count'):
+                            device_count = torch_module.gcu.device_count()
+                            print(f"  GCU设备数量: {device_count}")
+                        else:
+                            print("  无法获取GCU设备数量")
+                    except:
+                        print("  无法获取GCU设备数量")
+                else:
+                    print("✗ torch.gcu可用性: False")
             else:
-                print("✗ torch.gcu可用性: False")
+                print("✗ torch.gcu模块不存在")
         except Exception as e:
             print(f"✗ torch.gcu检查失败: {str(e)}")
     
@@ -213,12 +222,11 @@ def main():
     # 6. 功能性测试
     print_section("6. 功能性测试")
     
-    if torch_success:
+    if torch_success and torch_module is not None:
         # 简单的张量操作测试
         total_checks += 1
         try:
-            import torch
-            x = torch.randn(2, 3)
+            x = torch_module.randn(2, 3)
             y = x + 1
             print("✓ PyTorch张量操作: 成功")
             passed_checks += 1
@@ -226,15 +234,21 @@ def main():
             print(f"✗ PyTorch张量操作: 失败 - {str(e)}")
         
         # GCU设备测试
-        if hasattr(torch, 'gcu') and torch.gcu.is_available():
+        if hasattr(torch_module, 'gcu'):
             total_checks += 1
             try:
-                device = torch.device('gcu:0')
-                x = torch.randn(2, 3, device=device)
-                print("✓ GCU设备张量创建: 成功")
-                passed_checks += 1
+                if torch_module.gcu.is_available():
+                    device = torch_module.device('gcu:0')
+                    x = torch_module.randn(2, 3, device=device)
+                    print("✓ GCU设备张量创建: 成功")
+                    passed_checks += 1
+                else:
+                    print("✗ GCU设备张量创建: GCU不可用")
             except Exception as e:
                 print(f"✗ GCU设备张量创建: 失败 - {str(e)}")
+        else:
+            total_checks += 1
+            print("✗ GCU设备张量创建: torch.gcu模块不存在")
     
     # 7. 生成总结报告
     print_header("验证总结")
