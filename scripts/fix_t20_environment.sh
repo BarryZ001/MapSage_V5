@@ -26,18 +26,25 @@ if ! python3 -c "import torch; assert hasattr(torch, 'gcu')" 2>/dev/null; then
     echo "❌ torch-gcu框架不可用，需要重新安装TopsRider软件栈"
     echo "🔧 开始重新安装TopsRider软件栈..."
     
-    # 查找TopsRider安装程序（优先查找/root目录）
+    # 查找TopsRider安装程序（多个位置查找）
     TOPSRIDER_INSTALLER=$(find /root -name "TopsRider*.run" -type f 2>/dev/null | head -1)
     
     if [ -z "$TOPSRIDER_INSTALLER" ]; then
-        # 如果/root目录没找到，再查找/usr/local/topsrider目录
+        # 查找/usr/local/topsrider目录
         TOPSRIDER_INSTALLER=$(find /usr/local/topsrider -name "TopsRider*.run" -type f 2>/dev/null | head -1)
     fi
     
     if [ -z "$TOPSRIDER_INSTALLER" ]; then
+        # 查找当前工作目录（可能从主机拷贝到这里）
+        TOPSRIDER_INSTALLER=$(find /workspace/code/MapSage_V5 -name "TopsRider*.run" -type f 2>/dev/null | head -1)
+    fi
+    
+    if [ -z "$TOPSRIDER_INSTALLER" ]; then
         echo "❌ 未找到TopsRider安装程序"
-        echo "请确保TopsRider软件栈安装文件存在于/root或/usr/local/topsrider目录中"
-        echo "可以手动查找: find /root -name 'TopsRider*.run' -type f"
+        echo "请从主机拷贝TopsRider安装文件到容器中:"
+        echo "方法1: docker cp /root/TopsRider_t2x_2.5.136_deb_amd64.run t20_mapsage_env:/root/"
+        echo "方法2: cp /root/TopsRider_t2x_2.5.136_deb_amd64.run /root/mapsage_project/code/"
+        echo "然后重新运行此脚本"
         exit 1
     fi
     
