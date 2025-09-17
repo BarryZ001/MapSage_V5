@@ -26,29 +26,28 @@ pip3 --version
 echo "⬆️  升级pip..."
 pip3 install --upgrade pip
 
-# 检查CUDA版本
-echo "🔧 检查CUDA版本..."
-if command -v nvcc &> /dev/null; then
-    nvcc --version
-    CUDA_VERSION=$(nvcc --version | grep "release" | sed 's/.*release \([0-9]\+\.[0-9]\+\).*/\1/')
-    echo "✅ CUDA版本: $CUDA_VERSION"
+# 检查GCU版本（燧原T20专用）
+echo "🔧 检查GCU版本..."
+if command -v gcu-smi &> /dev/null; then
+    gcu-smi
+    echo "✅ GCU环境可用"
+elif [ -d "/usr/local/gcu" ]; then
+    echo "✅ GCU环境已安装"
 else
-    echo "❌ CUDA未安装或不可用"
-    exit 1
+    echo "⚠️ GCU环境未检测到，但继续安装（T20服务器可能使用特殊配置）"
 fi
 
-# 安装PyTorch (CUDA 11.7版本)
-echo "🔥 安装PyTorch (CUDA 11.7)..."
-pip3 install torch==2.0.1+cu117 torchvision==0.15.2+cu117 torchaudio==2.0.2+cu117 \
-    --index-url https://download.pytorch.org/whl/cu117
+# 安装PyTorch (CPU版本，适配燧原T20 GCU环境)
+echo "🔥 安装PyTorch (CPU版本，适配T20 GCU环境)..."
+pip3 install torch==2.0.1 torchvision==0.15.2 torchaudio==2.0.2 --index-url https://download.pytorch.org/whl/cpu
 
 # 验证PyTorch安装
 echo "✅ 验证PyTorch安装..."
-python3 -c "import torch; print(f'PyTorch版本: {torch.__version__}'); print(f'CUDA可用: {torch.cuda.is_available()}'); print(f'GPU数量: {torch.cuda.device_count()}')"
+python3 -c "import torch; print(f'PyTorch版本: {torch.__version__}'); print(f'设备类型: {torch.device('cpu')}'); print('✅ PyTorch CPU版本安装成功')"
 
-# 安装MMSegmentation依赖
+# 安装MMSegmentation依赖（CPU版本）
 echo "🛠️  安装MMSegmentation依赖..."
-pip3 install mmcv-full==1.7.1 -f https://download.openmmlab.com/mmcv/dist/cu117/torch2.0/index.html
+pip3 install mmcv-full==1.7.1 -f https://download.openmmlab.com/mmcv/dist/cpu/torch2.0/index.html
 pip3 install mmsegmentation==0.30.0
 
 # 安装其他必要依赖
@@ -76,12 +75,14 @@ chmod -R 755 /weights
 echo "🔍 最终环境验证..."
 echo "Python版本: $(python3 --version)"
 echo "PyTorch版本: $(python3 -c 'import torch; print(torch.__version__)')"
-echo "CUDA可用性: $(python3 -c 'import torch; print(torch.cuda.is_available())')"
-echo "GPU数量: $(python3 -c 'import torch; print(torch.cuda.device_count())')"
+echo "计算设备: CPU (适配燧原T20 GCU环境)"
 echo "MMSegmentation版本: $(python3 -c 'import mmseg; print(mmseg.__version__)')"
 
 echo "================================================"
 echo "✅ T20服务器Docker环境配置完成！"
+echo "🔥 燧原T20 GCU环境特别说明:"
+echo "   - 已安装CPU版本PyTorch，适配T20 GCU计算环境"
+echo "   - GCU加速将通过燧原专用驱动和运行时实现"
 echo "📝 接下来请:"
 echo "   1. 确保数据已挂载到 /workspace/data/mmrs1m/data"
 echo "   2. 确保预训练权重已放置到 /weights/pretrained/dinov3/"

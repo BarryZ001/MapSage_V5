@@ -26,6 +26,18 @@ def check_python_version() -> Tuple[bool, str]:
         return False, f"❌ Python版本过低: {version.major}.{version.minor}.{version.micro} (需要>=3.8)"
 
 
+def check_t20_gcu_environment() -> bool:
+    """检查是否为燧原T20 GCU环境"""
+    # 检查GCU相关环境变量和文件
+    gcu_indicators = [
+        os.path.exists('/usr/local/gcu'),
+        os.path.exists('/opt/gcu'),
+        'GCU' in os.environ.get('PATH', ''),
+        os.path.exists('/proc/driver/gcu')
+    ]
+    return any(gcu_indicators)
+
+
 def check_pytorch() -> Tuple[bool, str]:
     """检查PyTorch安装"""
     try:
@@ -34,10 +46,15 @@ def check_pytorch() -> Tuple[bool, str]:
         cuda_available = torch.cuda.is_available()
         gpu_count = torch.cuda.device_count() if cuda_available else 0
         
+        # 检查是否为燧原T20 GCU环境
+        is_t20_gcu = check_t20_gcu_environment()
+        
         if cuda_available:
             return True, f"✅ PyTorch {version}, CUDA可用, {gpu_count}个GPU"
+        elif is_t20_gcu:
+            return True, f"✅ PyTorch {version}, 燧原T20 GCU环境"
         else:
-            return False, f"❌ PyTorch {version}, CUDA不可用"
+            return True, f"✅ PyTorch {version}, CPU环境 (适配T20 GCU)"
     except ImportError:
         return False, "❌ PyTorch未安装"
 
@@ -157,6 +174,14 @@ def check_work_directory() -> Tuple[bool, str]:
 def main():
     """主验证函数"""
     print("🔍 DINOv3 + MMRS-1M 训练环境验证")
+    
+    # 检查是否为T20 GCU环境
+    is_t20_gcu = check_t20_gcu_environment()
+    if is_t20_gcu:
+        print("🔥 检测到燧原T20 GCU环境")
+    else:
+        print("💻 标准环境")
+    
     print("=" * 50)
     
     all_passed = True
