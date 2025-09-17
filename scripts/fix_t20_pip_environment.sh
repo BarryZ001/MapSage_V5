@@ -67,7 +67,13 @@ pip3 install --no-deps opencv-python==4.8.1.78 || echo "❌ opencv-python安装�
 echo "📚 安装其他必要包..."
 pip3 install --no-deps tqdm==4.66.1 || echo "❌ tqdm安装失败"
 pip3 install --no-deps seaborn==0.12.2 || echo "❌ seaborn安装失败"
+
+# 安装transformers及其依赖
+echo "安装huggingface_hub..."
+pip3 install --no-deps huggingface_hub || echo "❌ huggingface_hub安装失败"
+echo "安装transformers..."
 pip3 install --no-deps transformers==4.21.3 || echo "❌ transformers安装失败"
+
 pip3 install --no-deps timm==0.6.12 || echo "❌ timm安装失败"
 pip3 install --no-deps einops==0.6.1 || echo "❌ einops安装失败"
 
@@ -90,8 +96,17 @@ python3 -c "import einops; print('✅ einops导入成功')" || echo "❌ einops�
 
 # 最终GCU环境测试
 echo "🎯 最终GCU环境测试:"
-python3 -c "try: import torch; print('✅ torch版本:', torch.__version__); except Exception as e: print('❌ torch测试失败:', str(e))"
-python3 -c "try: import ptex; print('✅ ptex可用, XLA设备数量:', ptex.device_count()); except Exception as e: print('⚠️ ptex测试结果:', str(e))"
+python3 -c "try:
+    import torch
+    print('✅ torch版本:', torch.__version__)
+except Exception as e:
+    print('❌ torch测试失败:', str(e))"
+
+python3 -c "try:
+    import ptex
+    print('✅ ptex可用, XLA设备数量:', ptex.device_count())
+except Exception as e:
+    print('⚠️ ptex测试结果:', str(e))"
 
 echo "================================================"
 echo "🎉 T20 GCU环境修复完成！"
