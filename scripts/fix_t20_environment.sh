@@ -49,10 +49,12 @@ if ! python3 -c "import torch; assert hasattr(torch, 'gcu')" 2>/dev/null; then
     fi
     
     echo "✅ 找到TopsRider安装程序: $TOPSRIDER_INSTALLER"
-    echo "🔧 重新安装torch-gcu框架..."
-    
-    # 重新安装torch-gcu
+    echo # 按照官方手册分两步安装TopsRider
+    echo "🔧 第一步：安装基础软件栈..."
     chmod +x "$TOPSRIDER_INSTALLER"
+    "$TOPSRIDER_INSTALLER" -y
+    
+    echo "🔧 第二步：安装torch-gcu框架..."
     "$TOPSRIDER_INSTALLER" -y -C torch-gcu
     
     # 设置环境变量
