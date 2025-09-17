@@ -50,21 +50,39 @@ if ! python3 -c "import torch; assert hasattr(torch, 'gcu')" 2>/dev/null; then
     
     echo "✅ 找到TopsRider安装程序: $TOPSRIDER_INSTALLER"
     echo # 按照官方手册分两步安装TopsRider
-    echo "🔧 第一步：安装基础软件栈..."
+    echo "🔧 按照官方手册执行两步安装流程..."
     chmod +x "$TOPSRIDER_INSTALLER"
+    
+    echo "📋 第一步：安装除框架之外的基础软件栈"
+    echo "   执行命令: $TOPSRIDER_INSTALLER -y"
     "$TOPSRIDER_INSTALLER" -y
     
-    echo "🔧 第二步：安装torch-gcu框架..."
+    if [ $? -ne 0 ]; then
+        echo "❌ 基础软件栈安装失败"
+        exit 1
+    fi
+    
+    echo "📋 第二步：安装torch-gcu框架"
+    echo "   执行命令: $TOPSRIDER_INSTALLER -y -C torch-gcu"
     "$TOPSRIDER_INSTALLER" -y -C torch-gcu
     
-    # 设置环境变量
-    echo "🔧 设置环境变量..."
+    if [ $? -ne 0 ]; then
+        echo "❌ torch-gcu框架安装失败"
+        exit 1
+    fi
+    
+    # 按照官方手册设置环境变量和动态链接器
+    echo "🔧 设置环境变量和动态链接器配置..."
     export PATH="/opt/tops/bin:$PATH"
     export LD_LIBRARY_PATH="/opt/tops/lib:$LD_LIBRARY_PATH"
     
     # 添加到bashrc以持久化
     echo 'export PATH="/opt/tops/bin:$PATH"' >> ~/.bashrc
     echo 'export LD_LIBRARY_PATH="/opt/tops/lib:$LD_LIBRARY_PATH"' >> ~/.bashrc
+    
+    # 按照官方手册运行ldconfig更新动态链接器配置
+    echo "🔧 更新动态链接器配置..."
+    ldconfig
     
     # 重新加载环境
     source ~/.bashrc
@@ -85,14 +103,17 @@ else
     echo "✅ torch-gcu框架可用"
 fi
 
-# 2. 查找并安装ptex模块
+# 2. 按照官方手册和成功经验安装ptex模块
 echo "
-🔍 查找ptex wheel包..."
-PTEX_WHEEL=$(find /usr/local/topsrider -name "ptex*.whl" -type f | head -1)
+🔧 安装ptex模块（torch-gcu框架核心组件）..."
+
+# 查找ptex wheel包（按照成功经验的路径）
+PTEX_WHEEL=$(find /usr/local/topsrider -name "ptex*.whl" -type f 2>/dev/null | head -1)
 
 if [ -z "$PTEX_WHEEL" ]; then
     echo "❌ 未找到ptex wheel包"
     echo "请检查TopsRider软件栈是否完整安装"
+    echo "预期路径: /usr/local/topsrider/ai_development_toolkit/pytorch-gcu/ptex-*.whl"
     exit 1
 fi
 
@@ -103,12 +124,21 @@ if python3 -c "import ptex" 2>/dev/null; then
     echo "✅ ptex模块已安装"
     python3 -c "import ptex; print('ptex模块导入成功')"
 else
-    echo "🔧 安装ptex模块..."
+    echo "📋 安装ptex模块（负责XLA设备管理和张量操作）"
     pip3 install "$PTEX_WHEEL" --force-reinstall
     
     if python3 -c "import ptex" 2>/dev/null; then
         echo "✅ ptex模块安装成功"
-        python3 -c "import ptex; print('ptex模块导入成功')"
+        
+        # 按照成功经验进行基础验证
+        echo "🔍 验证ptex模块安装..."
+        python3 -c "import ptex; print('ptex version:', ptex.__version__); print('XLA devices:', ptex.device_count())" 2>/dev/null
+        
+        if [ $? -eq 0 ]; then
+            echo "✅ ptex模块验证成功"
+        else
+            echo "⚠️  ptex模块导入成功但功能验证失败（可能需要重启容器）"
+        fi
     else
         echo "❌ ptex模块安装失败"
         exit 1

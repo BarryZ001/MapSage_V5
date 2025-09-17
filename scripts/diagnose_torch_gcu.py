@@ -109,32 +109,51 @@ def check_ptex_installation():
         print(f"  ❌ ptex导入失败: {e}")
 
 def check_library_dependencies():
-    """检查库依赖"""
-    print("\n🔍 库依赖检查:")
+    """按照官方手册检查共享库依赖"""
+    print("\n🔍 共享库依赖检查（按照官方手册指导）:")
     
     # 检查关键的共享库
     libs_to_check = [
         '/opt/tops/lib/libtops.so',
         '/opt/tops/lib/libtorch_gcu.so',
-        '/opt/tops/lib/libptex.so'
+        '/opt/tops/lib/libptex.so',
+        '/usr/local/topsrider/lib/libtorch_gcu.so',
+        '/usr/local/topsrider/ai_development_toolkit/pytorch-gcu/lib/libtorch_gcu.so'
     ]
     
     for lib in libs_to_check:
         if os.path.exists(lib):
             print(f"  ✅ {lib} 存在")
-            # 检查库的符号
+            # 按照官方手册使用ldd检查共享库依赖项
             try:
-                result = subprocess.run(['ldd', lib], capture_output=True, text=True)
+                result = subprocess.run(['ldd', lib], capture_output=True, text=True, timeout=10)
                 if result.returncode == 0:
                     missing_deps = [line for line in result.stdout.split('\n') if 'not found' in line]
                     if missing_deps:
-                        print(f"    ⚠️ 缺少依赖: {missing_deps}")
+                        print(f"    ❌ 缺少依赖项:")
+                        for dep in missing_deps:
+                            print(f"      {dep.strip()}")
+                        print("    💡 建议运行 'ldconfig' 命令更新动态链接器配置")
                     else:
-                        print(f"    ✅ 依赖完整")
+                        print(f"    ✅ 依赖项完整")
+                else:
+                    print(f"    ❌ ldd命令执行失败: {result.stderr}")
             except Exception as e:
-                print(f"    ⚠️ 依赖检查失败: {e}")
+                print(f"    ❌ 依赖检查失败: {e}")
         else:
             print(f"  ❌ {lib} 不存在")
+    
+    # 检查ldconfig配置
+    print("\n🔍 动态链接器配置检查:")
+    try:
+        result = subprocess.run(['ldconfig', '-p'], capture_output=True, text=True, timeout=10)
+        if 'libtops' in result.stdout:
+            print("  ✅ libtops 已在动态链接器缓存中")
+        else:
+            print("  ❌ libtops 未在动态链接器缓存中")
+            print("  💡 建议运行 'ldconfig' 命令更新配置")
+    except Exception as e:
+        print(f"  ❌ 检查动态链接器配置失败: {e}")
 
 def suggest_solutions():
     """建议解决方案"""
