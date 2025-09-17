@@ -59,6 +59,31 @@ def check_pytorch() -> Tuple[bool, str]:
         return False, "❌ PyTorch未安装"
 
 
+def check_torch_gcu() -> Tuple[bool, str]:
+    """检查torch-gcu框架"""
+    try:
+        import torch
+        if hasattr(torch, 'gcu'):
+            return True, "✅ torch-gcu框架可用"
+        else:
+            return False, "❌ torch-gcu框架不可用"
+    except ImportError:
+        return False, "❌ PyTorch未安装，无法检查torch-gcu"
+
+
+def check_ptex() -> Tuple[bool, str]:
+    """检查ptex模块"""
+    try:
+        import ptex
+        version = ptex.__version__
+        device_count = ptex.device_count()
+        return True, f"✅ ptex {version}, {device_count}个XLA设备"
+    except ImportError:
+        return False, "❌ ptex模块未安装"
+    except Exception as e:
+        return False, f"❌ ptex模块错误: {e}"
+
+
 def check_mmseg() -> Tuple[bool, str]:
     """检查MMSegmentation"""
     try:
@@ -196,6 +221,13 @@ def main():
         check_work_directory()
     ]
     
+    # 如果是T20 GCU环境，添加GCU相关检查
+    if is_t20_gcu:
+        checks.extend([
+            check_torch_gcu(),
+            check_ptex()
+        ])
+    
     for passed, message in checks:
         print(f"  {message}")
         if not passed:
@@ -225,15 +257,28 @@ def main():
         if not passed:
             all_passed = False
     
-    # GPU信息
-    print("\n🖥️  GPU信息:")
-    if torch.cuda.is_available():
-        for i in range(torch.cuda.device_count()):
-            gpu_name = torch.cuda.get_device_name(i)
-            gpu_memory = torch.cuda.get_device_properties(i).total_memory / 1024**3
-            print(f"  GPU {i}: {gpu_name} ({gpu_memory:.1f}GB)")
+    # GPU/XLA设备信息
+    if is_t20_gcu:
+        print("\n🖥️  XLA设备信息:")
+        try:
+            import ptex
+            device_count = ptex.device_count()
+            if device_count > 0:
+                for i in range(device_count):
+                    print(f"  XLA设备 {i}: 燧原T20 GCU")
+            else:
+                print("  ❌ 无可用XLA设备")
+        except ImportError:
+            print("  ❌ ptex模块未安装，无法检查XLA设备")
     else:
-        print("  ❌ 无可用GPU")
+        print("\n🖥️  GPU信息:")
+        if torch.cuda.is_available():
+            for i in range(torch.cuda.device_count()):
+                gpu_name = torch.cuda.get_device_name(i)
+                gpu_memory = torch.cuda.get_device_properties(i).total_memory / 1024**3
+                print(f"  GPU {i}: {gpu_name} ({gpu_memory:.1f}GB)")
+        else:
+            print("  ❌ 无可用GPU")
     
     # 总结
     print("\n" + "=" * 50)
