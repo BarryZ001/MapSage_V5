@@ -17,6 +17,15 @@ from mmengine.registry import TRANSFORMS
 from mmengine.optim import build_optim_wrapper
 from mmengine.logging import print_log
 
+# 燧原T20 GCU环境支持
+GCU_AVAILABLE = False
+ptex = None
+try:
+    import ptex  # type: ignore
+    GCU_AVAILABLE = True
+except ImportError:
+    pass
+
 # 设置matplotlib使用非交互式后端
 import matplotlib
 matplotlib.use('Agg')
@@ -225,10 +234,11 @@ test_evaluator = val_evaluator
 
 # 运行时配置
 default_scope = 'mmseg'
+# 燧原T20 GCU环境配置
 env_cfg = dict(
-    cudnn_benchmark=True,
+    cudnn_benchmark=False,  # GCU环境不支持cudnn
     mp_cfg=dict(mp_start_method='fork', opencv_num_threads=0),
-    dist_cfg=dict(backend='nccl')
+    dist_cfg=dict(backend='gloo')  # 使用gloo后端替代nccl
 )
 
 # 日志配置
@@ -326,9 +336,19 @@ def main():
             'flip_direction': None
         }]
         
-        if torch.cuda.is_available():
-            dummy_input = dummy_input.cuda()
-            runner.model = runner.model.cuda()
+        # 适配燧原T20 GCU环境
+        device = torch.device('cpu')  # 默认使用CPU
+        if GCU_AVAILABLE and ptex is not None:
+            try:
+                device = ptex.device('xla')  # type: ignore
+                dummy_input = dummy_input.to(device)
+                runner.model = runner.model.to(device)
+                print(f"✅ 使用GCU设备: {device}")
+            except Exception as e:
+                print(f"⚠️ GCU设备初始化失败: {e}，使用CPU")
+                device = torch.device('cpu')
+        else:
+            print("⚠️ ptex未安装，使用CPU")
         
         try:
             with torch.no_grad():
@@ -345,8 +365,11 @@ def main():
         
         # 创建虚拟标签
         dummy_label = torch.randint(0, 7, (1, 512, 512))
-        if torch.cuda.is_available():
-            dummy_label = dummy_label.cuda()
+        # 适配燧原T20 GCU环境
+        try:
+            dummy_label = dummy_label.to(device)
+        except:
+            dummy_label = dummy_label.cpu()
         
         try:
             # 使用正确的训练模式参数
