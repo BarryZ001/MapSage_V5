@@ -9,7 +9,9 @@ echo "================================================"
 # 检查是否在容器内
 if [ ! -d "/usr/local/topsrider" ]; then
     echo "❌ 错误: 此脚本必须在T20服务器的容器内执行"
-    echo "请先登录T20服务器并进入容器后再运行此脚本"
+    echo "请使用以下命令进入容器:"
+    echo "docker exec -it t20_mapsage_env /bin/bash"
+    echo "然后再运行此脚本"
     exit 1
 fi
 
@@ -21,8 +23,32 @@ echo "
 python3 -c "import torch; print('PyTorch version:', torch.__version__); print('torch.gcu available:', hasattr(torch, 'gcu'))" 2>/dev/null
 
 if ! python3 -c "import torch; assert hasattr(torch, 'gcu')" 2>/dev/null; then
-    echo "❌ torch-gcu框架不可用，需要重新安装"
-    echo "请手动执行: ./TopsRider_t2x_2.5.136_deb_amd64.run -y -C torch-gcu"
+    echo "❌ torch-gcu框架不可用，需要重新安装TopsRider软件栈"
+    echo "🔧 开始重新安装TopsRider软件栈..."
+    
+    # 查找TopsRider安装程序
+    TOPSRIDER_INSTALLER=$(find /usr/local/topsrider -name "TopsRider*.run" -type f | head -1)
+    
+    if [ -z "$TOPSRIDER_INSTALLER" ]; then
+        echo "❌ 未找到TopsRider安装程序"
+        echo "请确保TopsRider软件栈已正确下载到容器中"
+        exit 1
+    fi
+    
+    echo "✅ 找到TopsRider安装程序: $TOPSRIDER_INSTALLER"
+    echo "🔧 重新安装torch-gcu框架..."
+    
+    # 重新安装torch-gcu
+    chmod +x "$TOPSRIDER_INSTALLER"
+    "$TOPSRIDER_INSTALLER" -y -C torch-gcu
+    
+    # 验证安装
+    if python3 -c "import torch; assert hasattr(torch, 'gcu')" 2>/dev/null; then
+        echo "✅ torch-gcu框架重新安装成功"
+    else
+        echo "❌ torch-gcu框架重新安装失败"
+        exit 1
+    fi
 else
     echo "✅ torch-gcu框架可用"
 fi
