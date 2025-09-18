@@ -49,12 +49,12 @@ except Exception as e:
     exit(1)
 " || exit 1
 
-# 检查配置文件
-if [ ! -f "configs/train_dinov3_mmrs1m.py" ]; then
-    echo "❌ 训练配置文件不存在: configs/train_dinov3_mmrs1m.py"
+# 检查配置文件 - 使用T20 GCU专用配置
+if [ ! -f "configs/train_dinov3_mmrs1m_t20_gcu.py" ]; then
+    echo "❌ T20 GCU训练配置文件不存在: configs/train_dinov3_mmrs1m_t20_gcu.py"
     exit 1
 fi
-echo "✅ 训练配置文件存在"
+echo "✅ T20 GCU训练配置文件存在"
 
 # 检查数据路径
 if [ ! -d "/workspace/data/mmrs1m/data" ]; then
@@ -71,24 +71,24 @@ fi
 echo "✅ 预训练权重存在"
 
 # 创建工作目录
-mkdir -p work_dirs/dinov3_mmrs1m_stage1
+mkdir -p work_dirs/dinov3_mmrs1m_t20_gcu
 echo "✅ 工作目录已创建"
 
 echo "\n🎯 开始训练..."
-echo "配置文件: configs/train_dinov3_mmrs1m.py"
-echo "工作目录: work_dirs/dinov3_mmrs1m_stage1"
+echo "配置文件: configs/train_dinov3_mmrs1m_t20_gcu.py"
+echo "工作目录: work_dirs/dinov3_mmrs1m_t20_gcu"
 echo "最大迭代: 80000"
-echo "批次大小: 8 x 2 = 16"
+echo "批次大小: 4 x 2 = 8 (适配GCU内存)"
 
 echo "\n⏰ 预计训练时间: 5-7天"
 echo "📊 可以通过以下命令监控训练进度:"
-echo "   tail -f work_dirs/dinov3_mmrs1m_stage1/$(date +%Y%m%d_%H%M%S).log"
-echo "   tops-smi (查看GPU使用情况)"
+echo "   tail -f work_dirs/dinov3_mmrs1m_t20_gcu/$(date +%Y%m%d_%H%M%S).log"
+echo "   tops-smi (查看GCU使用情况)"
 
 echo "\n🚀 启动训练..."
 
-# 启动训练
-python3 tools/train.py configs/train_dinov3_mmrs1m.py \
-    --work-dir work_dirs/dinov3_mmrs1m_stage1 \
+# 启动训练 - 使用T20 GCU专用配置
+python3 tools/train.py configs/train_dinov3_mmrs1m_t20_gcu.py \
+    --work-dir work_dirs/dinov3_mmrs1m_t20_gcu \
     --seed 42 \
     --deterministic
