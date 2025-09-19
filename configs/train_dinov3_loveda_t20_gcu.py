@@ -10,7 +10,8 @@ custom_imports = dict(
         'mmseg_custom.transforms',
         'mmseg',
         'mmseg.models',
-        'mmseg.datasets'
+        'mmseg.datasets',
+        'mmseg.visualization'  # 添加可视化模块导入
     ],
     allow_failed_imports=False
 )
