@@ -65,11 +65,7 @@ model = dict(
         out_indices=(23,),  # 输出最后一层
         final_norm=True,
         drop_path_rate=0.1,
-        init_cfg=dict(
-            type='Pretrained',
-            checkpoint='/workspace/weights/dinov3_vitl16_pretrain_sat493m-eadcf0ff.pth',  # 修正为T20环境实际权重路径
-            prefix=''
-        )
+        init_cfg=None  # 移除预训练权重配置，使用默认初始化
     ),
     
     # 解码头

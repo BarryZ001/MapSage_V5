@@ -273,14 +273,14 @@ class DINOv3ViT(BaseModule):
         """初始化权重。"""
         super().init_weights()
         
-        if not (isinstance(self.init_cfg, dict) and 
-                self.init_cfg['type'] == 'Pretrained'):
-            # 初始化位置编码
+        # 总是执行默认初始化，不依赖预训练权重
+        # 初始化位置编码
+        if hasattr(self, 'pos_embed') and self.pos_embed is not None:
             nn.init.trunc_normal_(self.pos_embed, std=0.02)
-            
-            # 初始化分类token
-            if self.with_cls_token:
-                nn.init.trunc_normal_(self.cls_token, std=0.02)
+        
+        # 初始化分类token
+        if self.with_cls_token and hasattr(self, 'cls_token'):
+            nn.init.trunc_normal_(self.cls_token, std=0.02)
     
     def _pos_embeding(self, patched_img: torch.Tensor, 
                      hw_shape: Tuple[int, int]) -> torch.Tensor:
