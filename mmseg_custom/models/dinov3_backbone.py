@@ -16,10 +16,8 @@ from mmcv.cnn.bricks.transformer import FFN, MultiheadAttention
 from mmengine.model import BaseModule, ModuleList
 from mmengine.runner.checkpoint import CheckpointLoader
 
-from mmengine.registry import Registry
-
-# 创建MODELS注册器
-MODELS = Registry('model')
+# 使用mmengine的MODELS注册器
+from mmengine.registry import MODELS
 
 
 class PatchEmbed(BaseModule):
