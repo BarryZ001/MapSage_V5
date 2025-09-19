@@ -65,11 +65,16 @@ class LoveDADataset(BaseDataset):
         """
         data_list = []
         
-        # Get image and segmentation map directories
-        img_path_prefix = self.data_prefix.get('img_path') if self.data_prefix.get('img_path') else ''
-        seg_path_prefix = self.data_prefix.get('seg_map_path') if self.data_prefix.get('seg_map_path') else ''
-        img_dir = osp.join(self.data_root, img_path_prefix)
-        seg_dir = osp.join(self.data_root, seg_path_prefix)
+        # Get image and segmentation map directories with proper type handling
+        img_path_prefix = self.data_prefix.get('img_path') or ''
+        seg_path_prefix = self.data_prefix.get('seg_map_path') or ''
+        
+        # Ensure string types for path joining
+        img_path_str = str(img_path_prefix) if img_path_prefix is not None else ''
+        seg_path_str = str(seg_path_prefix) if seg_path_prefix is not None else ''
+        
+        img_dir = osp.join(str(self.data_root), img_path_str)
+        seg_dir = osp.join(str(self.data_root), seg_path_str)
         
         # Debug information
         print(f"🔍 Loading LoveDA dataset from: {self.data_root}")
