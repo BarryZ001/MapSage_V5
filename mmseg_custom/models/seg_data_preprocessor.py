@@ -136,15 +136,22 @@ class SegDataPreProcessor(BaseDataPreprocessor):
             Dict[str, torch.Tensor]: Destructed data.
         """
         inputs = data.get('inputs')
+        processed_inputs = inputs
+        
         if inputs is not None:
             # Denormalize
-            inputs = inputs * self.std + self.mean
+            processed_inputs = inputs * self.std + self.mean
             
             # Convert RGB back to BGR if needed
-            if self.bgr_to_rgb and inputs.shape[1] == 3:
-                inputs = inputs[:, [2, 1, 0], :, :]
+            if self.bgr_to_rgb and processed_inputs.shape[1] == 3:
+                processed_inputs = processed_inputs[:, [2, 1, 0], :, :]
         
-        return {'inputs': inputs, 'data_samples': data.get('data_samples')}
+        # Ensure we return valid tensors, not None
+        result_inputs = processed_inputs if processed_inputs is not None else torch.empty(0)
+        data_samples = data.get('data_samples')
+        result_data_samples = data_samples if data_samples is not None else torch.empty(0)
+        
+        return {'inputs': result_inputs, 'data_samples': result_data_samples}
 
 
 # 确保注册成功
