@@ -114,10 +114,10 @@ model = dict(
 
 # 训练数据管道
 train_pipeline = [
-    dict(type='LoadImageFromFile'),
-    dict(type='LoadAnnotations'),
+    dict(type='CustomLoadImageFromFile'),
+    dict(type='CustomLoadAnnotations'),
     dict(
-        type='Resize',
+        type='CustomResize',
         scale=img_size,
         keep_ratio=True
     ),
@@ -126,17 +126,17 @@ train_pipeline = [
         crop_size=crop_size,
         cat_max_ratio=0.75
     ),
-    dict(type='RandomFlip', prob=0.5),
+    dict(type='CustomRandomFlip', prob=0.5),
     dict(type='PhotoMetricDistortion'),
     dict(type='PackSegInputs')
 ]
 
 # 验证数据管道
 val_pipeline = [
-    dict(type='LoadImageFromFile'),
-    dict(type='LoadAnnotations'),
+    dict(type='CustomLoadImageFromFile'),
+    dict(type='CustomLoadAnnotations'),
     dict(
-        type='Resize',
+        type='CustomResize',
         scale=img_size,
         keep_ratio=True
     ),

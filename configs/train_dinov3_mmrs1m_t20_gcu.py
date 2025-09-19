@@ -29,6 +29,13 @@ img_size = (512, 512)
 crop_size = (512, 512)
 num_classes = 7  # MMRS-1M的类别数
 
+# 图像归一化配置
+img_norm_cfg = dict(
+    mean=[123.675, 116.28, 103.53], 
+    std=[58.395, 57.12, 57.375], 
+    to_rgb=True
+)
+
 # 数据预处理器
 data_preprocessor = dict(
     type='SegDataPreProcessor',
@@ -113,55 +120,38 @@ model = dict(
 
 # 训练数据变换管道
 train_pipeline = [
-    dict(type='LoadImageFromFile'),
-    dict(type='LoadAnnotations'),
+    dict(type='CustomLoadImageFromFile'),
+    dict(type='CustomLoadAnnotations'),
     dict(
-        type='MultiModalResize',
+        type='CustomResize',
         scale=img_size,
-        modality='optical',  # 默认光学模态
         keep_ratio=True
     ),
     dict(
-        type='MultiModalRandomCrop',
+        type='RandomCrop',
         crop_size=crop_size,
-        modality='optical'
+        cat_max_ratio=0.75
     ),
-    dict(type='RandomFlip', prob=0.5),
+    dict(type='CustomRandomFlip', prob=0.5),
     dict(type='PhotoMetricDistortion'),
-    dict(
-        type='MultiModalNormalize',
-        modality='optical',
-        to_rgb=True
-    ),
-    dict(
-        type='PackSegInputs',
-        meta_keys=('img_path', 'seg_map_path', 'ori_shape', 'img_shape',
-                  'pad_shape', 'scale_factor', 'flip', 'flip_direction',
-                  'modality', 'task_type')
-    )
+    dict(type='CustomNormalize', **img_norm_cfg),
+    dict(type='CustomPad', size=crop_size, pad_val=0, seg_pad_val=255),
+    dict(type='CustomDefaultFormatBundle'),
+    dict(type='CustomCollect', keys=['img', 'gt_semantic_seg'])
 ]
 
 # 验证数据变换管道
 val_pipeline = [
-    dict(type='LoadImageFromFile'),
-    dict(type='LoadAnnotations'),
+    dict(type='CustomLoadImageFromFile'),
+    dict(type='CustomLoadAnnotations'),
     dict(
-        type='MultiModalResize',
+        type='CustomResize',
         scale=img_size,
-        modality='optical',
         keep_ratio=True
     ),
-    dict(
-        type='MultiModalNormalize',
-        modality='optical',
-        to_rgb=True
-    ),
-    dict(
-        type='PackSegInputs',
-        meta_keys=('img_path', 'seg_map_path', 'ori_shape', 'img_shape',
-                  'pad_shape', 'scale_factor', 'flip', 'flip_direction',
-                  'modality', 'task_type')
-    )
+    dict(type='CustomNormalize', **img_norm_cfg),
+    dict(type='CustomDefaultFormatBundle'),
+    dict(type='CustomCollect', keys=['img', 'gt_semantic_seg'])
 ]
 
 # 测试管道
