@@ -81,10 +81,14 @@ class EncoderDecoder(BaseModel):
         return seg_logits
     
     def forward(self, 
-                inputs: torch.Tensor, 
+                inputs: Union[torch.Tensor, Dict[str, torch.Tensor]], 
                 data_samples: Optional[Any] = None, 
                 mode: str = 'tensor') -> Union[Dict[str, torch.Tensor], List[Any]]:
         """前向传播"""
+        
+        # 处理data_preprocessor的输出格式
+        if isinstance(inputs, dict):
+            inputs = inputs['inputs']
         
         if mode == 'loss':
             return self.loss(inputs, data_samples)
@@ -100,8 +104,12 @@ class EncoderDecoder(BaseModel):
             raise ValueError(f"Invalid mode '{mode}'. "
                            "Only supports loss, predict and tensor mode")
     
-    def loss(self, inputs: torch.Tensor, data_samples: Any) -> Dict[str, torch.Tensor]:
+    def loss(self, inputs: Union[torch.Tensor, Dict[str, torch.Tensor]], data_samples: Any) -> Dict[str, torch.Tensor]:
         """计算损失"""
+        # 处理data_preprocessor的输出格式
+        if isinstance(inputs, dict):
+            inputs = inputs['inputs']
+            
         x = self.extract_feat(inputs)
         
         losses: Dict[str, torch.Tensor] = {}
@@ -132,8 +140,12 @@ class EncoderDecoder(BaseModel):
         
         return losses
     
-    def predict(self, inputs: torch.Tensor, data_samples: Any) -> Any:
+    def predict(self, inputs: Union[torch.Tensor, Dict[str, torch.Tensor]], data_samples: Any) -> Any:
         """预测"""
+        # 处理data_preprocessor的输出格式
+        if isinstance(inputs, dict):
+            inputs = inputs['inputs']
+            
         batch_img_metas = []
         if data_samples is not None:
             if hasattr(data_samples, '__iter__'):
@@ -161,6 +173,10 @@ class EncoderDecoder(BaseModel):
         else:
             return seg_logits
     
-    def _forward(self, inputs: torch.Tensor, data_samples: Optional[Any] = None) -> torch.Tensor:
+    def _forward(self, inputs: Union[torch.Tensor, Dict[str, torch.Tensor]], data_samples: Optional[Any] = None) -> torch.Tensor:
         """内部前向传播（用于推理）"""
+        # 处理data_preprocessor的输出格式
+        if isinstance(inputs, dict):
+            inputs = inputs['inputs']
+            
         return self.encode_decode(inputs, [])
