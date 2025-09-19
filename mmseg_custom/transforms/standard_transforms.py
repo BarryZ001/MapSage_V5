@@ -9,7 +9,25 @@ import numpy as np
 import os.path as osp
 from typing import Dict, List, Optional, Tuple, Union, Sequence
 from mmengine.registry import TRANSFORMS
-from mmcv.utils import deprecated_api_warning, is_tuple_of
+
+# Handle deprecated_api_warning import compatibility
+try:
+    from mmcv.utils import deprecated_api_warning, is_tuple_of
+except ImportError:
+    # For newer versions of mmcv, deprecated_api_warning might not be available
+    def deprecated_api_warning(name_dict, cls_name=None):
+        """Fallback decorator for deprecated API warning."""
+        def decorator(func):
+            return func
+        return decorator
+    
+    try:
+        from mmcv.utils import is_tuple_of
+    except ImportError:
+        def is_tuple_of(seq, expected_type):
+            """Fallback function for is_tuple_of."""
+            return isinstance(seq, tuple) and all(isinstance(item, expected_type) for item in seq)
+
 from numpy import random
 import cv2
 import torch
