@@ -88,7 +88,8 @@ class MMRS1MDataset(BaseDataset):
                     'label': 0,
                     'dataset': 'placeholder',
                     'modality': self.modality,
-                    'task_type': self.task_type
+                    'task_type': self.task_type,
+                    'seg_fields': []
                 }
                 
                 # 根据任务类型添加特定字段
@@ -187,7 +188,8 @@ class MMRS1MDataset(BaseDataset):
                                             'split': split,
                                             'modality': self.modality,
                                             'task_type': self.task_type,
-                                            'json_file': json_file
+                                            'json_file': json_file,
+                                            'seg_fields': []
                                         }
                                         
                                         if self.instruction_format:
@@ -225,7 +227,8 @@ class MMRS1MDataset(BaseDataset):
                             'split': 'all',
                             'modality': self.modality,
                             'task_type': self.task_type,
-                            'json_file': json_file
+                            'json_file': json_file,
+                            'seg_fields': []
                         }
                         
                         if self.instruction_format:
@@ -324,7 +327,8 @@ class MMRS1MDataset(BaseDataset):
                         'dataset': dataset_name,
                         'annotation_file': annotation_file,
                         'modality': self.modality,
-                        'task_type': self.task_type
+                        'task_type': self.task_type,
+                        'seg_fields': []
                     }
                     
                     if self.instruction_format:
@@ -415,7 +419,8 @@ class MMRS1MDataset(BaseDataset):
                         'dataset': dataset_name,
                         'modality': self.modality,
                         'task_type': self.task_type,
-                        'json_file': json_file
+                        'json_file': json_file,
+                        'seg_fields': []
                     }
                     
                     if self.instruction_format:
@@ -516,7 +521,8 @@ class MMRS1MDataset(BaseDataset):
                             'dataset': dataset_name,
                             'modality': self.modality,
                             'task_type': self.task_type,
-                            'json_file': json_file
+                            'json_file': json_file,
+                            'seg_fields': []
                         }
                         
                         if self.instruction_format:
@@ -599,7 +605,8 @@ class MMRS1MDataset(BaseDataset):
                     'dataset': 'DIOR_RSVG',
                     'modality': self.modality,
                     'task_type': self.task_type,
-                    'json_file': json_file if osp.exists(json_file) else None
+                    'json_file': json_file if osp.exists(json_file) else None,
+                    'seg_fields': []
                 }
                 
                 if self.instruction_format:
