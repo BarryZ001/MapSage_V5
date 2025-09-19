@@ -118,7 +118,7 @@ train_pipeline = [
     dict(type='CustomLoadAnnotations'),
     dict(
         type='CustomResize',
-        scale=img_size,
+        img_scale=img_size,
         keep_ratio=True
     ),
     dict(
@@ -137,7 +137,7 @@ val_pipeline = [
     dict(type='CustomLoadAnnotations'),
     dict(
         type='CustomResize',
-        scale=img_size,
+        img_scale=img_size,
         keep_ratio=True
     ),
     dict(type='PackSegInputs')
