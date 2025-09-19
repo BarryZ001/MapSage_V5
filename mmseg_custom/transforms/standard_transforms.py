@@ -10,9 +10,22 @@ import os.path as osp
 from typing import Dict, List, Optional, Tuple, Union, Sequence
 from mmengine.registry import TRANSFORMS
 
+# Import utility functions from mmengine
+try:
+    from mmengine.utils import is_list_of, is_tuple_of
+except ImportError:
+    # Fallback implementations if mmengine is not available
+    def is_list_of(seq, expected_type):
+        """Check whether it is a list of some type."""
+        return isinstance(seq, list) and all(isinstance(item, expected_type) for item in seq)
+    
+    def is_tuple_of(seq, expected_type):
+        """Check whether it is a tuple of some type."""
+        return isinstance(seq, tuple) and all(isinstance(item, expected_type) for item in seq)
+
 # Handle deprecated_api_warning import compatibility
 try:
-    from mmcv.utils import deprecated_api_warning, is_tuple_of
+    from mmcv.utils import deprecated_api_warning
 except ImportError:
     # For newer versions of mmcv, deprecated_api_warning might not be available
     def deprecated_api_warning(name_dict, cls_name=None):
@@ -20,13 +33,6 @@ except ImportError:
         def decorator(func):
             return func
         return decorator
-    
-    try:
-        from mmcv.utils import is_tuple_of
-    except ImportError:
-        def is_tuple_of(seq, expected_type):
-            """Fallback function for is_tuple_of."""
-            return isinstance(seq, tuple) and all(isinstance(item, expected_type) for item in seq)
 
 from numpy import random
 import cv2
@@ -269,7 +275,7 @@ class Resize:
                 self.img_scale = img_scale
             else:
                 self.img_scale = [img_scale]
-            assert mmcv.is_list_of(self.img_scale, tuple)
+            assert is_list_of(self.img_scale, tuple)
 
         if ratio_range is not None:
             # mode 1: given a scale and a range of image ratio
@@ -298,7 +304,7 @@ class Resize:
                 ``scale_idx`` is the selected index in the given candidates.
         """
 
-        assert mmcv.is_list_of(img_scales, tuple)
+        assert is_list_of(img_scales, tuple)
         scale_idx = np.random.randint(len(img_scales))
         img_scale = img_scales[scale_idx]
         return img_scale, scale_idx
@@ -318,7 +324,7 @@ class Resize:
                 to be consistent with :func:`random_select`.
         """
 
-        assert mmcv.is_list_of(img_scales, tuple) and len(img_scales) == 2
+        assert is_list_of(img_scales, tuple) and len(img_scales) == 2
         img_scale_long = [max(s) for s in img_scales]
         img_scale_short = [min(s) for s in img_scales]
         long_edge = np.random.randint(
@@ -496,7 +502,7 @@ class RandomFlip:
     @deprecated_api_warning({'flip_ratio': 'prob'}, cls_name='RandomFlip')
     def __init__(self, prob=None, direction='horizontal', flip_ratio=None):
         if isinstance(prob, list):
-            assert mmcv.is_list_of(prob, float)
+            assert is_list_of(prob, float)
             assert 0 <= sum(prob) <= 1
         elif isinstance(prob, float):
             assert 0 <= prob <= 1
@@ -512,7 +518,7 @@ class RandomFlip:
         if isinstance(direction, str):
             assert direction in valid_directions
         elif isinstance(direction, list):
-            assert mmcv.is_list_of(direction, str)
+            assert is_list_of(direction, str)
             assert set(direction).issubset(set(valid_directions))
         else:
             raise ValueError(f'direction must be either str or list of str, \
