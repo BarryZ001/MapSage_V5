@@ -108,12 +108,8 @@ class EncoderDecoder(BaseModel):
             raise ValueError(f"Invalid mode '{mode}'. "
                            "Only supports loss, predict and tensor mode")
     
-    def loss(self, inputs: Union[torch.Tensor, Dict[str, torch.Tensor]], data_samples: Any) -> Dict[str, torch.Tensor]:
+    def loss(self, inputs: torch.Tensor, data_samples: Any) -> Dict[str, torch.Tensor]:
         """计算损失"""
-        # 处理data_preprocessor的输出格式
-        if isinstance(inputs, dict):
-            inputs = inputs['inputs']
-            
         x = self.extract_feat(inputs)
         
         losses: Dict[str, torch.Tensor] = {}

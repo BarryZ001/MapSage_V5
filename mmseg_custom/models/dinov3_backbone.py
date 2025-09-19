@@ -345,6 +345,13 @@ class DINOv3ViT(BaseModule):
         Returns:
             Union[torch.Tensor, Tuple[torch.Tensor]]: 特征输出
         """
+        # 确保inputs是4维张量
+        if not isinstance(inputs, torch.Tensor):
+            raise TypeError(f"Expected torch.Tensor, got {type(inputs)}")
+        
+        if inputs.dim() != 4:
+            raise ValueError(f"Expected 4D tensor (B, C, H, W), got {inputs.dim()}D tensor with shape {inputs.shape}")
+        
         B, C, H, W = inputs.shape
         
         # Patch embedding
