@@ -59,7 +59,7 @@ model = dict(
         drop_path_rate=0.1,
         init_cfg=dict(
             type='Pretrained',
-            checkpoint='/workspace/weights/pretrained/dinov3/dinov3_vitl16_pretrain_sat493m-eadcf0ff.pth',  # 用户提供的正确权重路径
+            checkpoint='/workspace/weights/dinov3_vitl16_pretrain_sat493m-eadcf0ff.pth',  # 修正为T20环境实际权重路径
             prefix='backbone.'
         )
     ),

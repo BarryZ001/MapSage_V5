@@ -1,6 +1,6 @@
-# DINOv3 + MMRS-1M 训练配置文件 - 燧原T20 GCU版本
-# 阶段一：基础模型训练，使用DINOv3-ViT-L/16作为backbone
-# 针对MMRS-1M多模态遥感数据集进行优化
+# DINOv3 + LoveDA 训练配置文件 - 燧原T20 GCU版本
+# 阶段二：在LoveDA数据集上进行微调
+# 使用DINOv3-ViT-L/16作为backbone
 # 专门适配燧原T20 GCU计算环境
 
 # 导入自定义模块
@@ -16,18 +16,18 @@ custom_imports = dict(
 )
 
 # 基础配置
-work_dir = './work_dirs/dinov3_mmrs1m_t20_gcu'
-exp_name = 'dinov3_mmrs1m_t20_gcu'
+work_dir = './work_dirs/dinov3_loveda_t20_gcu'
+exp_name = 'dinov3_loveda_t20_gcu'
 
 # 数据集配置
-dataset_type = 'MMRS1MDataset'
-data_root = '/workspace/data/mmrs1m/data'  # T20服务器路径
+dataset_type = 'LoveDADataset'
+data_root = '/workspace/data/loveda'  # T20服务器路径
 local_data_root = '/Users/barryzhang/myDev3/MapSage_V5/data'  # 本地开发路径
 
 # 图像配置
 img_size = (512, 512)
 crop_size = (512, 512)
-num_classes = 7  # MMRS-1M的类别数
+num_classes = 7  # LoveDA的类别数
 
 # 数据预处理器
 data_preprocessor = dict(
@@ -60,7 +60,7 @@ model = dict(
         drop_path_rate=0.1,
         init_cfg=dict(
             type='Pretrained',
-            checkpoint='/workspace/weights/dinov3_vitl16_pretrain_sat493m-eadcf0ff.pth',  # 修正为T20环境实际权重路径
+            checkpoint='/workspace/weights/best_mIoU_iter_6000.pth',  # 使用MMRS1M训练的最佳权重
             prefix='backbone.'
         )
     ),
@@ -106,121 +106,127 @@ model = dict(
         )
     ),
     
-    # 训练和测试配置
+    # 训练配置
     train_cfg=dict(),
     test_cfg=dict(mode='whole')
 )
 
-# 训练数据变换管道
+# 训练数据管道
 train_pipeline = [
     dict(type='LoadImageFromFile'),
     dict(type='LoadAnnotations'),
     dict(
-        type='MultiModalResize',
+        type='Resize',
         scale=img_size,
-        modality='optical',  # 默认光学模态
         keep_ratio=True
     ),
     dict(
-        type='MultiModalRandomCrop',
+        type='RandomCrop',
         crop_size=crop_size,
-        modality='optical'
+        cat_max_ratio=0.75
     ),
     dict(type='RandomFlip', prob=0.5),
     dict(type='PhotoMetricDistortion'),
-    dict(
-        type='MultiModalNormalize',
-        modality='optical',
-        to_rgb=True
-    ),
-    dict(
-        type='PackSegInputs',
-        meta_keys=('img_path', 'seg_map_path', 'ori_shape', 'img_shape',
-                  'pad_shape', 'scale_factor', 'flip', 'flip_direction',
-                  'modality', 'task_type')
-    )
+    dict(type='PackSegInputs')
 ]
 
-# 验证数据变换管道
+# 验证数据管道
 val_pipeline = [
     dict(type='LoadImageFromFile'),
     dict(type='LoadAnnotations'),
     dict(
-        type='MultiModalResize',
+        type='Resize',
         scale=img_size,
-        modality='optical',
         keep_ratio=True
     ),
-    dict(
-        type='MultiModalNormalize',
-        modality='optical',
-        to_rgb=True
-    ),
-    dict(
-        type='PackSegInputs',
-        meta_keys=('img_path', 'seg_map_path', 'ori_shape', 'img_shape',
-                  'pad_shape', 'scale_factor', 'flip', 'flip_direction',
-                  'modality', 'task_type')
-    )
+    dict(type='PackSegInputs')
 ]
 
-# 测试管道
+# 测试数据管道
 test_pipeline = val_pipeline
 
-# 训练数据加载器
+# 数据集配置
 train_dataloader = dict(
     batch_size=4,  # 适配T20 GCU内存限制
     num_workers=4,
     persistent_workers=True,
     sampler=dict(type='InfiniteSampler', shuffle=True),
     dataset=dict(
-        type=dataset_type,
-        data_root=data_root,
-        task_type='classification',  # 开始时使用分类任务
-        modality='optical',
-        instruction_format=True,
-        pipeline=train_pipeline
+        type='ConcatDataset',
+        datasets=[
+            dict(
+                type=dataset_type,
+                data_root=data_root,
+                data_prefix=dict(
+                    img_path='Train/Rural/images_png',
+                    seg_map_path='Train/Rural/masks_png'
+                ),
+                pipeline=train_pipeline
+            ),
+            dict(
+                type=dataset_type,
+                data_root=data_root,
+                data_prefix=dict(
+                    img_path='Train/Urban/images_png',
+                    seg_map_path='Train/Urban/masks_png'
+                ),
+                pipeline=train_pipeline
+            )
+        ]
     )
 )
 
-# 验证数据加载器
 val_dataloader = dict(
     batch_size=1,
     num_workers=4,
     persistent_workers=True,
     sampler=dict(type='DefaultSampler', shuffle=False),
     dataset=dict(
-        type=dataset_type,
-        data_root=data_root,
-        task_type='classification',
-        modality='optical',
-        instruction_format=True,
-        pipeline=val_pipeline
+        type='ConcatDataset',
+        datasets=[
+            dict(
+                type=dataset_type,
+                data_root=data_root,
+                data_prefix=dict(
+                    img_path='Val/Rural/images_png',
+                    seg_map_path='Val/Rural/masks_png'
+                ),
+                pipeline=val_pipeline
+            ),
+            dict(
+                type=dataset_type,
+                data_root=data_root,
+                data_prefix=dict(
+                    img_path='Val/Urban/images_png',
+                    seg_map_path='Val/Urban/masks_png'
+                ),
+                pipeline=val_pipeline
+            )
+        ]
     )
 )
 
-# 测试数据加载器
 test_dataloader = val_dataloader
 
-# 评估器
+# 评估配置
 val_evaluator = dict(
     type='IoUMetric',
     iou_metrics=['mIoU', 'mDice', 'mFscore']
 )
 test_evaluator = val_evaluator
 
-# 优化器配置
+# 优化器配置 - 微调使用较小学习率
 optim_wrapper = dict(
     type='OptimWrapper',
     optimizer=dict(
         type='AdamW',
-        lr=5e-5,  # 适配GCU环境的学习率
+        lr=2e-5,  # 微调使用较小学习率
         betas=(0.9, 0.999),
-        weight_decay=0.05
+        weight_decay=0.01
     ),
     paramwise_cfg=dict(
         custom_keys={
-            'backbone': dict(lr_mult=0.1),  # backbone使用较小学习率
+            'backbone': dict(lr_mult=0.1),  # backbone使用更小学习率
             'norm': dict(decay_mult=0.0),   # 不对norm层进行权重衰减
             'bias': dict(decay_mult=0.0),   # 不对bias进行权重衰减
         }
@@ -234,14 +240,14 @@ param_scheduler = [
         start_factor=1e-6,
         by_epoch=False,
         begin=0,
-        end=1500  # warmup步数
+        end=500  # warmup步数
     ),
     dict(
         type='PolyLR',
         eta_min=1e-6,
         power=1.0,
-        begin=1500,
-        end=80000,  # 总训练步数
+        begin=500,
+        end=40000,  # 总训练步数
         by_epoch=False
     )
 ]
@@ -249,14 +255,14 @@ param_scheduler = [
 # 训练配置
 train_cfg = dict(
     type='IterBasedTrainLoop',
-    max_iters=80000,  # 总训练迭代数
+    max_iters=40000,  # 微调训练迭代数
     val_interval=2000  # 验证间隔
 )
 
 val_cfg = dict(type='ValLoop')
 test_cfg = dict(type='TestLoop')
 
-# 默认钩子配置
+# 默认钩子
 default_hooks = dict(
     timer=dict(type='IterTimerHook'),
     logger=dict(type='LoggerHook', interval=50, log_metric_by_epoch=False),
@@ -280,19 +286,19 @@ default_hooks = dict(
     )
 )
 
-# 环境配置 - 适配燧原T20 GCU
+# 环境配置
 env_cfg = dict(
     cudnn_benchmark=False,  # GCU环境关闭cudnn
     mp_cfg=dict(mp_start_method='fork', opencv_num_threads=0),
     dist_cfg=dict(backend='gloo')  # 使用gloo后端适配GCU
 )
 
-# 可视化后端
+# 可视化配置
 vis_backends = [
     dict(type='LocalVisBackend'),
     dict(
         type='TensorboardVisBackend',
-        save_dir='./work_dirs/dinov3_mmrs1m_t20_gcu/tf_logs'
+        save_dir='./work_dirs/dinov3_loveda_t20_gcu/tf_logs'
     )
 ]
 visualizer = dict(
@@ -304,66 +310,25 @@ visualizer = dict(
 # 日志配置
 log_processor = dict(by_epoch=False)
 log_level = 'INFO'
-load_from = None  # 从头开始训练
+load_from = None  # 权重通过backbone的init_cfg加载
 resume = False
 
 # 随机种子
 randomness = dict(seed=42)
 
-# 自动学习率缩放
+# 自动缩放学习率
 auto_scale_lr = dict(
     enable=True,
     base_batch_size=32  # 4 GCUs * 4 batch_size * 2 accumulative
 )
 
-# 编译配置（GCU环境可能不支持）
-# compile_cfg = dict(
-#     backend='inductor',
-#     mode='reduce-overhead'
-# )
-
-# 多模态配置
-multimodal_config = dict(
-    modalities=['optical', 'sar', 'infrared'],
-    modality_weights=[0.6, 0.3, 0.1],  # 不同模态的权重
-    cross_modal_learning=True,
-    modal_specific_augmentation=True
-)
-
-# 指令配置
-instruction_config = dict(
-    enable_instruction_tuning=True,
-    instruction_templates=[
-        "What is the category of this remote sensing image?",
-        "Classify this satellite image.",
-        "Identify the land cover type in this image.",
-        "What type of terrain is shown in this remote sensing data?"
-    ],
-    response_format='single_word'
-)
-
-# 蒸馏配置
-distillation_config = dict(
-    enable=False,  # 第一阶段不使用蒸馏
-    teacher_model=None,
-    distill_loss_weight=0.5,
-    temperature=4.0
-)
-
-# 模型EMA配置
-model_ema_config = dict(
-    enable=True,
-    momentum=0.9999,
-    device='cpu'  # GCU环境使用CPU进行EMA
-)
-
-# 混合精度训练（GCU环境可能需要调整）
+# 混合精度训练
 fp16 = dict(loss_scale=512.0)
 
 # 梯度累积
 accumulative_counts = 2  # 等效batch_size = 4 * 4 * 2 = 32
 
-print(f"🚀 DINOv3 + MMRS-1M 燧原T20 GCU训练配置已加载")
+print(f"🚀 DINOv3 + LoveDA 燧原T20 GCU微调配置已加载")
 print(f"📊 数据集: {dataset_type}")
 print(f"🏗️ 模型: DINOv3-ViT-L/16 + VisionTransformerUpHead")
 print(f"💾 工作目录: {work_dir}")
