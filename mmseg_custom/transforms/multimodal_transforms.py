@@ -264,6 +264,75 @@ class InfraredSpecificAugmentation(BaseTransform):
 
 
 @TRANSFORMS.register_module()
+class RandomCrop(BaseTransform):
+    """标准随机裁剪变换。
+    
+    兼容mmseg的RandomCrop接口。
+    """
+    
+    def __init__(self,
+                 crop_size: Union[int, Tuple[int, int]],
+                 cat_max_ratio: float = 1.0,
+                 ignore_index: int = 255):
+        """初始化随机裁剪。
+        
+        Args:
+            crop_size: 裁剪尺寸
+            cat_max_ratio: 类别最大比例
+            ignore_index: 忽略索引
+        """
+        self.crop_size = crop_size if isinstance(crop_size, tuple) else (crop_size, crop_size)
+        self.cat_max_ratio = cat_max_ratio
+        self.ignore_index = ignore_index
+
+    def transform(self, results: Dict) -> Dict:
+        """执行随机裁剪。"""
+        img = results['img']
+        h, w = img.shape[:2]
+        crop_h, crop_w = self.crop_size
+        
+        # 如果图像小于裁剪尺寸，先进行填充
+        if h < crop_h or w < crop_w:
+            pad_h = max(0, crop_h - h)
+            pad_w = max(0, crop_w - w)
+            
+            # 使用ImageNet均值填充
+            pad_value = [123.675, 116.28, 103.53]
+            
+            img = cv2.copyMakeBorder(
+                img, 0, pad_h, 0, pad_w, 
+                cv2.BORDER_CONSTANT, 
+                value=pad_value[:img.shape[2]]
+            )
+            
+            if 'gt_seg_map' in results:
+                gt_seg_map = results['gt_seg_map']
+                gt_seg_map = cv2.copyMakeBorder(
+                    gt_seg_map, 0, pad_h, 0, pad_w,
+                    cv2.BORDER_CONSTANT,
+                    value=self.ignore_index
+                )
+                results['gt_seg_map'] = gt_seg_map
+            
+            h, w = img.shape[:2]
+        
+        # 随机选择裁剪位置
+        top = np.random.randint(0, h - crop_h + 1)
+        left = np.random.randint(0, w - crop_w + 1)
+        
+        # 执行裁剪
+        results['img'] = img[top:top + crop_h, left:left + crop_w]
+        
+        if 'gt_seg_map' in results:
+            results['gt_seg_map'] = results['gt_seg_map'][top:top + crop_h, left:left + crop_w]
+        
+        # 更新图像形状信息
+        results['img_shape'] = (crop_h, crop_w)
+        
+        return results
+
+
+@TRANSFORMS.register_module()
 class MultiModalRandomCrop(BaseTransform):
     """多模态随机裁剪。
     
