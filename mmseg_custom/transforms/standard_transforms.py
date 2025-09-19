@@ -71,7 +71,7 @@ def ensure_transform_registered(name, transform_class):
         print(f"✅ {name} already registered")
 
 # 标准的LoadImageFromFile实现
-@TRANSFORMS.register_module()
+@TRANSFORMS.register_module(name='CustomLoadImageFromFile', force=True)
 class LoadImageFromFile:
     """Load an image from file.
 
@@ -151,7 +151,7 @@ class LoadImageFromFile:
         return repr_str
 
 
-@TRANSFORMS.register_module()
+@TRANSFORMS.register_module(name='CustomLoadAnnotations', force=True)
 class LoadAnnotations:
     """Load annotations for semantic segmentation.
 
@@ -222,7 +222,7 @@ class LoadAnnotations:
         return repr_str
 
 
-@TRANSFORMS.register_module()
+@TRANSFORMS.register_module(name='CustomResize', force=True)
 class Resize:
     """Resize images & seg.
 
@@ -476,7 +476,7 @@ class Resize:
         return repr_str
 
 
-@TRANSFORMS.register_module()
+@TRANSFORMS.register_module(name='CustomRandomFlip', force=True)
 class RandomFlip:
     """Flip the image & seg.
 
@@ -573,7 +573,7 @@ class RandomFlip:
                f'direction={self.direction})'
 
 
-@TRANSFORMS.register_module()
+@TRANSFORMS.register_module(name='CustomNormalize', force=True)
 class Normalize:
     """Normalize the image.
 
@@ -614,7 +614,7 @@ class Normalize:
         return repr_str
 
 
-@TRANSFORMS.register_module()
+@TRANSFORMS.register_module(name='CustomPad', force=True)
 class Pad:
     """Pad the image & mask.
 
@@ -692,7 +692,7 @@ class Pad:
         return repr_str
 
 
-@TRANSFORMS.register_module()
+@TRANSFORMS.register_module(name='CustomImageToTensor', force=True)
 class ImageToTensor:
     """Convert image to :obj:`torch.Tensor` by given keys.
 
@@ -728,7 +728,7 @@ class ImageToTensor:
         return f'{self.__class__.__name__}(keys={self.keys})'
 
 
-@TRANSFORMS.register_module()
+@TRANSFORMS.register_module(name='CustomDefaultFormatBundle', force=True)
 class DefaultFormatBundle:
     """Default formatting bundle.
 
@@ -818,7 +818,7 @@ class DefaultFormatBundle:
         return f'{self.__class__.__name__}(img_to_float={self.img_to_float})'
 
 
-@TRANSFORMS.register_module()
+@TRANSFORMS.register_module(name='CustomCollect', force=True)
 class Collect:
     """Collect data from the loader relevant to the specific task.
 
