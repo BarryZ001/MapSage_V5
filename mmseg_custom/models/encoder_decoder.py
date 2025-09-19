@@ -61,26 +61,41 @@ class EncoderDecoder(BaseModel):
         x = self.backbone(inputs)
         if self.neck is not None:
             x = self.neck(x)
-        return x if isinstance(x, (list, tuple)) else [x]
+        # 确保返回List[torch.Tensor]类型
+        if isinstance(x, torch.Tensor):
+            return [x]
+        elif isinstance(x, (list, tuple)):
+            return [feat if isinstance(feat, torch.Tensor) else torch.tensor(feat) for feat in x]
+        else:
+            return [torch.tensor(x)]
     
     def encode_decode(self, inputs: torch.Tensor, batch_img_metas: List[Dict]) -> torch.Tensor:
         """编码-解码过程"""
         x = self.extract_feat(inputs)
-        seg_logits = self.decode_head(x)
+        # 确保decode_head可调用
+        if hasattr(self.decode_head, '__call__'):
+            seg_logits = self.decode_head(x)
+        else:
+            # 如果decode_head是Identity或其他不可调用对象，返回输入
+            seg_logits = x[0] if x else inputs
         return seg_logits
     
     def forward(self, 
                 inputs: torch.Tensor, 
                 data_samples: Optional[Any] = None, 
-                mode: str = 'tensor') -> Union[Dict, List, torch.Tensor]:
+                mode: str = 'tensor') -> Union[Dict[str, torch.Tensor], List[Any]]:
         """前向传播"""
         
         if mode == 'loss':
             return self.loss(inputs, data_samples)
         elif mode == 'predict':
-            return self.predict(inputs, data_samples)
+            result = self.predict(inputs, data_samples)
+            # 确保返回类型符合BaseModel要求
+            return result if isinstance(result, list) else [result]
         elif mode == 'tensor':
-            return self.encode_decode(inputs, [])
+            # tensor模式应该返回Dict[str, torch.Tensor]
+            seg_logits = self.encode_decode(inputs, [])
+            return {'seg_logits': seg_logits}
         else:
             raise ValueError(f"Invalid mode '{mode}'. "
                            "Only supports loss, predict and tensor mode")
@@ -89,29 +104,31 @@ class EncoderDecoder(BaseModel):
         """计算损失"""
         x = self.extract_feat(inputs)
         
-        losses = dict()
+        losses: Dict[str, torch.Tensor] = {}
         
         # 主解码头损失
-        if hasattr(self.decode_head, 'loss_by_feat'):
+        if hasattr(self.decode_head, 'loss_by_feat') and callable(self.decode_head.loss_by_feat):
             loss_decode = self.decode_head.loss_by_feat(x, data_samples)
-        elif hasattr(self.decode_head, 'loss'):
+        elif hasattr(self.decode_head, 'loss') and callable(self.decode_head.loss):
             loss_decode = self.decode_head.loss(x, data_samples)
         else:
             # 简单的占位符损失
             loss_decode = {'loss_seg': torch.tensor(0.0, requires_grad=True, device=inputs.device)}
         
-        losses.update(loss_decode)
+        if isinstance(loss_decode, dict):
+            losses.update(loss_decode)
         
         # 辅助解码头损失
         if self.auxiliary_head is not None:
-            if hasattr(self.auxiliary_head, 'loss_by_feat'):
+            if hasattr(self.auxiliary_head, 'loss_by_feat') and callable(self.auxiliary_head.loss_by_feat):
                 loss_aux = self.auxiliary_head.loss_by_feat(x, data_samples)
-            elif hasattr(self.auxiliary_head, 'loss'):
+            elif hasattr(self.auxiliary_head, 'loss') and callable(self.auxiliary_head.loss):
                 loss_aux = self.auxiliary_head.loss(x, data_samples)
             else:
                 loss_aux = {'loss_aux': torch.tensor(0.0, requires_grad=True, device=inputs.device)}
             
-            losses.update(loss_aux)
+            if isinstance(loss_aux, dict):
+                losses.update(loss_aux)
         
         return losses
     
