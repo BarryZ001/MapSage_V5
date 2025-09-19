@@ -100,8 +100,7 @@ class TransformerEncoderLayer(BaseModule):
             embed_dims=embed_dims,
             num_heads=num_heads,
             attn_drop=attn_drop_rate,
-            proj_drop=drop_rate,
-            qkv_bias=qkv_bias
+            proj_drop=drop_rate
         )
         
         self.norm2 = build_norm_layer(norm_cfg, embed_dims)[1]
