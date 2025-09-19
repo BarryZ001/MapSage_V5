@@ -4,7 +4,7 @@
 """
 
 import numpy as np
-from typing import Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 import torch
 from mmengine.registry import VISUALIZERS
 from mmengine.visualization import Visualizer
@@ -18,7 +18,7 @@ class SegLocalVisualizer(Visualizer):
     def __init__(self, 
                  name: str = 'visualizer',
                  image: Optional[np.ndarray] = None,
-                 vis_backends: Optional[List[Dict]] = None,
+                 vis_backends: Optional[Any] = None,
                  save_dir: Optional[str] = None,
                  alpha: float = 0.8,
                  **kwargs):
@@ -44,7 +44,7 @@ class SegLocalVisualizer(Visualizer):
     def add_datasample(self,
                       name: str,
                       image: np.ndarray,
-                      data_sample: Optional[object] = None,
+                      data_sample: Optional[Any] = None,
                       draw_gt: bool = True,
                       draw_pred: bool = True,
                       show: bool = False,
@@ -69,14 +69,14 @@ class SegLocalVisualizer(Visualizer):
         # 如果有数据样本，绘制分割结果
         if data_sample is not None:
             # 处理真实标签
-            if hasattr(data_sample, 'gt_sem_seg') and data_sample.gt_sem_seg is not None and draw_gt:
-                gt_mask = self._extract_mask(data_sample.gt_sem_seg)
+            if hasattr(data_sample, 'gt_sem_seg') and getattr(data_sample, 'gt_sem_seg', None) is not None and draw_gt:
+                gt_mask = self._extract_mask(getattr(data_sample, 'gt_sem_seg'))
                 if gt_mask is not None:
                     self._draw_sem_seg(gt_mask, colors=self.palette, alpha=self.alpha)
             
             # 处理预测结果
-            if hasattr(data_sample, 'pred_sem_seg') and data_sample.pred_sem_seg is not None and draw_pred:
-                pred_mask = self._extract_mask(data_sample.pred_sem_seg)
+            if hasattr(data_sample, 'pred_sem_seg') and getattr(data_sample, 'pred_sem_seg', None) is not None and draw_pred:
+                pred_mask = self._extract_mask(getattr(data_sample, 'pred_sem_seg'))
                 if pred_mask is not None:
                     self._draw_sem_seg(pred_mask, colors=self.palette, alpha=self.alpha)
         
@@ -85,9 +85,19 @@ class SegLocalVisualizer(Visualizer):
             self.show(win_name=name, wait_time=wait_time)
         
         if out_file is not None:
-            self.save(out_file)
+            # 使用OpenCV保存图像
+            drawn_img = self.get_image()
+            try:
+                import cv2
+                cv2.imwrite(out_file, drawn_img)
+            except ImportError:
+                # 如果没有cv2，使用PIL
+                from PIL import Image
+                if drawn_img.dtype != np.uint8:
+                    drawn_img = drawn_img.astype(np.uint8)
+                Image.fromarray(drawn_img).save(out_file)
     
-    def _extract_mask(self, sem_seg_data) -> Optional[np.ndarray]:
+    def _extract_mask(self, sem_seg_data: Any) -> Optional[np.ndarray]:
         """从不同格式的分割数据中提取mask"""
         if sem_seg_data is None:
             return None
