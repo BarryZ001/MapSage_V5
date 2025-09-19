@@ -370,6 +370,12 @@ class DINOv3ViT(BaseModule):
                 if self.norm is not None:
                     out = self.norm(out)
                 
+                # 将输出从 [B, N, C] 转换为 [B, C, H, W] 格式
+                if out.dim() == 3:
+                    B_out, N, C_out = out.shape
+                    H_out = W_out = int(N ** 0.5)  # 假设是方形patch grid
+                    out = out.transpose(1, 2).reshape(B_out, C_out, H_out, W_out)
+                
                 outs.append(out)
         
         if len(outs) == 1:

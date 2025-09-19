@@ -81,13 +81,8 @@ class SegDataPreProcessor(BaseDataPreprocessor):
             self.mean = self.mean.to(self.device)
             self.std = self.std.to(self.device)
         
-        result = {'inputs': batch_inputs}
-        
-        # Process data samples if available
-        if data_samples:
-            result['data_samples'] = data_samples
-            
-        return result
+        # Return in the format expected by MMEngine
+        return {'inputs': batch_inputs, 'data_samples': data_samples}
     
     def _process_image(self, img: Union[torch.Tensor, np.ndarray]) -> torch.Tensor:
         """Process a single image.

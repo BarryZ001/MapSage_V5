@@ -88,7 +88,11 @@ class EncoderDecoder(BaseModel):
         
         # 处理data_preprocessor的输出格式
         if isinstance(inputs, dict):
-            inputs = inputs['inputs']
+            # 如果inputs是dict，提取真实的inputs和data_samples
+            actual_inputs = inputs['inputs']
+            if data_samples is None and 'data_samples' in inputs:
+                data_samples = inputs['data_samples']
+            inputs = actual_inputs
         
         if mode == 'loss':
             return self.loss(inputs, data_samples)

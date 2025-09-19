@@ -3,14 +3,14 @@
 # --- 1. 核心参数定义 ---
 num_classes = 7
 crop_size = (512, 512)
-data_root = '/kaggle/input/loveda'
+data_root = '/workspace/data/loveda'
 dataset_type = 'LoveDADataset'
 
 # --- 2. 数据增强管道 ---
 train_pipeline = [
     dict(type='LoadImageFromFile'),
     dict(type='LoadAnnotations'),
-    dict(type='RandomResize', scale=(1024, 1024), ratio_range=(0.5, 2.0), keep_ratio=True),
+    dict(type='Resize', img_scale=(1024, 1024), keep_ratio=True),
     dict(type='RandomCrop', crop_size=crop_size, cat_max_ratio=0.75),
     dict(type='RandomFlip', prob=0.5),
     dict(type='PhotoMetricDistortion'),
@@ -19,7 +19,7 @@ train_pipeline = [
 
 test_pipeline = [
     dict(type='LoadImageFromFile'),
-    dict(type='Resize', scale=(1024, 1024), keep_ratio=True),
+    dict(type='Resize', img_scale=(1024, 1024), keep_ratio=True),
     dict(type='LoadAnnotations'),
     dict(type='PackSegInputs')
 ]
@@ -99,17 +99,14 @@ param_scheduler = [
     dict(type='PolyLR', eta_min=0.0, power=1.0, begin=1500, end=40000, by_epoch=False)
 ]
 
-# --- 7. 模型架构 ---
-# 骨干网络
+# --- 4. 模型配置 ---
 backbone = dict(
-    type='mmpretrain.VisionTransformer',
-    arch='l',
+    type='DINOv3ViT',
+    arch='large',
+    img_size=512,
     patch_size=16,
-    out_type='featmap',
-    pre_norm=True,
-    final_norm=False,
     out_indices=[23],  # Last layer output for ViT-Large
-    frozen_stages=20,
+    interpolate_mode='bicubic',
     init_cfg=dict(type='Normal', layer='Linear', std=0.01)
 )
 
@@ -123,11 +120,11 @@ decode_head = dict(
     concat_input=False,
     dropout_ratio=0.1,
     num_classes=num_classes,
-    norm_cfg=dict(type='SyncBN', requires_grad=True),
+    norm_cfg=dict(type='BN', requires_grad=True),
     align_corners=False,
     loss_decode=[
         dict(type='CrossEntropyLoss', use_sigmoid=False, loss_weight=1.0),
-        dict(type='DiceLoss', loss_weight=0.3)
+        dict(type='DiceLoss', use_sigmoid=False, loss_weight=1.0)
     ]
 )
 

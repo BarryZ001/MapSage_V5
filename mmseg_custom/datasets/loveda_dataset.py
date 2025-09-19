@@ -136,10 +136,27 @@ class LoveDADataset(BaseDataset):
         # If no real data found, create dummy data to prevent training errors
         if not data_list:
             print("⚠️ No LoveDA data found, creating dummy dataset for testing")
-            for i in range(100):
+            import tempfile
+            import numpy as np
+            from PIL import Image
+            
+            # Create temporary directory for dummy data
+            temp_dir = tempfile.mkdtemp(prefix='loveda_dummy_')
+            
+            for i in range(10):  # Reduce to 10 samples for testing
+                # Create dummy image (RGB, 1024x1024)
+                dummy_img = np.random.randint(0, 255, (1024, 1024, 3), dtype=np.uint8)
+                img_path = osp.join(temp_dir, f'dummy_img_{i}.png')
+                Image.fromarray(dummy_img).save(img_path)
+                
+                # Create dummy mask (single channel, 1024x1024, values 0-6 for 7 classes)
+                dummy_mask = np.random.randint(0, 7, (1024, 1024), dtype=np.uint8)
+                mask_path = osp.join(temp_dir, f'dummy_mask_{i}.png')
+                Image.fromarray(dummy_mask, mode='L').save(mask_path)
+                
                 data_list.append({
-                    'img_path': f'/tmp/dummy_loveda_{i}.png',
-                    'seg_map_path': f'/tmp/dummy_loveda_mask_{i}.png',
+                    'img_path': img_path,
+                    'seg_map_path': mask_path,
                     'label_map': None,
                     'reduce_zero_label': False,
                     'seg_fields': []

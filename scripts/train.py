@@ -2,6 +2,11 @@
 
 import argparse
 import os
+import sys
+
+# 添加当前目录到Python路径
+sys.path.insert(0, '.')
+
 from mmengine.config import Config
 from mmengine.runner import Runner
 
@@ -12,6 +17,14 @@ try:
     from mmseg.datasets import *  # type: ignore
 except ImportError as e:
     print(f"⚠️ 模块导入失败: {e}")
+
+# 导入我们的自定义模块
+try:
+    import mmseg_custom.models
+    import mmseg_custom.datasets
+    print("✅ 自定义模块导入成功")
+except ImportError as e:
+    print(f"⚠️ 自定义模块导入失败: {e}")
 
 def main():
     parser = argparse.ArgumentParser(description='MMSegmentation training script')

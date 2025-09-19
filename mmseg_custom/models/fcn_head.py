@@ -172,9 +172,19 @@ class FCNHead(BaseModule):
         for data_sample in batch_data_samples:
             if hasattr(data_sample, 'gt_sem_seg'):
                 seg_labels.append(data_sample.gt_sem_seg.data)
+            elif isinstance(data_sample, dict) and 'gt_sem_seg' in data_sample:
+                # Handle dict format from PackSegInputs
+                gt_seg_data = data_sample['gt_sem_seg']
+                if isinstance(gt_seg_data, dict) and 'data' in gt_seg_data:
+                    seg_labels.append(torch.from_numpy(gt_seg_data['data']))
+                else:
+                    seg_labels.append(torch.from_numpy(gt_seg_data))
             else:
                 # Fallback for different data sample formats
-                seg_labels.append(data_sample['gt_semantic_seg'])
+                if isinstance(data_sample, dict) and 'gt_semantic_seg' in data_sample:
+                    seg_labels.append(torch.from_numpy(data_sample['gt_semantic_seg']))
+                else:
+                    raise KeyError(f"Cannot find ground truth segmentation in data_sample: {type(data_sample)}, keys: {data_sample.keys() if isinstance(data_sample, dict) else 'not a dict'}")
                 
         seg_label = torch.stack(seg_labels, dim=0)
         
