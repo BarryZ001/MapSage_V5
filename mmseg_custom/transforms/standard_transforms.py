@@ -10,6 +10,18 @@ import os.path as osp
 from typing import Dict, List, Optional, Tuple, Union, Sequence
 from mmengine.registry import TRANSFORMS
 
+# Handle FileClient import compatibility
+try:
+    from mmcv import FileClient
+except ImportError:
+    try:
+        from mmcv.fileio import FileClient
+    except ImportError:
+        try:
+            from mmengine.fileio import FileClient
+        except ImportError:
+            raise ImportError("FileClient not found in mmcv, mmcv.fileio, or mmengine.fileio")
+
 # Import utility functions from mmengine
 try:
     from mmengine.utils import is_list_of, is_tuple_of
@@ -120,7 +132,7 @@ class LoadImageFromFile:
             dict: The dict contains loaded image and meta information.
         """
         if self.file_client is None:
-            self.file_client = mmcv.FileClient(**self.file_client_args)
+            self.file_client = FileClient(**self.file_client_args)
 
         if results.get('img_prefix') is not None:
             filename = osp.join(results['img_prefix'],
@@ -191,7 +203,7 @@ class LoadAnnotations:
             dict: The dict contains loaded semantic segmentation annotations.
         """
         if self.file_client is None:
-            self.file_client = mmcv.FileClient(**self.file_client_args)
+            self.file_client = FileClient(**self.file_client_args)
 
         if results.get('seg_prefix', None) is not None:
             filename = osp.join(results['seg_prefix'],
