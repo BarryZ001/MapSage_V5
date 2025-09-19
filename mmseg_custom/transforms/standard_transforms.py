@@ -31,21 +31,33 @@ except ImportError:
 from numpy import random
 import cv2
 import torch
-from mmcv.parallel import DataContainer
+try:
+    from mmcv.parallel import DataContainer
+except ImportError:
+    # Fallback for newer mmcv versions where DataContainer is deprecated
+    class DataContainer:
+        def __init__(self, data, cpu_only=False, stack=False):
+            self.data = data
+            self.cpu_only = cpu_only
+            self.stack = stack
+
 try:
     from mmcv.transforms import to_tensor
 except ImportError:
-    # Fallback for older mmcv versions
-    def to_tensor(data):
-        """Convert objects of various python types to :obj:`torch.Tensor`."""
-        if isinstance(data, torch.Tensor):
-            return data
-        elif isinstance(data, np.ndarray):
-            return torch.from_numpy(data)
-        elif isinstance(data, (int, float)):
-            return torch.tensor(data)
-        else:
-            raise TypeError(f'type {type(data)} cannot be converted to tensor.')
+    try:
+        from mmcv import to_tensor
+    except ImportError:
+        # Fallback implementation for to_tensor
+        def to_tensor(data):
+            """Convert objects of various python types to :obj:`torch.Tensor`."""
+            if isinstance(data, torch.Tensor):
+                return data
+            elif isinstance(data, np.ndarray):
+                return torch.from_numpy(data)
+            elif isinstance(data, (int, float)):
+                return torch.tensor(data)
+            else:
+                raise TypeError(f'type {type(data)} cannot be converted to tensor.')
 
 MMSEG_AVAILABLE = False
 
@@ -769,7 +781,7 @@ class DefaultFormatBundle:
             if len(img.shape) < 3:
                 img = np.expand_dims(img, -1)
             img = np.ascontiguousarray(img.transpose(2, 0, 1))
-            results['img'] = mmcv.to_tensor(img)
+            results['img'] = to_tensor(img)
 
         for key in ['gt_semantic_seg']:
             if key not in results:
