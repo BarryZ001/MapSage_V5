@@ -6,9 +6,17 @@ T20环境验证脚本
 
 import os
 import sys
-import torch
 import subprocess
 from pathlib import Path
+from datetime import datetime
+
+# 尝试导入torch，如果失败则设置为None
+try:
+    import torch
+    TORCH_AVAILABLE = True
+except ImportError:
+    torch = None
+    TORCH_AVAILABLE = False
 
 def print_header(title):
     """打印标题"""
@@ -54,15 +62,39 @@ def check_python_environment():
             print_error(f"{package} 未安装")
     
     # PyTorch版本和CUDA支持
-    if torch.cuda.is_available():
+    if TORCH_AVAILABLE and torch is not None:
         print_success(f"PyTorch版本: {torch.__version__}")
-        print_success(f"CUDA版本: {torch.version.cuda}")
-        print_success(f"可用GPU数量: {torch.cuda.device_count()}")
-        for i in range(torch.cuda.device_count()):
-            gpu_name = torch.cuda.get_device_name(i)
-            print_success(f"GPU {i}: {gpu_name}")
+        if torch.cuda.is_available():
+            try:
+                # 尝试获取CUDA版本信息
+                cuda_version = "未知"
+                try:
+                    # 方法1: 尝试通过torch内置方法获取
+                    import torch.version as tv
+                    if hasattr(tv, 'cuda') and tv.cuda is not None:
+                        cuda_version = tv.cuda
+                except (ImportError, AttributeError):
+                    # 方法2: 通过nvidia-smi获取驱动版本
+                    try:
+                        result = subprocess.run(['nvidia-smi', '--query-gpu=driver_version', '--format=csv,noheader'], 
+                                              capture_output=True, text=True, timeout=10)
+                        if result.returncode == 0:
+                            cuda_version = f"Driver: {result.stdout.strip()}"
+                    except (subprocess.TimeoutExpired, FileNotFoundError, subprocess.SubprocessError):
+                        pass
+                
+                print_success(f"CUDA版本: {cuda_version}")
+            except Exception:
+                print_warning("无法获取CUDA版本信息")
+            
+            print_success(f"可用GPU数量: {torch.cuda.device_count()}")
+            for i in range(torch.cuda.device_count()):
+                gpu_name = torch.cuda.get_device_name(i)
+                print_success(f"GPU {i}: {gpu_name}")
+        else:
+            print_warning("CUDA不可用，将使用CPU训练")
     else:
-        print_warning("CUDA不可用，将使用CPU训练")
+        print_error("PyTorch未安装或导入失败")
 
 def check_dataset_paths():
     """检查数据集路径"""
@@ -137,15 +169,18 @@ def check_pretrained_weights():
             print_success(f"{weight_file}: 存在 ({file_size:.1f} MB)")
             
             # 尝试加载权重文件
-            try:
-                checkpoint = torch.load(weight_path, map_location='cpu')
-                if isinstance(checkpoint, dict):
-                    keys = list(checkpoint.keys())
-                    print_success(f"  权重文件结构: {keys[:5]}...")
-                else:
-                    print_success(f"  权重文件类型: {type(checkpoint)}")
-            except Exception as e:
-                print_error(f"  无法加载权重文件: {e}")
+            if TORCH_AVAILABLE and torch is not None:
+                try:
+                    checkpoint = torch.load(weight_path, map_location='cpu')
+                    if isinstance(checkpoint, dict):
+                        keys = list(checkpoint.keys())
+                        print_success(f"  权重文件结构: {keys[:5]}...")
+                    else:
+                        print_success(f"  权重文件类型: {type(checkpoint)}")
+                except Exception as e:
+                    print_error(f"  无法加载权重文件: {e}")
+            else:
+                print_warning("  PyTorch不可用，跳过权重文件加载测试")
         else:
             print_error(f"{weight_file}: 不存在")
 
@@ -245,6 +280,10 @@ def check_gpu_memory():
     """检查GPU内存"""
     print_header("GPU内存检查")
     
+    if not TORCH_AVAILABLE or torch is None:
+        print_warning("PyTorch不可用，跳过GPU内存检查")
+        return
+    
     if not torch.cuda.is_available():
         print_warning("CUDA不可用，跳过GPU内存检查")
         return
@@ -274,7 +313,7 @@ def check_gpu_memory():
 def main():
     """主函数"""
     print("🚀 T20环境验证开始")
-    print(f"验证时间: {torch.utils.data.get_worker_info()}")
+    print(f"验证时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     
     # 执行各项检查
     check_python_environment()
