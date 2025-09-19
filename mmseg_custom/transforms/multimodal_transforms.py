@@ -264,6 +264,70 @@ class InfraredSpecificAugmentation(BaseTransform):
 
 
 @TRANSFORMS.register_module()
+class PhotoMetricDistortion(BaseTransform):
+    """光度失真变换。
+    
+    对图像进行亮度、对比度、饱和度和色调的随机调整。
+    """
+    
+    def __init__(self,
+                 brightness_delta: int = 32,
+                 contrast_range: Tuple[float, float] = (0.5, 1.5),
+                 saturation_range: Tuple[float, float] = (0.5, 1.5),
+                 hue_delta: int = 18):
+        """初始化光度失真变换。
+        
+        Args:
+            brightness_delta: 亮度调整范围
+            contrast_range: 对比度调整范围
+            saturation_range: 饱和度调整范围
+            hue_delta: 色调调整范围
+        """
+        self.brightness_delta = brightness_delta
+        self.contrast_range = contrast_range
+        self.saturation_range = saturation_range
+        self.hue_delta = hue_delta
+
+    def transform(self, results: Dict) -> Dict:
+        """执行光度失真变换。"""
+        img = results['img'].astype(np.float32)
+        
+        # 随机亮度调整
+        if np.random.randint(2):
+            delta = np.random.uniform(-self.brightness_delta, self.brightness_delta)
+            img += delta
+            
+        # 随机对比度调整
+        if np.random.randint(2):
+            alpha = np.random.uniform(*self.contrast_range)
+            img *= alpha
+            
+        # 随机饱和度调整（仅对RGB图像）
+        if len(img.shape) == 3 and img.shape[2] == 3:
+            if np.random.randint(2):
+                # 转换到HSV空间进行饱和度调整
+                img_hsv = cv2.cvtColor(img.astype(np.uint8), cv2.COLOR_RGB2HSV).astype(np.float32)
+                alpha = np.random.uniform(*self.saturation_range)
+                img_hsv[:, :, 1] *= alpha
+                img_hsv[:, :, 1] = np.clip(img_hsv[:, :, 1], 0, 255)
+                img = cv2.cvtColor(img_hsv.astype(np.uint8), cv2.COLOR_HSV2RGB).astype(np.float32)
+            
+            # 随机色调调整
+            if np.random.randint(2):
+                img_hsv = cv2.cvtColor(img.astype(np.uint8), cv2.COLOR_RGB2HSV).astype(np.float32)
+                delta = np.random.uniform(-self.hue_delta, self.hue_delta)
+                img_hsv[:, :, 0] += delta
+                img_hsv[:, :, 0] = np.clip(img_hsv[:, :, 0], 0, 179)  # OpenCV中H通道范围是0-179
+                img = cv2.cvtColor(img_hsv.astype(np.uint8), cv2.COLOR_HSV2RGB).astype(np.float32)
+        
+        # 确保像素值在有效范围内
+        img = np.clip(img, 0, 255).astype(np.uint8)
+        results['img'] = img
+        
+        return results
+
+
+@TRANSFORMS.register_module()
 class RandomCrop(BaseTransform):
     """标准随机裁剪变换。
     

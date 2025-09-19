@@ -5,6 +5,7 @@ from .multimodal_transforms import (
     InfraredSpecificAugmentation,
     MultiModalRandomCrop,
     RandomCrop,
+    PhotoMetricDistortion,
     build_multimodal_pipeline
 )
 
@@ -15,5 +16,6 @@ __all__ = [
     'InfraredSpecificAugmentation',
     'MultiModalRandomCrop',
     'RandomCrop',
+    'PhotoMetricDistortion',
     'build_multimodal_pipeline'
 ]
