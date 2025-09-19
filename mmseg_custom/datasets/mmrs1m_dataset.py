@@ -9,10 +9,7 @@ from mmengine.fileio import get_local_path
 from PIL import Image
 
 from mmengine.dataset import BaseDataset
-try:
-    from mmseg.registry import DATASETS
-except ImportError:
-    from mmengine.registry import DATASETS
+from mmengine.registry import DATASETS
 
 
 @DATASETS.register_module()

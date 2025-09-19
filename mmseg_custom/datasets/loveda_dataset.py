@@ -5,10 +5,7 @@ import os.path as osp
 from typing import List, Dict, Any, Optional
 
 from mmengine.dataset import BaseDataset
-try:
-    from mmseg.registry import DATASETS
-except ImportError:
-    from mmengine.registry import DATASETS
+from mmengine.registry import DATASETS
 
 
 @DATASETS.register_module()
