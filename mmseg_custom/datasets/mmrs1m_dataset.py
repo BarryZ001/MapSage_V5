@@ -76,9 +76,15 @@ class MMRS1MDataset(BaseDataset):
             placeholder_img = osp.join(project_root, 'test_image.jpg')
             
             if osp.exists(placeholder_img):
+                # 为占位符创建一个简单的分割图（如果需要的话）
+                placeholder_seg = None
+                if self.task_type in ['segmentation', 'detection']:
+                    # 对于需要分割标注的任务，使用图像本身作为占位符分割图
+                    placeholder_seg = placeholder_img
+                
                 placeholder_data = {
                     'img_path': placeholder_img,
-                    'seg_map_path': None,
+                    'seg_map_path': placeholder_seg,
                     'label': 0,
                     'dataset': 'placeholder',
                     'modality': self.modality,

@@ -146,9 +146,13 @@ class LoadImageFromFile:
         elif 'img_path' in results:
             # 新的数据集格式（如MMRS1M, LoveDA）
             filename = results['img_path']
-            ori_filename = osp.basename(filename)
+            ori_filename = osp.basename(filename) if filename else 'unknown'
         else:
             raise KeyError("Neither 'img_info' nor 'img_path' found in results")
+
+        # 检查filename是否为None
+        if filename is None:
+            raise ValueError(f"Image path is None in results: {results}")
 
         img_bytes = self.file_client.get(filename)
         img = mmcv.imfrombytes(
@@ -229,10 +233,20 @@ class LoadAnnotations:
         else:
             raise KeyError("Neither 'ann_info' nor 'seg_map_path' found in results")
 
-        img_bytes = self.file_client.get(filename)
-        gt_semantic_seg = mmcv.imfrombytes(
-            bytes(img_bytes), flag='unchanged',
-            backend=self.imdecode_backend).squeeze().astype(np.uint8)
+        # 如果seg_map_path为None，跳过加载分割标注
+        if filename is None:
+            # 创建一个空的分割图
+            if 'img_shape' in results:
+                h, w = results['img_shape'][:2]
+            else:
+                # 如果没有图像形状信息，使用默认大小
+                h, w = 256, 256
+            gt_semantic_seg = np.zeros((h, w), dtype=np.uint8)
+        else:
+            img_bytes = self.file_client.get(filename)
+            gt_semantic_seg = mmcv.imfrombytes(
+                bytes(img_bytes), flag='unchanged',
+                backend=self.imdecode_backend).squeeze().astype(np.uint8)
         # modify if custom classes
         if results.get('label_map', None) is not None:
             # Add deep copy to solve bug of repeatedly
