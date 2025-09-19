@@ -10,6 +10,12 @@ from .multimodal_transforms import (
     PackSegInputs
 )
 
+# 导入标准transforms兼容性模块
+from .standard_transforms import (
+    LoadImageFromFile, LoadAnnotations, Resize, RandomFlip,
+    Normalize, Pad, ImageToTensor, DefaultFormatBundle, Collect
+)
+
 __all__ = [
     'MultiModalNormalize',
     'MultiModalResize', 
@@ -19,5 +25,7 @@ __all__ = [
     'RandomCrop',
     'PhotoMetricDistortion',
     'build_multimodal_pipeline',
-    'PackSegInputs'
+    'PackSegInputs',
+    'LoadImageFromFile', 'LoadAnnotations', 'Resize', 'RandomFlip',
+    'Normalize', 'Pad', 'ImageToTensor', 'DefaultFormatBundle', 'Collect'
 ]
