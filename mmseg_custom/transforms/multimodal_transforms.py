@@ -328,6 +328,79 @@ class PhotoMetricDistortion(BaseTransform):
 
 
 @TRANSFORMS.register_module()
+class PackSegInputs:
+    """Pack the inputs data for the semantic segmentation.
+    
+    This transform packs the image and ground truth segmentation map into
+    a format that can be consumed by the model.
+    """
+    
+    def __init__(self, meta_keys=('img_path', 'seg_map_path', 'ori_shape', 
+                                  'img_shape', 'pad_shape', 'scale_factor', 
+                                  'flip', 'flip_direction')):
+        """Initialize PackSegInputs.
+        
+        Args:
+            meta_keys (tuple): Keys to be packed into meta information.
+        """
+        self.meta_keys = meta_keys
+        
+    def __call__(self, results):
+        """Pack the inputs data.
+        
+        Args:
+            results (dict): Result dict from loading pipeline.
+            
+        Returns:
+            dict: Packed results with 'inputs' and 'data_samples' keys.
+        """
+        packed_results = {}
+        
+        # Pack image
+        if 'img' in results:
+            img = results['img']
+            # Ensure image is in CHW format
+            if len(img.shape) == 3 and img.shape[-1] in [1, 3]:
+                # HWC to CHW
+                img = np.transpose(img, (2, 0, 1))
+            packed_results['inputs'] = img
+            
+        # Pack segmentation map
+        if 'gt_seg_map' in results:
+            # Create a simple data structure for segmentation
+            gt_seg_map = results['gt_seg_map']
+            if len(gt_seg_map.shape) == 2:
+                gt_seg_map = gt_seg_map[None, ...]  # Add channel dimension
+            
+            # Create a minimal data sample structure
+            data_sample = {
+                'gt_sem_seg': {
+                    'data': gt_seg_map
+                }
+            }
+            
+            # Pack meta information
+            img_meta = {}
+            for key in self.meta_keys:
+                if key in results:
+                    img_meta[key] = results[key]
+            data_sample['metainfo'] = img_meta
+            
+            packed_results['data_samples'] = data_sample
+        else:
+            # Pack meta info even without segmentation map
+            img_meta = {}
+            for key in self.meta_keys:
+                if key in results:
+                    img_meta[key] = results[key]
+            
+            data_sample = {'metainfo': img_meta}
+            packed_results['data_samples'] = data_sample
+            
+        return packed_results
+
+
+@TRANSFORMS.register_module()
 class RandomCrop(BaseTransform):
     """标准随机裁剪变换。
     

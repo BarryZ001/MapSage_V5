@@ -6,7 +6,8 @@ from .multimodal_transforms import (
     MultiModalRandomCrop,
     RandomCrop,
     PhotoMetricDistortion,
-    build_multimodal_pipeline
+    build_multimodal_pipeline,
+    PackSegInputs
 )
 
 __all__ = [
@@ -17,5 +18,6 @@ __all__ = [
     'MultiModalRandomCrop',
     'RandomCrop',
     'PhotoMetricDistortion',
-    'build_multimodal_pipeline'
+    'build_multimodal_pipeline',
+    'PackSegInputs'
 ]
