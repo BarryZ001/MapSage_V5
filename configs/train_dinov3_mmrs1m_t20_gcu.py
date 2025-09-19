@@ -68,7 +68,7 @@ model = dict(
         init_cfg=dict(
             type='Pretrained',
             checkpoint='/workspace/weights/dinov3_vitl16_pretrain_sat493m-eadcf0ff.pth',  # 修正为T20环境实际权重路径
-            prefix='backbone.'
+            prefix=''
         )
     ),
     
