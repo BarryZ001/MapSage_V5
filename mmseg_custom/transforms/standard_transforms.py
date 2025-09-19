@@ -134,11 +134,21 @@ class LoadImageFromFile:
         if self.file_client is None:
             self.file_client = FileClient(**self.file_client_args)
 
-        if results.get('img_prefix') is not None:
-            filename = osp.join(results['img_prefix'],
-                                results['img_info']['filename'])
+        # 兼容不同的数据结构格式
+        if 'img_info' in results:
+            # 传统MMSeg格式
+            if results.get('img_prefix') is not None:
+                filename = osp.join(results['img_prefix'],
+                                    results['img_info']['filename'])
+            else:
+                filename = results['img_info']['filename']
+            ori_filename = results['img_info']['filename']
+        elif 'img_path' in results:
+            # 新的数据集格式（如MMRS1M, LoveDA）
+            filename = results['img_path']
+            ori_filename = osp.basename(filename)
         else:
-            filename = results['img_info']['filename']
+            raise KeyError("Neither 'img_info' nor 'img_path' found in results")
 
         img_bytes = self.file_client.get(filename)
         img = mmcv.imfrombytes(
@@ -147,7 +157,7 @@ class LoadImageFromFile:
             img = img.astype(np.float32)
 
         results['filename'] = filename
-        results['ori_filename'] = results['img_info']['filename']
+        results['ori_filename'] = ori_filename
         results['img'] = img
         results['img_shape'] = img.shape
         results['ori_shape'] = img.shape
@@ -205,11 +215,20 @@ class LoadAnnotations:
         if self.file_client is None:
             self.file_client = FileClient(**self.file_client_args)
 
-        if results.get('seg_prefix', None) is not None:
-            filename = osp.join(results['seg_prefix'],
-                                results['ann_info']['seg_map'])
+        # 兼容不同的数据结构格式
+        if 'ann_info' in results:
+            # 传统MMSeg格式
+            if results.get('seg_prefix', None) is not None:
+                filename = osp.join(results['seg_prefix'],
+                                    results['ann_info']['seg_map'])
+            else:
+                filename = results['ann_info']['seg_map']
+        elif 'seg_map_path' in results:
+            # 新的数据集格式（如MMRS1M, LoveDA）
+            filename = results['seg_map_path']
         else:
-            filename = results['ann_info']['seg_map']
+            raise KeyError("Neither 'ann_info' nor 'seg_map_path' found in results")
+
         img_bytes = self.file_client.get(filename)
         gt_semantic_seg = mmcv.imfrombytes(
             bytes(img_bytes), flag='unchanged',

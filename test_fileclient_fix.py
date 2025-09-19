@@ -45,6 +45,7 @@ def test_mmcv_compatibility():
             ("mmengine.fileio", "FileClient")
         ]
         
+        FileClient = None
         for module_path, class_name in paths_to_test:
             try:
                 if module_path == "mmcv":
@@ -57,8 +58,9 @@ def test_mmcv_compatibility():
                 print(f"✅ {module_path}.{class_name} is available")
                 
                 # 测试实例化
-                client = FileClient(backend='disk')
-                print(f"✅ Successfully created FileClient instance: {type(client)}")
+                if FileClient is not None:
+                    client = FileClient(backend='disk')
+                    print(f"✅ Successfully created FileClient instance: {type(client)}")
                 break
                 
             except ImportError as e:
