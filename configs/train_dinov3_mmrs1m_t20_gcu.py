@@ -21,7 +21,7 @@ exp_name = 'dinov3_mmrs1m_t20_gcu'
 
 # 数据集配置
 dataset_type = 'MMRS1MDataset'
-data_root = '/workspace/data/mmrs1m/data'  # T20服务器路径
+data_root = '/Users/barryzhang/myDev3/MapSage_V5/data'  # 使用本地开发路径
 local_data_root = '/Users/barryzhang/myDev3/MapSage_V5/data'  # 本地开发路径
 
 # 图像配置
