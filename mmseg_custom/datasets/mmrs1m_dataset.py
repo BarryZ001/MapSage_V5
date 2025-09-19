@@ -69,8 +69,11 @@ class MMRS1MDataset(BaseDataset):
         else:
             raise ValueError(f"Unsupported task type: {self.task_type}")
             
+        print(f"[MMRS1M] 加载了 {len(data_list)} 个数据样本，任务类型: {self.task_type}")
+        
         # 如果没有找到任何真实数据，创建一个占位符数据项以避免空数据集错误
         if not data_list:
+            print(f"[MMRS1M] 警告：未找到数据，使用占位符数据")
             # 使用项目根目录下的test_image.jpg作为占位符
             project_root = osp.dirname(osp.dirname(osp.dirname(__file__)))
             placeholder_img = osp.join(project_root, 'test_image.jpg')
@@ -113,6 +116,10 @@ class MMRS1MDataset(BaseDataset):
                 data_list = [placeholder_data]
             else:
                 raise FileNotFoundError(f"No data found and placeholder image does not exist: {placeholder_img}")
+        else:
+            print(f"[MMRS1M] 成功加载数据，前3个样本路径:")
+            for i, item in enumerate(data_list[:3]):
+                print(f"  {i+1}. {item.get('img_path', 'N/A')}")
             
         return data_list
     
@@ -122,13 +129,20 @@ class MMRS1MDataset(BaseDataset):
         
         # 确保data_root不为None
         if not self.data_root:
+            print(f"[MMRS1M] data_root为空，无法加载数据")
             return data_list
             
+        print(f"[MMRS1M] 尝试从路径加载分类数据: {self.data_root}")
+        
         # 根据真实MMRS1M数据结构加载分类数据
         classification_dir = osp.join(self.data_root, 'classification')
         json_dir = osp.join(self.data_root, 'json', 'classification')
         
+        print(f"[MMRS1M] 检查分类目录: {classification_dir}")
+        print(f"[MMRS1M] 分类目录存在: {osp.exists(classification_dir)}")
+        
         if not osp.exists(classification_dir):
+            print(f"[MMRS1M] 分类目录不存在: {classification_dir}")
             return data_list
             
         # 真实的分类数据集列表
@@ -137,12 +151,19 @@ class MMRS1MDataset(BaseDataset):
             'RSSCN7_split', 'UCMerced_split', 'WHU-RS19_split'
         ]
         
+        print(f"[MMRS1M] 开始遍历分类数据集...")
+        
         # 遍历每个分类数据集
         for dataset_name in classification_datasets:
             dataset_path = osp.join(classification_dir, dataset_name)
+            print(f"[MMRS1M] 检查数据集: {dataset_name} -> {dataset_path}")
+            
             if not osp.exists(dataset_path):
+                print(f"[MMRS1M] 数据集不存在: {dataset_name}")
                 continue
                 
+            print(f"[MMRS1M] 找到数据集: {dataset_name}")
+            
             # 尝试加载对应的JSON标注文件
             json_file = None
             json_mapping = {
@@ -159,49 +180,76 @@ class MMRS1MDataset(BaseDataset):
                 json_path = osp.join(json_dir, json_mapping[dataset_name])
                 if osp.exists(json_path):
                     json_file = json_path
+                    print(f"[MMRS1M] 找到JSON文件: {json_file}")
             
             # 检查数据集结构类型
             train_path = osp.join(dataset_path, 'train')
             test_path = osp.join(dataset_path, 'test') 
             images_path = osp.join(dataset_path, 'images')
             
+            print(f"[MMRS1M] 检查数据集结构:")
+            print(f"  train目录: {osp.exists(train_path)}")
+            print(f"  test目录: {osp.exists(test_path)}")
+            print(f"  images目录: {osp.exists(images_path)}")
+            
             if osp.exists(train_path) or osp.exists(test_path):
                 # 类型1: 有train/test分割的数据集
+                print(f"[MMRS1M] 使用train/test结构加载数据集: {dataset_name}")
                 for split in ['train', 'test']:
                     split_path = osp.join(dataset_path, split)
                     if osp.exists(split_path):
+                        print(f"[MMRS1M] 处理{split}分割...")
                         # 遍历每个类别目录
-                        for category_dir in os.listdir(split_path):
-                            category_path = osp.join(split_path, category_dir)
-                            if osp.isdir(category_path):
-                                # 遍历类别目录中的图像文件
-                                for img_file in os.listdir(category_path):
-                                    if img_file.lower().endswith(('.jpg', '.jpeg', '.png', '.tif', '.tiff')):
-                                        img_path = osp.join(category_path, img_file)
+                        try:
+                            categories = os.listdir(split_path)
+                            print(f"[MMRS1M] 找到{len(categories)}个类别: {categories[:5]}...")
+                            
+                            for category_dir in categories:
+                                category_path = osp.join(split_path, category_dir)
+                                if osp.isdir(category_path):
+                                    # 遍历类别目录中的图像文件
+                                    try:
+                                        img_files = [f for f in os.listdir(category_path) 
+                                                   if f.lower().endswith(('.jpg', '.jpeg', '.png', '.tif', '.tiff'))]
+                                        print(f"[MMRS1M] 类别{category_dir}有{len(img_files)}张图像")
                                         
-                                        data_info = {
-                                            'img_path': img_path,
-                                            'seg_map_path': None,
-                                            'label': self._get_class_id_from_dataset(dataset_name, category_dir),
-                                            'category': category_dir,
-                                            'dataset': dataset_name,
-                                            'split': split,
-                                            'modality': self.modality,
-                                            'task_type': self.task_type,
-                                            'json_file': json_file,
-                                            'seg_fields': []
-                                        }
-                                        
-                                        if self.instruction_format:
-                                            data_info['instruction'] = f"What is the category of this {dataset_name} remote sensing image? Answer using a single word or phrase."
-                                            data_info['response'] = category_dir
+                                        for img_file in img_files:
+                                            img_path = osp.join(category_path, img_file)
                                             
-                                        data_list.append(data_info)
+                                            data_info = {
+                                                'img_path': img_path,
+                                                'seg_map_path': None,
+                                                'label': self._get_class_id_from_dataset(dataset_name, category_dir),
+                                                'category': category_dir,
+                                                'dataset': dataset_name,
+                                                'split': split,
+                                                'modality': self.modality,
+                                                'task_type': self.task_type,
+                                                'json_file': json_file,
+                                                'seg_fields': []
+                                            }
+                                            
+                                            if self.instruction_format:
+                                                data_info['instruction'] = f"What is the category of this {dataset_name} remote sensing image? Answer using a single word or phrase."
+                                                data_info['response'] = category_dir
+                                                
+                                            data_list.append(data_info)
+                                    except Exception as e:
+                                        print(f"[MMRS1M] 处理类别{category_dir}时出错: {e}")
+                                        continue
+                        except Exception as e:
+                            print(f"[MMRS1M] 处理{split}分割时出错: {e}")
+                            continue
                                         
             elif osp.exists(images_path):
                 # 类型2: 只有images目录的数据集
-                for img_file in os.listdir(images_path):
-                    if img_file.lower().endswith(('.jpg', '.jpeg', '.png', '.tif', '.tiff')):
+                print(f"[MMRS1M] 使用images结构加载数据集: {dataset_name}")
+                try:
+                    img_files = [f for f in os.listdir(images_path) 
+                               if f.lower().endswith(('.jpg', '.jpeg', '.png', '.tif', '.tiff'))]
+                    print(f"[MMRS1M] images目录有{len(img_files)}张图像")
+                    
+                    for img_file in img_files:
                         img_path = osp.join(images_path, img_file)
                         
                         # 从JSON文件中获取标签信息（如果存在）
@@ -236,7 +284,12 @@ class MMRS1MDataset(BaseDataset):
                             data_info['response'] = category
                             
                         data_list.append(data_info)
+                except Exception as e:
+                    print(f"[MMRS1M] 处理images目录时出错: {e}")
+            else:
+                print(f"[MMRS1M] 数据集{dataset_name}结构不符合预期")
         
+        print(f"[MMRS1M] 分类数据加载完成，共{len(data_list)}个样本")
         return data_list
     
     def _load_detection_data(self) -> List[dict]:
