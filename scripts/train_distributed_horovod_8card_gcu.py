@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 基于OpenMPI+Horovod的分布式训练脚本
 符合TopsDL官方推荐架构

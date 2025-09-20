@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 8卡分布式训练脚本 - 燧原T20 GCU版本
 支持DINOv3 + MMRS-1M数据集的8卡分布式训练

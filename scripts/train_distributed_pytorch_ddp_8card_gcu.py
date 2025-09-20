@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 PyTorch DDP分布式训练脚本 - T20 GCU 8卡版本
 不依赖Horovod，使用原生PyTorch分布式训练
