@@ -114,6 +114,12 @@ def parse_args():
     parser.add_argument('--amp', action='store_true', help='启用自动混合精度训练')
     parser.add_argument('--auto-scale-lr', action='store_true', help='根据GPU数量自动缩放学习率')
     
+    # 添加分布式训练相关参数
+    parser.add_argument('--local_rank', type=int, default=0, 
+                       help='Local rank for distributed training (automatically set by torch.distributed.launch)')
+    parser.add_argument('--local-rank', type=int, default=0, dest='local_rank',
+                       help='Local rank for distributed training (alternative format)')
+    
     return parser.parse_args()
 
 
@@ -178,7 +184,13 @@ def main():
         print(f"恢复训练: {args.resume}")
         print(f"自动混合精度: {args.amp}")
         print(f"自动缩放学习率: {args.auto_scale_lr}")
+        print(f"Local rank: {args.local_rank}")
         print("=" * 40)
+        
+        # 如果通过命令行传入了local_rank，设置到环境变量中
+        # 这样setup_distributed_environment函数就能正确获取到
+        if hasattr(args, 'local_rank') and args.local_rank is not None:
+            os.environ['LOCAL_RANK'] = str(args.local_rank)
         
         # 设置分布式环境
         rank, local_rank, world_size, device = setup_distributed_environment()
