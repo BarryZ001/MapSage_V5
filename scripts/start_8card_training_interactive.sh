@@ -45,7 +45,7 @@ echo "📺 输出将直接显示在屏幕上"
 echo ""
 
 # 使用torchrun启动分布式训练（前台运行，输出到屏幕）
-python -m torch.distributed.run \
+python3 -m torch.distributed.run \
     --nproc_per_node=8 \
     --master_port=$MASTER_PORT \
     "$SCRIPT_FILE" "$CONFIG_FILE" \

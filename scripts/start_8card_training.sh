@@ -51,7 +51,7 @@ for i in {0..7}; do
     LOG_FILE="$LOG_DIR/train_rank_${i}.log"
     
     # 启动训练进程（后台运行）
-    python "$SCRIPT_FILE" "$CONFIG_FILE" --launcher pytorch --local_rank $i > "$LOG_FILE" 2>&1 &
+    python3 "$SCRIPT_FILE" "$CONFIG_FILE" --launcher pytorch --local_rank $i > "$LOG_FILE" 2>&1 &
     
     # 记录进程ID
     PID=$!

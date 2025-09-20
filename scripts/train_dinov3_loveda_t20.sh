@@ -43,8 +43,8 @@ if [ ! -f "/workspace/weights/best_mIoU_iter_6000.pth" ]; then
 fi
 
 # 环境验证
-echo "🔍 运行环境验证..."
-python scripts/validate_t20_environment.py
+echo "验证T20环境..."
+python3 scripts/validate_t20_environment.py
 
 # 设置环境变量
 export CUDA_VISIBLE_DEVICES=0,1,2,3
@@ -52,7 +52,7 @@ export PYTHONPATH="${PYTHONPATH}:$(pwd)"
 
 # 启动训练
 echo "🚀 启动分布式训练..."
-python -m torch.distributed.launch \
+python3 -m torch.distributed.launch \
     --nproc_per_node=$NUM_GPUS \
     --master_port=$PORT \
     tools/train.py \

@@ -49,8 +49,7 @@ export PYTHONPATH="${PYTHONPATH}:$(pwd)"
 export MASTER_PORT=$PORT
 
 # 启动分布式训练
-echo "🎯 启动分布式训练..."
-python -m torch.distributed.launch \
+python3 -m torch.distributed.launch \
     --nproc_per_node=$GPUS \
     --master_port=$PORT \
     tools/train.py \
