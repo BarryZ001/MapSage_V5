@@ -177,8 +177,41 @@ def main():
     print("📄 配置文件: {}".format(args.config))
     print("🔧 启动器: {}".format(args.launcher))
     
-    # 设置分布式环境
-    world_size, rank, local_rank = setup_distributed()
+    # ===== START: FORCE ECCL BACKEND =====
+    # 强制使用ECCL后端，确保与GCU设备兼容
+    if 'RANK' in os.environ and 'WORLD_SIZE' in os.environ:
+        rank = int(os.environ['RANK'])
+        world_size = int(os.environ['WORLD_SIZE'])
+        local_rank = int(os.environ.get('LOCAL_RANK', 0))
+        
+        print(f'🔧 强制使用ECCL后端进行分布式训练 - Rank {rank}/{world_size}')
+        
+        # 检查是否已经初始化
+        if not dist.is_initialized():
+            try:
+                # 设置ECCL环境变量
+                os.environ['ECCL_BACKEND'] = 'eccl'
+                os.environ['ECCL_DEVICE_TYPE'] = 'gcu'
+                
+                # 强制初始化ECCL后端
+                dist.init_process_group(
+                    backend='eccl', 
+                    init_method='env://', 
+                    world_size=world_size, 
+                    rank=rank
+                )
+                print("✅ ECCL后端初始化成功")
+            except Exception as e:
+                print(f"❌ ECCL后端初始化失败: {e}")
+                print("🔄 尝试使用setup_distributed函数")
+                # 如果强制初始化失败，回退到原有逻辑
+                world_size, rank, local_rank = setup_distributed()
+        else:
+            print("✅ 分布式进程组已初始化")
+    else:
+        # 设置分布式环境
+        world_size, rank, local_rank = setup_distributed()
+    # ===== END: FORCE ECCL BACKEND =====
     
     # 加载配置文件
     cfg = Config.fromfile(args.config)
@@ -279,13 +312,11 @@ def main():
         if not hasattr(cfg, 'env_cfg'):
             cfg.env_cfg = {}
         
-        # 关键修复：对于XLA设备，不使用标准的分布式后端
-        # 而是让MMEngine自动检测或使用CPU后端进行参数同步
+        # 关键修复：对于XLA设备，使用ECCL后端进行分布式通信
         if torch_gcu is not None:
-            # 对于T20 GCU设备，使用CPU后端进行分布式通信
-            # 这样可以避免XLA设备与Gloo后端的不兼容问题
-            cfg.env_cfg['dist_cfg'] = {'backend': 'gloo', 'init_method': 'env://'}
-            print("🔧 T20修复：配置Gloo后端用于CPU通信，模型在XLA设备上计算")
+            # 对于T20 GCU设备，强制使用ECCL后端
+            cfg.env_cfg['dist_cfg'] = {'backend': 'eccl', 'init_method': 'env://'}
+            print("🔧 T20修复：强制配置ECCL后端用于XLA设备分布式通信")
         else:
             cfg.env_cfg['dist_cfg'] = {'backend': 'gloo'}
         
@@ -298,7 +329,7 @@ def main():
             cfg.model_wrapper_cfg.pop('output_device', None)
         
         print("🔧 配置设备为: {}".format(device))
-        print("🔧 配置分布式后端为: gloo")
+        print("🔧 配置分布式后端为: eccl")
     
     # 关键修复：在创建Runner前强制设置设备配置
     if torch_gcu is not None:
@@ -307,13 +338,11 @@ def main():
         # 强制设置当前设备
         torch_gcu.set_device(local_rank)
         
-        # 关键修复：对于XLA设备，使用CPU设备进行分布式通信
-        # 但模型计算仍在XLA设备上进行
-        device = "cpu"  # 分布式通信使用CPU
-        xla_device = f'xla:{local_rank}'  # 模型计算使用XLA设备
+        # 关键修复：对于XLA设备，使用GCU设备进行分布式通信和模型计算
+        device = f'gcu:{local_rank}'  # 统一使用GCU设备
         
         # 确保配置中的设备设置正确
-        cfg.device = device  # MMEngine分布式通信使用CPU
+        cfg.device = device  # MMEngine使用GCU设备
         
         # 关键修复：完全禁用MMEngine的DDP device_ids设置
         # 让MMEngine自动处理设备配置，避免设备不匹配错误
