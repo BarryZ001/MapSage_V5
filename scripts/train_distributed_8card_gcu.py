@@ -307,10 +307,11 @@ def main():
             # 设置当前GCU设备
             torch_gcu.set_device(local_rank)
             
-            # 使用torch_gcu专用API，避免PyTorch不识别gcu设备类型的问题
-            model = model.gcu()  # 使用torch_gcu的专用方法移动模型
+            # 使用XLA设备接口移动模型到GCU设备（T20服务器标准方式）
+            xla_device = f'xla:{local_rank}'
+            model = model.to(xla_device)
             
-            print(f"✅ 模型已移动到GCU设备: {local_rank}")
+            print(f"✅ 模型已移动到GCU设备: {xla_device}")
         else:
             print("⚠️ torch_gcu不可用，尝试使用标准PyTorch API")
             # 回退到标准PyTorch（可能不支持GCU）
@@ -329,10 +330,10 @@ def main():
             if any('cpu' in dev for dev in param_devices):
                 print("🚨 模型参数仍在CPU上，尝试强制移动...")
                 if torch_gcu and torch_gcu.is_available():
-                    # 使用torch_gcu专用API移动参数，避免PyTorch不识别gcu设备类型的问题
-                    gcu_device = torch_gcu.device(local_rank)
+                    # 使用XLA设备接口移动参数到GCU设备（T20服务器标准方式）
+                    xla_device = f'xla:{local_rank}'
                     for param in model.parameters():
-                        param.data = param.data.gcu()  # 使用torch_gcu的专用方法移动参数
+                        param.data = param.data.to(xla_device)
                 else:
                     print("❌ 无法移动到GCU设备，torch_gcu不可用")
                     raise RuntimeError("无法将模型移动到GCU设备")
