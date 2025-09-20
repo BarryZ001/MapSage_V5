@@ -127,9 +127,9 @@ def main():
         torch_gcu.set_device(local_rank)
         print(f"🔧 [Rank {rank}] 预设当前GCU设备: gcu:{local_rank}")
         
-        # 强制MMEngine在正确的设备上创建模型
-        # 通过设置默认设备来确保模型从一开始就在GCU上
-        torch.cuda.set_device(local_rank)  # MMEngine可能检查CUDA设备
+        # 注意：不使用torch.cuda.set_device，因为T20环境没有NVIDIA驱动
+        # 只使用GCU特定的设备设置
+        print(f"🔧 [Rank {rank}] 使用GCU设备设置，跳过CUDA调用")
         
     else:
         cfg.device = 'cpu'
