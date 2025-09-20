@@ -49,9 +49,21 @@ try:
         
         # 测试GCU张量操作
         device = torch.device('gcu:0')
-        x = torch.randn(2, 3).to(device)
-        y = x + 1
-        print('✅ GCU张量操作测试通过')
+        x = torch.randn(2, 3)
+        # 注意：在某些torch_gcu版本中，需要使用.gcu()而不是.to(device)
+        try:
+            x_gcu = x.to(device)
+            y = x_gcu + 1
+            print('✅ GCU张量操作测试通过')
+        except Exception as e:
+            # 尝试备用方法
+            try:
+                x_gcu = x.gcu()
+                y = x_gcu + 1
+                print('✅ GCU张量操作测试通过 (使用.gcu()方法)')
+            except Exception as e2:
+                print(f'❌ GCU张量操作失败: {e2}')
+                sys.exit(1)
     else:
         print('❌ torch_gcu不可用')
         sys.exit(1)
@@ -131,7 +143,7 @@ fi
 echo ""
 echo "6️⃣ 检查预训练权重..."
 
-PRETRAINED_WEIGHTS="/workspace/weights/pretrained/dinov3_vitl16_pretrain_sat493m-eadcf0ff.pth"
+PRETRAINED_WEIGHTS="/workspace/weights/dinov3_vitl16_pretrain_sat493m-eadcf0ff.pth"
 
 if [ -f "$PRETRAINED_WEIGHTS" ]; then
     echo "✅ 找到预训练权重: $PRETRAINED_WEIGHTS"
@@ -242,10 +254,10 @@ if [ "$VALIDATION_PASSED" = true ]; then
     echo ""
     echo "💡 可以开始训练了！建议运行命令："
     echo "   # 单卡训练测试"
-    echo "   python tools/train.py configs/your_config.py"
+    echo "   python scripts/train.py configs/your_config.py"
     echo ""
     echo "   # 8卡分布式训练"
-    echo "   bash tools/dist_train.sh configs/your_config.py 8"
+    echo "   bash scripts/start_8card_training.sh configs/your_config.py"
     
     exit 0
 else
