@@ -153,6 +153,8 @@ def check_shared_libraries():
     """按照官方手册检查共享库配置"""
     print("\n📚 共享库配置检查（官方手册ldconfig指导）:")
     
+    all_checks_passed = True
+    
     # 检查关键共享库文件
     key_libraries = [
         '/opt/tops/lib/libtops.so',
@@ -172,14 +174,18 @@ def check_shared_libraries():
                         for line in result.stdout.split('\n'):
                             if 'not found' in line:
                                 print(f"      {line.strip()}")
+                        all_checks_passed = False
                     else:
                         print(f"    ✅ 依赖项完整")
                 else:
                     print(f"    ❌ ldd检查失败: {result.stderr}")
+                    all_checks_passed = False
             except Exception as e:
                 print(f"    ❌ 依赖检查异常: {e}")
+                all_checks_passed = False
         else:
             print(f"  ❌ {lib} 不存在")
+            all_checks_passed = False
     
     # 检查ldconfig缓存
     try:
@@ -189,8 +195,12 @@ def check_shared_libraries():
         else:
             print("  ❌ libtops未在动态链接器缓存中")
             print("  💡 建议运行: ldconfig")
+            all_checks_passed = False
     except Exception as e:
         print(f"  ❌ ldconfig检查异常: {e}")
+        all_checks_passed = False
+    
+    return all_checks_passed
 
 def perform_integration_test():
     """执行集成测试（基于成功经验）"""
@@ -236,19 +246,29 @@ def generate_summary_report(results):
     print("="*60)
     
     total_checks = len(results)
-    passed_checks = sum(results.values())
+    # 过滤掉None值，只计算有效的检查结果
+    valid_results = {k: v for k, v in results.items() if v is not None}
+    passed_checks = sum(valid_results.values())
     
     print(f"总检查项: {total_checks}")
     print(f"通过检查: {passed_checks}")
-    print(f"失败检查: {total_checks - passed_checks}")
-    print(f"通过率: {passed_checks/total_checks*100:.1f}%")
+    print(f"失败检查: {len(valid_results) - passed_checks}")
+    if len(valid_results) > 0:
+        print(f"通过率: {passed_checks/len(valid_results)*100:.1f}%")
+    else:
+        print("通过率: 0.0%")
     
     print("\n📋 详细结果:")
     for check_name, result in results.items():
-        status = "✅ 通过" if result else "❌ 失败"
+        if result is None:
+            status = "⚠️  跳过"
+        elif result:
+            status = "✅ 通过"
+        else:
+            status = "❌ 失败"
         print(f"  {check_name}: {status}")
     
-    if passed_checks == total_checks:
+    if passed_checks == len(valid_results) and len(valid_results) > 0:
         print("\n🎉 所有检查通过！T20环境配置完整")
         print("💡 可以开始进行模型训练")
     else:
