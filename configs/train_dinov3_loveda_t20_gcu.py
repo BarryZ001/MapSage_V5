@@ -287,11 +287,11 @@ default_hooks = dict(
     )
 )
 
-# 环境配置
+# 环境配置 - 适配燧原T20 GCU
 env_cfg = dict(
-    cudnn_benchmark=False,  # GCU环境关闭cudnn
+    cudnn_benchmark=False,  # GCU环境下禁用cudnn_benchmark
     mp_cfg=dict(mp_start_method='fork', opencv_num_threads=0),
-    dist_cfg=dict(backend='gloo')  # 使用gloo后端适配GCU
+    dist_cfg=dict(backend='eccl')  # 使用ECCL后端替代NCCL
 )
 
 # 可视化配置

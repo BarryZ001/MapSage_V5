@@ -71,7 +71,7 @@ def setup_distributed():
         
         # 直接使用torch.distributed.init_process_group而不是MMEngine的init_dist
         dist.init_process_group(
-            backend='gloo',  # 使用gloo后端，支持CPU和GCU
+            backend='eccl',  # 使用ECCL后端，支持GCU
             rank=rank,
             world_size=world_size
         )

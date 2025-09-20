@@ -63,12 +63,12 @@ def setup_distributed():
         # 初始化分布式进程组
         if not dist.is_initialized():
             dist.init_process_group(
-                backend='gloo',
+                backend='eccl',  # 使用ECCL后端替代gloo
                 init_method=f"tcp://{os.environ.get('MASTER_ADDR', '127.0.0.1')}:{os.environ.get('MASTER_PORT', '29500')}",
                 world_size=world_size,
                 rank=rank
             )
-            print(f"✅ 分布式进程组初始化完成 - Backend: gloo")
+            print(f"✅ 分布式进程组初始化完成 - Backend: eccl")
     
     # 设置GCU设备
     if torch_gcu is not None:

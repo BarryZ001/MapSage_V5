@@ -19,6 +19,23 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 
+def print_success(message):
+    """打印成功信息"""
+    print(f"✅ {message}")
+
+def print_error(message):
+    """打印错误信息"""
+    print(f"❌ {message}")
+
+def print_warning(message):
+    """打印警告信息"""
+    print(f"⚠️  {message}")
+
+def print_info(message):
+    """打印信息"""
+    print(f"ℹ️  {message}")
+
+
 def check_python_version() -> Tuple[bool, str]:
     """检查Python版本"""
     version = sys.version_info
@@ -45,13 +62,28 @@ def check_pytorch() -> Tuple[bool, str]:
     try:
         import torch
         version = torch.__version__
+        
+        # 优先检查GCU环境
+        gcu_available = False
+        gcu_count = 0
+        try:
+            import torch_gcu  # type: ignore
+            if hasattr(torch, 'gcu'):
+                gcu_available = torch.gcu.is_available()  # type: ignore
+                gcu_count = torch.gcu.device_count() if gcu_available else 0  # type: ignore
+        except (ImportError, AttributeError):
+            pass
+        
+        # 检查CUDA环境（作为备选）
         cuda_available = torch.cuda.is_available()
         gpu_count = torch.cuda.device_count() if cuda_available else 0
         
         # 检查是否为燧原T20 GCU环境
         is_t20_gcu = check_t20_gcu_environment()
         
-        if cuda_available:
+        if gcu_available:
+            return True, f"✅ PyTorch {version}, GCU可用, {gcu_count}个GCU设备"
+        elif cuda_available:
             return True, f"✅ PyTorch {version}, CUDA可用, {gpu_count}个GPU"
         elif is_t20_gcu:
             return True, f"✅ PyTorch {version}, 燧原T20 GCU环境"
@@ -213,6 +245,46 @@ def check_work_directory() -> Tuple[bool, str]:
         return True, f"✅ 工作目录就绪: {work_dir}"
     except Exception as e:
         return False, f"❌ 工作目录创建失败: {e}"
+
+
+def check_gpu_environment():
+    """检查GPU/GCU环境"""
+    print("\n🔍 检查GPU/GCU环境...")
+    
+    try:
+        import torch
+        
+        # 优先检查GCU环境
+        gcu_available = False
+        try:
+            import torch_gcu  # type: ignore
+            if hasattr(torch, 'gcu'):
+                gcu_available = torch.gcu.is_available()  # type: ignore
+                if gcu_available:
+                    gcu_count = torch.gcu.device_count()  # type: ignore
+                    print_success(f"可用GCU数量: {gcu_count}")
+                    for i in range(gcu_count):
+                        gcu_name = torch.gcu.get_device_name(i)  # type: ignore
+                        print_info(f"  GCU {i}: {gcu_name}")
+                    return True
+        except (ImportError, AttributeError):
+            pass
+        
+        # 检查CUDA环境（作为备选）
+        if torch.cuda.is_available():
+            print_success(f"可用GPU数量: {torch.cuda.device_count()}")
+            for i in range(torch.cuda.device_count()):
+                gpu_name = torch.cuda.get_device_name(i)
+                gpu_memory = torch.cuda.get_device_properties(i).total_memory / 1024**3
+                print_info(f"  GPU {i}: {gpu_name} ({gpu_memory:.1f}GB)")
+            return True
+        else:
+            print_warning("未检测到GPU/GCU设备，将使用CPU训练")
+            return False
+            
+    except Exception as e:
+        print_error(f"检查GPU/GCU环境时出错: {e}")
+        return False
 
 
 def main():
