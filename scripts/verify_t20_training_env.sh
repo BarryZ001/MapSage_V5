@@ -47,17 +47,29 @@ try:
         device_count = torch_gcu.device_count()
         print(f'✅ 可用GCU设备数量: {device_count}')
         
-        # 测试GCU张量操作 - 使用XLA设备
+        # 测试GCU张量操作
         try:
-            # 在T20环境中，GCU使用XLA设备
-            device = torch.device('xla:0')
-            x = torch.randn(2, 3, device=device)
-            y = torch.randn(2, 3, device=device)
+            # 使用torch_gcu的标准设备方式
+            current_device = torch_gcu.current_device()
+            device_name = f'gcu:{current_device}'
+            x = torch.randn(2, 3, device=device_name)
+            y = torch.randn(2, 3, device=device_name)
             z = x + y
             print('✅ GCU张量操作测试通过')
+            print('张量设备:', z.device)
         except Exception as e:
             print(f'❌ GCU张量操作失败: {e}')
-            sys.exit(1)
+            # 如果gcu设备方式失败，尝试XLA方式作为备选
+            try:
+                device = torch.device('xla:0')
+                x = torch.randn(2, 3).to(device)
+                y = torch.randn(2, 3).to(device)
+                z = x + y
+                print('✅ XLA设备方式成功')
+                print('张量设备:', z.device)
+            except Exception as e2:
+                print(f'❌ XLA设备方式也失败: {e2}')
+                sys.exit(1)
     else:
         print('❌ torch_gcu不可用')
         sys.exit(1)
