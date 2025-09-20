@@ -18,10 +18,11 @@ from mmengine.config import Config
 from mmengine.runner import Runner
 
 try:
-    import torch_gcu
+    import torch_gcu  # type: ignore
     print(f"✅ torch_gcu 导入成功，设备数量: {torch_gcu.device_count()}")
 except ImportError as e:
     print(f"❌ 错误: torch_gcu 导入失败: {e}")
+    print("⚠️ 请确保在燧原T20环境中运行此脚本")
     sys.exit(1)
 
 def main():
@@ -41,13 +42,34 @@ def main():
     # --- 步骤 2: 初始化分布式后端 ---
     # 这是所有分布式操作的第一步，并且必须在MMEngine的任何操作之前完成。
     if 'RANK' in os.environ:
-        print("🔧 初始化分布式进程组，使用燧原官方推荐的 'eccl' 后端...")
-        dist.init_process_group(backend='eccl', init_method='env://')
-        rank = dist.get_rank()
+        rank = int(os.environ['RANK'])
         local_rank = int(os.environ.get('LOCAL_RANK', rank))
-        print(f"✅ [Rank {rank}] ECCL 后端初始化成功。")
+        
+        # 尝试多种后端，按优先级顺序：eccl -> gloo -> nccl
+        backends_to_try = ['eccl', 'gloo', 'nccl']
+        backend_initialized = False
+        
+        for backend in backends_to_try:
+            try:
+                print(f"🔧 [Rank {rank}] 尝试初始化分布式进程组，后端: {backend}")
+                dist.init_process_group(backend=backend, init_method='env://')
+                actual_backend = dist.get_backend()
+                print(f"✅ [Rank {rank}] {backend} 后端初始化成功，实际后端: {actual_backend}")
+                backend_initialized = True
+                break
+            except (ValueError, RuntimeError) as e:
+                print(f"⚠️ [Rank {rank}] {backend} 后端初始化失败: {e}")
+                if backend == backends_to_try[-1]:  # 最后一个后端也失败了
+                    print(f"❌ [Rank {rank}] 所有后端都初始化失败，将退出")
+                    raise
+                continue
+        
+        if not backend_initialized:
+            print(f"❌ [Rank {rank}] 分布式后端初始化失败")
+            sys.exit(1)
     else:
         local_rank = 0
+        print("⚠️ 未检测到分布式环境变量，将以单卡模式运行")
         
     # --- 步骤 3: 关键修复 - 在Runner创建前，向配置中注入GCU适配信息 ---
     # 这是解决所有问题的核心所在
@@ -55,10 +77,18 @@ def main():
     # 3.1 强制指定设备为 'gcu'，MMEngine会使用此配置将模型移动到设备上
     cfg.device = 'gcu'
     
-    # 3.2 强制指定分布式后端为 'eccl'
+    # 3.2 动态设置分布式后端为实际初始化成功的后端
     if not hasattr(cfg, 'env_cfg'):
         cfg.env_cfg = {}
-    cfg.env_cfg['dist_cfg'] = {'backend': 'eccl'}
+    
+    # 如果分布式已初始化，使用实际的后端；否则默认使用eccl
+    if dist.is_initialized():
+        actual_backend = dist.get_backend()
+        cfg.env_cfg['dist_cfg'] = {'backend': actual_backend}
+        print(f"🔧 [Rank {local_rank}] 配置MMEngine使用实际后端: {actual_backend}")
+    else:
+        cfg.env_cfg['dist_cfg'] = {'backend': 'eccl'}  # 单卡模式的默认设置
+        print(f"🔧 [Rank {local_rank}] 单卡模式，使用默认后端配置: eccl")
     
     # 3.3 强制指定DDP包装器的参数，禁用device_ids自动分配
     # MMEngine会使用这个配置来创建MMDistributedDataParallel
