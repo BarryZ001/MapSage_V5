@@ -246,6 +246,11 @@ class FCNHead(BaseModule):
                     # If multiple channels, take the first channel or argmax
                     seg_label = seg_label[:, 0, :, :]  # Take first channel
             
+            # Ensure seg_label has the correct data type (Long) for cross-entropy loss
+            # Cross-entropy loss expects target tensor to be of type Long, not Byte
+            if seg_label.dtype != torch.long:
+                seg_label = seg_label.long()
+            
             # Resize logits to match label size if needed
             if seg_logits.shape[-2:] != seg_label.shape[-2:]:
                 seg_logits = F.interpolate(
