@@ -131,9 +131,9 @@ def main():
         # 只使用GCU特定的设备设置
         print(f"🔧 [Rank {rank}] 使用GCU设备设置，跳过CUDA调用")
         
-        # 重要：设置默认tensor类型为GCU，确保模型从创建开始就在GCU上
-        torch.set_default_tensor_type(f'torch_gcu.GcuFloatTensor')
-        print(f"🔧 [Rank {rank}] 设置默认tensor类型为GCU")
+        # 注意：torch_gcu没有GcuFloatTensor属性，不设置默认tensor类型
+        # 模型设备放置将在Runner创建后手动处理
+        print(f"🔧 [Rank {rank}] 跳过默认tensor类型设置，将在Runner创建后手动处理模型设备")
         
     else:
         cfg.device = 'cpu'
