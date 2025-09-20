@@ -29,7 +29,7 @@ except ImportError as e:
 
 # 尝试导入GCU支持
 try:
-    import torch_gcu
+    import torch_gcu  # type: ignore
     print(f"torch_gcu version: {torch_gcu.__version__}")
     GCU_AVAILABLE = True
 except ImportError:
@@ -41,7 +41,6 @@ try:
     from mmengine import Config
     from mmengine.runner import Runner
     from mmengine.logging import print_log
-    from mmseg.registry import RUNNERS
     print("MMSegmentation modules imported successfully")
 except ImportError as e:
     print(f"Error importing MMSegmentation: {e}")
@@ -58,9 +57,9 @@ def setup_distributed_environment():
     print(f"Distributed setup: rank={rank}, local_rank={local_rank}, world_size={world_size}")
     
     # 设置设备
-    if GCU_AVAILABLE and torch.gcu.is_available():
+    if GCU_AVAILABLE and hasattr(torch, 'gcu') and torch.gcu.is_available():  # type: ignore
         device = f'gcu:{local_rank}'
-        torch.gcu.set_device(local_rank)
+        torch.gcu.set_device(local_rank)  # type: ignore
         print(f"Using GCU device: {device}")
     else:
         device = f'cuda:{local_rank}' if torch.cuda.is_available() else 'cpu'
@@ -143,15 +142,15 @@ def modify_config_for_distributed(cfg, rank, world_size, work_dir, amp=False, au
     if amp:
         if not hasattr(cfg, 'optim_wrapper'):
             cfg.optim_wrapper = dict()
-        cfg.optim_wrapper.type = 'AmpOptimWrapper'
-        cfg.optim_wrapper.loss_scale = 'dynamic'
+        cfg.optim_wrapper['type'] = 'AmpOptimWrapper'
+        cfg.optim_wrapper['loss_scale'] = 'dynamic'
         print("Automatic Mixed Precision (AMP) enabled")
     
     # 设置随机种子
     if not hasattr(cfg, 'randomness'):
         cfg.randomness = dict()
-    cfg.randomness.seed = 42
-    cfg.randomness.deterministic = False
+    cfg.randomness['seed'] = 42
+    cfg.randomness['deterministic'] = False
     
     # 设置日志配置
     if hasattr(cfg, 'default_hooks') and hasattr(cfg.default_hooks, 'logger'):
