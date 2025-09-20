@@ -181,9 +181,8 @@ def main():
     if torch_gcu is not None:
         device = f'gcu:{local_rank}'
         
-        # 1. 设置模型初始化设备
-        if hasattr(cfg, 'model') and isinstance(cfg.model, dict):
-            cfg.model['init_cfg'] = {'type': 'Normal', 'std': 0.01}
+        # 1. 设置当前GCU设备
+        torch_gcu.set_device(local_rank)
         
         # 2. 配置分布式训练设备
         cfg.device = device
@@ -210,6 +209,47 @@ def main():
     # 创建Runner并开始训练
     print("🚀 创建Runner...")
     runner = Runner.from_cfg(cfg)
+    
+    # 关键修复：在DDP包装前确保模型在正确的GCU设备上
+    if torch_gcu is not None and hasattr(runner, 'model'):
+        print("🔧 T20环境：确保模型在正确的GCU设备上...")
+        
+        # 检查模型当前设备
+        model_devices = set()
+        param_count = 0
+        for name, param in runner.model.named_parameters():
+            model_devices.add(str(param.device))
+            param_count += 1
+            if param_count >= 3:  # 检查前几个参数
+                break
+        
+        print(f"🔍 模型当前设备分布: {model_devices}")
+        print(f"🔍 检查了 {param_count} 个参数")
+        
+        # 如果模型参数在CPU上，必须移动到GCU设备
+        if any('cpu' in device_str for device_str in model_devices):
+            print(f"🔄 T20关键修复：将模型从CPU移动到 gcu:{local_rank}...")
+            
+            # 强制移动模型到GCU设备
+            runner.model = runner.model.to(f'gcu:{local_rank}')
+            
+            # 验证移动是否成功
+            verification_devices = set()
+            for name, param in runner.model.named_parameters():
+                verification_devices.add(str(param.device))
+                if len(verification_devices) >= 2:  # 检查多个参数确保一致性
+                    break
+            
+            print(f"✅ 模型移动后设备分布: {verification_devices}")
+            
+            # 确保所有参数都在正确的GCU设备上
+            expected_device = f'gcu:{local_rank}'
+            if all(expected_device in device_str for device_str in verification_devices):
+                print(f"✅ 模型成功移动到 {expected_device}")
+            else:
+                print(f"❌ 模型移动失败，期望设备: {expected_device}, 实际设备: {verification_devices}")
+        else:
+            print(f"✅ 模型已在正确的GCU设备上: {model_devices}")
     
     # 验证模型设备设置
     if torch_gcu is not None and hasattr(runner, 'model'):
