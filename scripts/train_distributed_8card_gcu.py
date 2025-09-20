@@ -287,65 +287,9 @@ def main():
     # 创建Runner并开始训练
     print("🚀 创建Runner...")
     
-    # 关键修复：在Runner创建前预先构建模型并移动到GCU
-    if torch_gcu is not None:
-        print("🔧 预构建模型并强制移动到GCU设备...")
-        
-        # 临时构建模型以确保设备配置正确
-        from mmengine.registry import MODELS
-        
-        # 设置当前设备
-        device = "gcu:{}".format(local_rank)
-        torch_gcu.set_device(local_rank)
-        
-        # 构建模型
-        model = MODELS.build(cfg.model)
-        
-        # 使用torch_gcu API正确移动模型到GCU设备
-        if torch_gcu and torch_gcu.is_available():
-            print(f"🔧 使用torch_gcu API移动模型到设备: {local_rank}")
-            # 设置当前GCU设备
-            torch_gcu.set_device(local_rank)
-            
-            # 使用XLA设备接口移动模型到GCU设备（T20服务器标准方式）
-            xla_device = f'xla:{local_rank}'
-            model = model.to(xla_device)
-            
-            print(f"✅ 模型已移动到GCU设备: {xla_device}")
-        else:
-            print("⚠️ torch_gcu不可用，尝试使用标准PyTorch API")
-            # 回退到标准PyTorch（可能不支持GCU）
-            if 'gcu' in str(device):
-                print("❌ 标准PyTorch不支持GCU设备，请检查torch_gcu安装")
-                raise RuntimeError("torch_gcu未正确安装或不可用")
-            model = model.to(device)
-        
-        # 验证模型设备
-        sample_params = list(model.parameters())[:3]
-        if sample_params:
-            param_devices = [str(p.device) for p in sample_params]
-            print("🔍 预构建模型设备验证: {}".format(param_devices))
-            
-            # 检查是否成功移动到GCU
-            if any('cpu' in dev for dev in param_devices):
-                print("🚨 模型参数仍在CPU上，尝试强制移动...")
-                if torch_gcu and torch_gcu.is_available():
-                    # 使用XLA设备接口移动参数到GCU设备（T20服务器标准方式）
-                    xla_device = f'xla:{local_rank}'
-                    for param in model.parameters():
-                        param.data = param.data.to(xla_device)
-                else:
-                    print("❌ 无法移动到GCU设备，torch_gcu不可用")
-                    raise RuntimeError("无法将模型移动到GCU设备")
-                
-                # 再次验证
-                sample_params = list(model.parameters())[:3]
-                param_devices = [str(p.device) for p in sample_params]
-                print("✅ 强制移动后设备: {}".format(param_devices))
-        
-        # 将预构建的模型设置回配置
-        cfg.model = model
-        print("✅ 模型已预构建并移动到GCU设备")
+    # 让Runner自己根据配置字典构建模型，不要提前构建
+    # 这样可以避免yapf格式化错误，因为cfg.model保持为字典格式
+    print("🔧 让Runner自动构建模型，保持cfg.model为配置字典格式")
     
     runner = Runner.from_cfg(cfg)
     
@@ -365,14 +309,16 @@ def main():
         print("🔍 模型设备分布: {}".format(model_devices))
         print("🔍 检查了 {} 个参数".format(param_count))
         
-        expected_device = "gcu:{}".format(local_rank)
-        
-        # 如果模型仍在CPU上，这是最后的修复机会
+        # 如果模型在CPU上，使用正确的GCU API移动到设备
         if any('cpu' in device_str for device_str in model_devices):
-            print("🚨 紧急修复：模型仍在CPU上，强制移动到 {}".format(expected_device))
+            print("🔧 模型在CPU上，移动到GCU设备...")
             
-            # 强制移动模型到GCU设备
-            runner.model = runner.model.to(expected_device)
+            # 设置当前GCU设备
+            torch_gcu.set_device(local_rank)
+            
+            # 使用XLA设备接口移动模型到GCU设备（T20服务器标准方式）
+            xla_device = f'xla:{local_rank}'
+            runner.model = runner.model.to(xla_device)
             
             # 再次验证
             verification_devices = set()
@@ -381,9 +327,9 @@ def main():
                 if len(verification_devices) >= 2:
                     break
             
-            print("✅ 紧急修复后设备分布: {}".format(verification_devices))
+            print("✅ 模型已移动到GCU设备: {}".format(verification_devices))
         else:
-            print("✅ 模型已正确配置在GCU设备上: {}".format(model_devices))
+            print("✅ 模型已正确配置在设备上: {}".format(model_devices))
     
     print("✅ Runner创建完成，设备配置验证通过")
     
