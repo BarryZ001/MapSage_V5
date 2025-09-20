@@ -11,6 +11,9 @@ export WORLD_SIZE=8
 export MASTER_ADDR=localhost
 export MASTER_PORT=29500
 
+# IMPORTANT: Disable eventlet from wandb to prevent socket errors in container.
+export WANDB_DISABLE_EVENTLET=true
+
 # 设置GCU相关环境变量
 export CUDA_VISIBLE_DEVICES=""  # 禁用CUDA
 export GCU_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
