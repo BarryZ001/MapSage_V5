@@ -78,7 +78,7 @@ def check_torch_gcu():
     print("=== torch_gcu模块检查 ===")
     
     try:
-        import torch_gcu
+        import torch_gcu  # type: ignore
         print("✅ torch_gcu模块导入成功")
         print("torch_gcu版本:", getattr(torch_gcu, '__version__', '未知'))
         print("可用GCU设备数:", torch_gcu.device_count())
