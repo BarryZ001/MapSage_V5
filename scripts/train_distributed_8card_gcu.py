@@ -21,27 +21,34 @@ from mmengine.runner import Runner
 # 尝试导入GCU相关库
 try:
     import torch_gcu
-    print(f"✅ torch_gcu导入成功，可用设备数: {torch_gcu.device_count()}")
+    print("✅ torch_gcu导入成功，可用设备数: {}".format(torch_gcu.device_count()))
 except ImportError as e:
-    print(f"⚠️ torch_gcu导入失败: {e}")
+    print("⚠️ torch_gcu导入失败: {}".format(e))
     torch_gcu = None
 
 try:
     import ptex
     print("✅ ptex导入成功")
 except ImportError as e:
-    print(f"⚠️ ptex导入失败: {e}")
+    print("⚠️ ptex导入失败: {}".format(e))
     ptex = None
 
-# 导入MMSeg相关模块
+# 尝试导入MMSeg相关模块
 try:
     import mmseg  # type: ignore
     from mmseg.models import *  # type: ignore
     from mmseg.datasets import *  # type: ignore
 except ImportError as e:
-    print(f"⚠️ 模块导入失败: {e}")
+    print("⚠️ 模块导入失败: {}".format(e))
 
-# 导入必要的MMSeg组件
+# 尝试导入自定义模块
+try:
+    from mmseg_custom.models import *  # type: ignore
+    from mmseg_custom.datasets import *  # type: ignore
+except ImportError as e:
+    print("⚠️ 自定义模块导入失败: {}".format(e))
+
+# 尝试导入MMSeg模型组件并注册
 try:
     import mmseg
     import mmseg.models
@@ -49,7 +56,6 @@ try:
     from mmseg.models.decode_heads import SegformerHead
     from mmseg.models.segmentors import EncoderDecoder
     
-    # 确保模型注册到MMEngine
     from mmengine.registry import MODELS
     if 'MixVisionTransformer' not in MODELS.module_dict:
         MODELS.register_module(name='MixVisionTransformer', module=MixVisionTransformer)
@@ -65,42 +71,41 @@ try:
         
     print("✅ MMSeg模型组件导入和注册成功")
 except ImportError as e:
-    print(f"⚠️ MMSeg导入失败: {e}")
+    print("⚠️ MMSeg导入失败: {}".format(e))
     print("⚠️ 将使用自定义模型组件")
 
 def setup_distributed():
-    """初始化分布式训练环境"""
-    # 从环境变量获取分布式训练参数
-    world_size = int(os.environ.get('WORLD_SIZE', 1))
+    """设置分布式训练环境"""
+    # 获取分布式训练参数
+    world_size = int(os.environ.get('WORLD_SIZE', 8))
     rank = int(os.environ.get('RANK', 0))
     local_rank = int(os.environ.get('LOCAL_RANK', 0))
     
-    print(f"🌍 分布式训练参数:")
-    print(f"  - WORLD_SIZE: {world_size}")
-    print(f"  - RANK: {rank}")
-    print(f"  - LOCAL_RANK: {local_rank}")
+    print("🌍 分布式训练参数:")
+    print("  - WORLD_SIZE: {}".format(world_size))
+    print("  - RANK: {}".format(rank))
+    print("  - LOCAL_RANK: {}".format(local_rank))
     
-    if world_size > 1:
-        # 初始化分布式进程组
-        if not dist.is_initialized():
-            # 设置分布式后端
-            backend = 'eccl'  # GCU环境使用eccl后端
-            init_method = 'env://'
-            
-            print(f"🔧 初始化分布式进程组:")
-            print(f"  - Backend: {backend}")
-            print(f"  - Init method: {init_method}")
-            
-            dist.init_process_group(
-                backend=backend,
-                init_method=init_method,
-                world_size=world_size,
-                rank=rank
-            )
-            
-            print(f"✅ 分布式进程组初始化成功")
-        else:
-            print("✅ 分布式进程组已初始化")
+    # 设置分布式后端
+    backend = 'eccl'  # 燧原T20使用eccl后端
+    init_method = 'env://'
+    
+    print("🔧 初始化分布式进程组:")
+    print("  - Backend: {}".format(backend))
+    print("  - Init method: {}".format(init_method))
+    
+    # 初始化分布式进程组
+    try:
+        dist.init_process_group(
+            backend=backend,
+            init_method=init_method,
+            world_size=world_size,
+            rank=rank
+        )
+        print("✅ 分布式进程组初始化成功")
+    except Exception as e:
+        print("❌ 分布式进程组初始化失败: {}".format(e))
+        raise
     
     return world_size, rank, local_rank
 
@@ -112,9 +117,9 @@ def main():
     parser.add_argument('--local_rank', type=int, default=0, help='本地进程rank')
     args = parser.parse_args()
     
-    print(f"🚀 启动8卡分布式训练")
-    print(f"📄 配置文件: {args.config}")
-    print(f"🔧 启动器: {args.launcher}")
+    print("🚀 启动8卡分布式训练")
+    print("📄 配置文件: {}".format(args.config))
+    print("🔧 启动器: {}".format(args.launcher))
     
     # 设置分布式环境
     world_size, rank, local_rank = setup_distributed()
@@ -126,12 +131,12 @@ def main():
     if hasattr(cfg, 'work_dir') and cfg.work_dir:
         if not os.path.exists(cfg.work_dir):
             os.makedirs(cfg.work_dir, exist_ok=True)
-            print(f"📁 创建工作目录: {cfg.work_dir}")
+            print("📁 创建工作目录: {}".format(cfg.work_dir))
     else:
         # 如果配置文件没有work_dir，设置默认值
         cfg.work_dir = './work_dirs/train_distributed_8card_gcu'
         os.makedirs(cfg.work_dir, exist_ok=True)
-        print(f"📁 设置默认工作目录: {cfg.work_dir}")
+        print("📁 设置默认工作目录: {}".format(cfg.work_dir))
     
     # 设置日志目录
     log_dir = os.path.join(cfg.work_dir, 'logs')
@@ -141,49 +146,49 @@ def main():
     # 更新配置以支持分布式训练
     if world_size > 1:
         cfg.launcher = args.launcher
-        print(f"🔧 启用分布式训练，launcher: {args.launcher}")
+        print("🔧 启用分布式训练，launcher: {}".format(args.launcher))
         # 配置GCU设备，让MMEngine自动处理分布式
         cfg.device = 'gcu'
-        print(f"🔧 配置GCU设备，world_size: {world_size}")
+        print("🔧 配置GCU设备，world_size: {}".format(world_size))
     else:
         cfg.launcher = 'none'
         print("🔧 单进程模式，禁用分布式")
         # 单卡训练配置
         cfg.device = 'gcu'
-        print(f"🔧 配置单卡GCU设备")
+        print("🔧 配置单卡GCU设备")
     
     # 调整batch size（每个进程的batch size）
     if hasattr(cfg, 'train_dataloader') and 'batch_size' in cfg.train_dataloader:
         original_batch_size = cfg.train_dataloader.batch_size
         # 8卡分布式训练，每卡保持配置的batch_size
-        print(f"📊 每卡batch size: {original_batch_size}")
-        print(f"📊 总batch size: {original_batch_size * world_size}")
+        print("📊 每卡batch size: {}".format(original_batch_size))
+        print("📊 总batch size: {}".format(original_batch_size * world_size))
     
-    print(f"📁 工作目录: {cfg.work_dir}")
-    print(f"🚀 启动训练 - Rank {rank}/{world_size}")
+    print("📁 工作目录: {}".format(cfg.work_dir))
+    print("🚀 启动训练 - Rank {}/{}".format(rank, world_size))
     
     # 设置GCU设备
     if torch_gcu is not None:
         torch_gcu.set_device(local_rank)
-        print(f"🔧 设置当前进程GCU设备: {local_rank}")
+        print("🔧 设置当前进程GCU设备: {}".format(local_rank))
         
         # 设置默认设备类型为GCU，确保新创建的tensor都在GCU上
         try:
             # 检查torch版本是否支持set_default_device
             if hasattr(torch, 'set_default_device'):
-                torch.set_default_device(f'gcu:{local_rank}')
-                print(f"🔧 设置默认tensor设备为: gcu:{local_rank}")
+                torch.set_default_device("gcu:{}".format(local_rank))
+                print("🔧 设置默认tensor设备为: gcu:{}".format(local_rank))
             else:
-                print(f"⚠️ torch版本不支持set_default_device，跳过设置")
+                print("⚠️ torch版本不支持set_default_device，跳过设置")
         except Exception as e:
-            print(f"⚠️ 设置默认设备失败: {e}")
+            print("⚠️ 设置默认设备失败: {}".format(e))
     
     # 修改配置以避免MMEngine的设备不匹配问题
     print("🔧 修改配置以适配GCU设备...")
     
     # 关键修复：配置MMEngine使用正确的设备
     if torch_gcu is not None:
-        device = f'gcu:{local_rank}'
+        device = "gcu:{}".format(local_rank)
         
         # 1. 设置当前GCU设备
         torch_gcu.set_device(local_rank)
@@ -207,8 +212,8 @@ def main():
             cfg.model_wrapper_cfg.pop('device_ids', None)
             cfg.model_wrapper_cfg.pop('output_device', None)
         
-        print(f"🔧 配置设备为: {device}")
-        print(f"🔧 配置分布式后端为: gloo")
+        print("🔧 配置设备为: {}".format(device))
+        print("🔧 配置分布式后端为: gloo")
     
     # 创建Runner并开始训练
     print("🚀 创建Runner...")
@@ -227,15 +232,15 @@ def main():
             if param_count >= 3:  # 检查前几个参数
                 break
         
-        print(f"🔍 模型当前设备分布: {model_devices}")
-        print(f"🔍 检查了 {param_count} 个参数")
+        print("🔍 模型当前设备分布: {}".format(model_devices))
+        print("🔍 检查了 {} 个参数".format(param_count))
         
         # 如果模型参数在CPU上，必须移动到GCU设备
         if any('cpu' in device_str for device_str in model_devices):
-            print(f"🔄 T20关键修复：将模型从CPU移动到 gcu:{local_rank}...")
+            print("🔄 T20关键修复：将模型从CPU移动到 gcu:{}...".format(local_rank))
             
             # 强制移动模型到GCU设备
-            runner.model = runner.model.to(f'gcu:{local_rank}')
+            runner.model = runner.model.to("gcu:{}".format(local_rank))
             
             # 验证移动是否成功
             verification_devices = set()
@@ -244,16 +249,16 @@ def main():
                 if len(verification_devices) >= 2:  # 检查多个参数确保一致性
                     break
             
-            print(f"✅ 模型移动后设备分布: {verification_devices}")
+            print("✅ 模型移动后设备分布: {}".format(verification_devices))
             
             # 确保所有参数都在正确的GCU设备上
-            expected_device = f'gcu:{local_rank}'
+            expected_device = "gcu:{}".format(local_rank)
             if all(expected_device in device_str for device_str in verification_devices):
-                print(f"✅ 模型成功移动到 {expected_device}")
+                print("✅ 模型成功移动到 {}".format(expected_device))
             else:
-                print(f"❌ 模型移动失败，期望设备: {expected_device}, 实际设备: {verification_devices}")
+                print("❌ 模型移动失败，期望设备: {}, 实际设备: {}".format(expected_device, verification_devices))
         else:
-            print(f"✅ 模型已在正确的GCU设备上: {model_devices}")
+            print("✅ 模型已在正确的GCU设备上: {}".format(model_devices))
     
     # 验证模型设备设置
     if torch_gcu is not None and hasattr(runner, 'model'):
@@ -264,17 +269,17 @@ def main():
         for name, param in runner.model.named_parameters():
             device_types.add(param.device.type)
         
-        print(f"📊 模型参数设备类型: {device_types}")
+        print("📊 模型参数设备类型: {}".format(device_types))
         
         if 'cpu' in device_types and len(device_types) > 1:
             print("⚠️ 检测到混合设备，正在修复...")
-            device = f'gcu:{local_rank}'
+            device = "gcu:{}".format(local_rank)
             runner.model = runner.model.to(device)
-            print(f"✅ 模型已移动到: {device}")
+            print("✅ 模型已移动到: {}".format(device))
         elif 'gcu' in device_types:
             print("✅ 模型已正确配置在GCU设备上")
         else:
-            print(f"⚠️ 模型在意外设备上: {device_types}")
+            print("⚠️ 模型在意外设备上: {}".format(device_types))
     
     print("✅ Runner创建完成，设备配置验证通过")
     
