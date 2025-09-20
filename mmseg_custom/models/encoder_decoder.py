@@ -58,9 +58,6 @@ class EncoderDecoder(BaseModel):
     
     def extract_feat(self, inputs: torch.Tensor) -> List[torch.Tensor]:
         """提取特征"""
-        print(f"[DEBUG] EncoderDecoder.extract_feat called")
-        print(f"[DEBUG] inputs shape: {inputs.shape}")
-        
         x = self.backbone(inputs)
         if self.neck is not None:
             x = self.neck(x)
@@ -89,9 +86,6 @@ class EncoderDecoder(BaseModel):
                 mode: str = 'tensor') -> Union[Dict[str, torch.Tensor], List[Any]]:
         """前向传播"""
         
-        print(f"[DEBUG] EncoderDecoder.forward called with mode: {mode}")
-        print(f"[DEBUG] inputs type: {type(inputs)}")
-        
         # 处理data_preprocessor的输出格式
         if isinstance(inputs, dict):
             # 如果inputs是dict，提取真实的inputs和data_samples
@@ -99,9 +93,6 @@ class EncoderDecoder(BaseModel):
             if data_samples is None and 'data_samples' in inputs:
                 data_samples = inputs['data_samples']
             inputs = actual_inputs
-            print(f"[DEBUG] Extracted inputs from dict, shape: {inputs.shape}")
-        
-        print(f"[DEBUG] Final inputs shape: {inputs.shape}")
         
         if mode == 'loss':
             return self.loss(inputs, data_samples)
@@ -110,19 +101,13 @@ class EncoderDecoder(BaseModel):
             # 确保返回类型符合BaseModel要求
             return result if isinstance(result, list) else [result]
         elif mode == 'tensor':
-            # tensor模式应该返回Dict[str, torch.Tensor]
-            seg_logits = self.encode_decode(inputs, [])
-            return {'seg_logits': seg_logits}
+            return self._forward(inputs, data_samples)
         else:
-            raise ValueError(f"Invalid mode '{mode}'. "
-                           "Only supports loss, predict and tensor mode")
+            raise RuntimeError(f'Invalid mode "{mode}". '
+                             'Only supports loss, predict and tensor mode')
     
     def loss(self, inputs: torch.Tensor, data_samples: Any) -> Dict[str, torch.Tensor]:
         """计算损失"""
-        print(f"[DEBUG] EncoderDecoder.loss called")
-        print(f"[DEBUG] inputs shape: {inputs.shape}")
-        print(f"[DEBUG] data_samples type: {type(data_samples)}")
-        
         x = self.extract_feat(inputs)
         
         losses: Dict[str, torch.Tensor] = {}

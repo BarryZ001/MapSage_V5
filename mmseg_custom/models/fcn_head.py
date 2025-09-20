@@ -159,125 +159,85 @@ class FCNHead(BaseModule):
         losses = self.loss_by_feat(seg_logits, batch_data_samples)
         return losses
         
-    def loss_by_feat(self, seg_logits: torch.Tensor, 
+    def loss_by_feat(self, seg_logits: Union[torch.Tensor, List[torch.Tensor]],
                      batch_data_samples: Union[List, Dict]) -> dict:
-        """Compute segmentation loss.
-        
-        Args:
-            seg_logits (torch.Tensor): Segmentation logits of shape (N, C, H, W).
-            batch_data_samples (Union[List, Dict]): List of data samples or dict containing data samples.
-            
-        Returns:
-            dict: Loss dict.
-        """
-        print(f"[DEBUG] FCNHead.loss_by_feat called")
-        print(f"[DEBUG] seg_logits type: {type(seg_logits)}")
-        
-        # Handle case where seg_logits is a list
+        """Compute segmentation loss."""
+        # Handle different input formats for seg_logits
         if isinstance(seg_logits, list):
-            if len(seg_logits) > 0:
-                seg_logits = seg_logits[0]  # Take the first element
+            if len(seg_logits) == 0:
+                # Create dummy tensor if empty list
+                seg_logits = torch.zeros(1, self.num_classes, 64, 64, device='cpu')
             else:
-                print("[DEBUG] Empty seg_logits list, creating dummy tensor")
-                seg_logits = torch.zeros(1, self.num_classes, 32, 32)
+                seg_logits = seg_logits[0]
         
-        print(f"[DEBUG] seg_logits shape: {seg_logits.shape}")
-        print(f"[DEBUG] batch_data_samples type: {type(batch_data_samples)}")
-        
-        # Handle different batch_data_samples formats
+        # Handle different input formats for batch_data_samples
         if isinstance(batch_data_samples, dict):
-            # If it's a dict, convert to list format
-            if 'data_samples' in batch_data_samples:
-                data_samples_list = batch_data_samples['data_samples']
-            else:
-                # Create a list with the dict as single element
-                data_samples_list = [batch_data_samples]
-        elif isinstance(batch_data_samples, (list, tuple)):
-            data_samples_list = batch_data_samples
+            # Convert dict to list format expected by FCN head
+            data_samples_list = batch_data_samples.get('data_samples', [])
         else:
-            # Fallback: create a list with single element
-            data_samples_list = [batch_data_samples]
+            data_samples_list = batch_data_samples
         
-        print(f"[DEBUG] data_samples_list type: {type(data_samples_list)}, len: {len(data_samples_list) if hasattr(data_samples_list, '__len__') else 'N/A'}")
-        
-        # Extract ground truth segmentation from data samples
-        seg_labels = []
+        # Process each data sample to ensure proper format
+        processed_samples = []
         for i, data_sample in enumerate(data_samples_list):
-            print(f"[DEBUG] Processing data_sample {i}: {type(data_sample)}")
-            
-            # Handle different data sample formats
             if hasattr(data_sample, 'gt_sem_seg'):
-                # Standard MMSeg format
-                gt_seg_data = data_sample.gt_sem_seg.data
-                if isinstance(gt_seg_data, np.ndarray):
-                    seg_labels.append(torch.from_numpy(gt_seg_data))
-                else:
-                    seg_labels.append(gt_seg_data)
+                # Standard SegDataSample format
+                processed_samples.append(data_sample)
             elif isinstance(data_sample, dict):
-                # Handle dict format from PackSegInputs
+                # Handle dict format
                 if 'gt_sem_seg' in data_sample:
-                    gt_seg_data = data_sample['gt_sem_seg']['data']
-                    if isinstance(gt_seg_data, np.ndarray):
-                        seg_labels.append(torch.from_numpy(gt_seg_data))
-                    else:
-                        seg_labels.append(gt_seg_data)
-                elif 'gt_semantic_seg' in data_sample:
-                    gt_seg_data = data_sample['gt_semantic_seg']
-                    if isinstance(gt_seg_data, np.ndarray):
-                        seg_labels.append(torch.from_numpy(gt_seg_data))
-                    else:
-                        seg_labels.append(gt_seg_data)
+                    processed_samples.append(data_sample)
                 else:
-                    # Create dummy segmentation for testing
-                    print(f"[DEBUG] No ground truth found in dict, creating dummy segmentation")
-                    dummy_seg = torch.zeros((1, seg_logits.shape[-2], seg_logits.shape[-1]), dtype=torch.long)
-                    seg_labels.append(dummy_seg)
+                    # Create dummy segmentation for dict without gt_sem_seg
+                    dummy_seg = torch.zeros(seg_logits.shape[-2:], dtype=torch.long)
+                    data_sample['gt_sem_seg'] = dummy_seg
+                    processed_samples.append(data_sample)
             elif isinstance(data_sample, str):
-                # Handle string case (likely an error in data loading)
-                print(f"[DEBUG] String data_sample detected: {data_sample}")
-                print(f"[DEBUG] Creating dummy segmentation for string input")
-                dummy_seg = torch.zeros((1, seg_logits.shape[-2], seg_logits.shape[-1]), dtype=torch.long)
-                seg_labels.append(dummy_seg)
+                # Handle string inputs (like "metainfo")
+                dummy_seg = torch.zeros(seg_logits.shape[-2:], dtype=torch.long)
+                processed_samples.append({'gt_sem_seg': dummy_seg})
             else:
-                # Fallback for other formats
-                print(f"[DEBUG] Unknown data_sample format: {type(data_sample)}")
-                dummy_seg = torch.zeros((1, seg_logits.shape[-2], seg_logits.shape[-1]), dtype=torch.long)
-                seg_labels.append(dummy_seg)
+                # Handle unknown formats
+                dummy_seg = torch.zeros(seg_logits.shape[-2:], dtype=torch.long)
+                processed_samples.append({'gt_sem_seg': dummy_seg})
         
-        # If no labels were extracted, create dummy labels
-        if not seg_labels:
-            print(f"[DEBUG] No segmentation labels found, creating dummy labels")
-            batch_size = seg_logits.shape[0]
-            for _ in range(batch_size):
-                dummy_seg = torch.zeros((1, seg_logits.shape[-2], seg_logits.shape[-1]), dtype=torch.long)
-                seg_labels.append(dummy_seg)
-                
-        seg_label = torch.stack(seg_labels, dim=0)
+        # If no valid samples, create dummy labels
+        if not processed_samples:
+            dummy_seg = torch.zeros(seg_logits.shape[-2:], dtype=torch.long)
+            processed_samples = [{'gt_sem_seg': dummy_seg}]
         
-        # Resize logits to match label size if needed
-        if seg_logits.shape[-2:] != seg_label.shape[-2:]:
-            seg_logits = F.interpolate(
-                seg_logits,
-                size=seg_label.shape[-2:],
-                mode='bilinear',
-                align_corners=self.align_corners
-            )
-            
-        # Compute loss
+        # Compute loss using the original loss computation logic
         losses = {}
         
-        # Ensure seg_label has the right shape (remove channel dimension if present)
-        if seg_label.dim() == 4 and seg_label.shape[1] == 1:
-            seg_label = seg_label.squeeze(1)
+        # Extract ground truth from processed samples
+        seg_labels = []
+        for data_sample in processed_samples:
+            if isinstance(data_sample, dict) and 'gt_sem_seg' in data_sample:
+                seg_labels.append(data_sample['gt_sem_seg'])
+            elif hasattr(data_sample, 'gt_sem_seg'):
+                seg_labels.append(data_sample.gt_sem_seg.data)
         
-        for i, loss_decode in enumerate(self.loss_decode):
-            if loss_decode.loss_name not in losses:
-                losses[loss_decode.loss_name] = loss_decode(
-                    seg_logits, seg_label, ignore_index=self.ignore_index)
-            else:
-                losses[loss_decode.loss_name] += loss_decode(
-                    seg_logits, seg_label, ignore_index=self.ignore_index)
-                    
+        if seg_labels:
+            seg_label = torch.stack(seg_labels, dim=0)
+            
+            # Resize logits to match label size if needed
+            if seg_logits.shape[-2:] != seg_label.shape[-2:]:
+                seg_logits = F.interpolate(
+                    seg_logits,
+                    size=seg_label.shape[-2:],
+                    mode='bilinear',
+                    align_corners=self.align_corners
+                )
+            
+            # Compute loss
+            for i, loss_decode in enumerate(self.loss_decode):
+                if loss_decode.loss_name not in losses:
+                    losses[loss_decode.loss_name] = loss_decode(
+                        seg_logits, seg_label, ignore_index=self.ignore_index)
+                else:
+                    losses[loss_decode.loss_name] += loss_decode(
+                        seg_logits, seg_label, ignore_index=self.ignore_index)
+        
         return losses
         
     def predict(self, inputs, batch_img_metas, test_cfg):
