@@ -236,6 +236,16 @@ class FCNHead(BaseModule):
         if seg_labels:
             seg_label = torch.stack(seg_labels, dim=0)
             
+            # Ensure seg_label is 3D (batch_size, height, width) for cross-entropy loss
+            # Cross-entropy expects spatial targets to be 3D tensors, not 4D
+            if seg_label.dim() == 4:
+                # If seg_label is 4D (batch_size, channels, height, width), squeeze the channel dimension
+                if seg_label.shape[1] == 1:
+                    seg_label = seg_label.squeeze(1)  # Remove channel dimension
+                else:
+                    # If multiple channels, take the first channel or argmax
+                    seg_label = seg_label[:, 0, :, :]  # Take first channel
+            
             # Resize logits to match label size if needed
             if seg_logits.shape[-2:] != seg_label.shape[-2:]:
                 seg_logits = F.interpolate(
