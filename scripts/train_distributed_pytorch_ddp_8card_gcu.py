@@ -30,11 +30,18 @@ except ImportError as e:
 # 尝试导入GCU支持
 try:
     import torch_gcu  # type: ignore
-    print(f"torch_gcu version: {torch_gcu.__version__}")
+    # 安全地检查torch_gcu版本
+    if hasattr(torch_gcu, '__version__'):
+        print(f"torch_gcu version: {torch_gcu.__version__}")
+    else:
+        print("torch_gcu imported successfully (version info not available)")
     GCU_AVAILABLE = True
 except ImportError:
     print("Warning: torch_gcu not available. GCU device support disabled.")
     GCU_AVAILABLE = False
+except AttributeError as e:
+    print(f"Warning: torch_gcu version check failed: {e}")
+    GCU_AVAILABLE = True  # 仍然可以使用GCU功能
 
 # 导入MMSegmentation相关模块
 try:
