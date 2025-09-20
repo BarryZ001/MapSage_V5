@@ -266,11 +266,17 @@ default_hooks = dict(
     )
 )
 
-# 环境配置 - 适配燧原T20 GCU
+# 环境配置 - 适配燧原T20 GCU# 环境配置
 env_cfg = dict(
     cudnn_benchmark=False,  # GCU环境关闭cudnn
     mp_cfg=dict(mp_start_method='fork', opencv_num_threads=0),
     dist_cfg=dict(backend='gloo')  # 使用gloo后端适配GCU
+)
+
+# GCU设备配置
+device_cfg = dict(
+    type='gcu',  # 指定使用GCU设备
+    device_ids=[0, 1, 2, 3, 4, 5, 6, 7],  # 使用所有8个GCU设备
 )
 
 # 可视化后端
@@ -340,7 +346,7 @@ distillation_config = dict(
 model_ema_config = dict(
     enable=True,
     momentum=0.9999,
-    device='cpu'  # GCU环境使用CPU进行EMA
+    device='xla'  # GCU环境使用xla设备
 )
 
 # 混合精度训练（GCU环境可能需要调整）

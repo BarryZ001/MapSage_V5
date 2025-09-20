@@ -11,6 +11,14 @@ from mmengine.registry import MODELS
 from mmengine.structures import BaseDataElement
 import numpy as np
 
+# 导入GCU支持
+try:
+    import torch_gcu
+    import ptex
+    GCU_AVAILABLE = True
+except ImportError:
+    GCU_AVAILABLE = False
+
 
 @MODELS.register_module()
 class SegDataPreProcessor(BaseDataPreprocessor):
@@ -99,8 +107,14 @@ class SegDataPreProcessor(BaseDataPreprocessor):
             if batch_inputs.dim() == 3:
                 batch_inputs = batch_inputs.unsqueeze(0)
         
-        # Move to device
-        batch_inputs = batch_inputs.to(self.device)
+        # Move to device - 支持GCU设备
+        if GCU_AVAILABLE and hasattr(self, 'device') and self.device == 'xla':
+            # 使用ptex将数据移动到GCU设备
+            device = ptex.device("xla")
+            batch_inputs = batch_inputs.to(device)
+        else:
+            # 使用标准PyTorch设备移动
+            batch_inputs = batch_inputs.to(self.device)
         
         return {'inputs': batch_inputs, 'data_samples': data_samples}
     
