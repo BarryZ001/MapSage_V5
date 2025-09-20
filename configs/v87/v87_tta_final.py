@@ -101,7 +101,7 @@ test_cfg = dict(type='TestLoop')
 
 # 运行时配置
 default_scope = 'mmseg'
-env_cfg = dict(cudnn_benchmark=True, mp_cfg=dict(mp_start_method='fork', opencv_num_threads=0), dist_cfg=dict(backend='nccl'))
+env_cfg = dict(cudnn_benchmark=True, mp_cfg=dict(mp_start_method='fork', opencv_num_threads=0), dist_cfg=dict(backend='eccl'))  # 修改为eccl支持GCU
 log_processor = dict(by_epoch=False)
 log_level = 'INFO'
 load_from = None

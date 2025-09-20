@@ -47,23 +47,16 @@ try:
         device_count = torch_gcu.device_count()
         print(f'✅ 可用GCU设备数量: {device_count}')
         
-        # 测试GCU张量操作
-        device = torch.device('gcu:0')
+        # 测试GCU张量操作 - 修复设备字符串问题
         x = torch.randn(2, 3)
-        # 注意：在某些torch_gcu版本中，需要使用.gcu()而不是.to(device)
+        # 在torch_gcu中，不能使用torch.device('gcu:0')，需要直接使用.gcu()方法
         try:
-            x_gcu = x.to(device)
+            x_gcu = x.gcu()
             y = x_gcu + 1
             print('✅ GCU张量操作测试通过')
         except Exception as e:
-            # 尝试备用方法
-            try:
-                x_gcu = x.gcu()
-                y = x_gcu + 1
-                print('✅ GCU张量操作测试通过 (使用.gcu()方法)')
-            except Exception as e2:
-                print(f'❌ GCU张量操作失败: {e2}')
-                sys.exit(1)
+            print(f'❌ GCU张量操作失败: {e}')
+            sys.exit(1)
     else:
         print('❌ torch_gcu不可用')
         sys.exit(1)
@@ -264,10 +257,11 @@ else
     echo "❌ T20训练环境验证失败！"
     echo ""
     echo "💡 请根据上述错误信息修复环境问题："
-    echo "   1. 运行环境修复脚本: bash scripts/fix_t20_environment.sh"
-    echo "   2. 安装MMCV和MMSeg: bash scripts/install_mmcv_mmseg_t20.sh"
-    echo "   3. 检查预训练权重路径"
-    echo "   4. 重启容器后重新验证"
+echo "   1. 如果遇到dns.rdtypes错误，运行: python3 scripts/fix_dns_rdtypes_issue.py"
+echo "   2. 运行环境修复脚本: bash scripts/fix_t20_environment.sh"
+echo "   3. 安装MMCV和MMSeg: bash scripts/install_mmcv_mmseg_t20.sh"
+echo "   4. 检查预训练权重路径"
+echo "   5. 重启容器后重新验证"
     
     exit 1
 fi
