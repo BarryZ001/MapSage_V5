@@ -240,39 +240,52 @@ def main():
     elif dist.is_initialized():
         print(f"✅ 当前后端已是正确的: {dist.get_backend()}")
     
-    # 3.2 强制将模型移动到正确的GCU设备
-    if torch_gcu is not None:
+    # 3.2 关键修复：强制将模型移动到正确的GCU设备
+    if torch_gcu is not None and hasattr(runner, 'model') and runner.model is not None:
+        # 设置当前进程的GCU设备
+        torch_gcu.set_device(local_rank)
         device = f'gcu:{local_rank}'
-        if hasattr(runner, 'model') and runner.model is not None:
-            runner.model = runner.model.to(device)
-            print(f"🔧 模型已强制移动到: {device}")
+        
+        # 强制将模型移动到GCU设备
+        runner.model = runner.model.to(device)
+        print(f"🔧 模型已强制移动到设备: {device}")
+        
+        # 验证模型设备
+        model_device = next(runner.model.parameters()).device
+        print(f"🔍 验证模型设备: {model_device}")
     
     # 3.3 转换SyncBatchNorm层以兼容DDP
     if hasattr(runner, 'model') and runner.model is not None and world_size > 1:
         try:
             from mmengine.model import convert_sync_batchnorm
             runner.model = convert_sync_batchnorm(runner.model)
-            print("🔧 Model SyncBatchNorm layers converted.")
+            print("🔧 SyncBatchNorm层已转换为DDP兼容")
         except Exception as e:
             print(f"⚠️ SyncBatchNorm转换失败: {e}")
     
-    # 3.4 重新用DDP包装模型
+    # 3.4 关键修复：重新用DDP包装模型（使用正确的参数）
     if world_size > 1 and hasattr(runner, 'model') and runner.model is not None:
         try:
             from mmengine.model import MMDistributedDataParallel
             
             # 检查模型是否已经被DDP包装
             if not isinstance(runner.model, MMDistributedDataParallel):
+                # 关键：设置device_ids=None和output_device=None以避免设备不匹配错误
                 runner.model = MMDistributedDataParallel(
                     runner.model,
-                    device_ids=None,  # 禁用device_ids
-                    output_device=None  # 禁用output_device
+                    device_ids=None,  # 关键：设为None让DDP使用模型当前设备
+                    output_device=None  # 关键：设为None避免设备冲突
                 )
-                print("✅ 模型已在正确的设备和后端下重新包装为DDP")
+                print("✅ 模型已在正确的GCU设备上重新包装为DDP")
+                
+                # 验证DDP包装后的模型设备
+                model_device = next(runner.model.parameters()).device
+                print(f"🔍 DDP包装后模型设备: {model_device}")
             else:
                 print("✅ 模型已经是DDP包装")
         except Exception as e:
             print(f"⚠️ DDP包装失败: {e}")
+            print(f"⚠️ 错误详情: {str(e)}")
     
     # ===== END: 最终修复逻辑 =====
     
