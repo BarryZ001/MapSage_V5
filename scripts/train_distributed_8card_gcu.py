@@ -269,22 +269,61 @@ def main():
         # 确保配置中的设备设置正确
         cfg.device = device
         
-        # 关键：设置模型包装器配置，避免DDP设备冲突
+        # 关键修复：完全禁用MMEngine的DDP device_ids设置
+        # 让MMEngine自动处理设备配置，避免设备不匹配错误
         if not hasattr(cfg, 'model_wrapper_cfg') or cfg.model_wrapper_cfg is None:
             cfg.model_wrapper_cfg = {}
         
-        # 清除可能导致冲突的设备配置
+        # 完全移除device_ids和output_device配置
+        # 这样MMEngine会自动检测模型所在设备并正确配置DDP
         cfg.model_wrapper_cfg.pop('device_ids', None)
         cfg.model_wrapper_cfg.pop('output_device', None)
         
-        # 设置正确的设备ID用于DDP
-        cfg.model_wrapper_cfg['device_ids'] = [local_rank]
-        
-        print("🔧 配置DDP设备ID: [{}]".format(local_rank))
+        # 不设置device_ids，让MMEngine根据模型实际设备自动配置
+        print("🔧 禁用DDP device_ids自动配置，让MMEngine自动检测设备")
         print("🔧 配置模型设备: {}".format(device))
     
     # 创建Runner并开始训练
     print("🚀 创建Runner...")
+    
+    # 关键修复：在Runner创建前预先构建模型并移动到GCU
+    if torch_gcu is not None:
+        print("🔧 预构建模型并强制移动到GCU设备...")
+        
+        # 临时构建模型以确保设备配置正确
+        from mmengine.registry import MODELS
+        
+        # 设置当前设备
+        device = "gcu:{}".format(local_rank)
+        torch_gcu.set_device(local_rank)
+        
+        # 构建模型
+        model = MODELS.build(cfg.model)
+        
+        # 强制移动到GCU设备
+        model = model.to(device)
+        
+        # 验证模型设备
+        sample_params = list(model.parameters())[:3]
+        if sample_params:
+            param_devices = [str(p.device) for p in sample_params]
+            print("🔍 预构建模型设备验证: {}".format(param_devices))
+            
+            # 如果仍有参数在CPU上，强制移动
+            if any('cpu' in dev for dev in param_devices):
+                print("🚨 强制移动所有参数到GCU设备...")
+                for param in model.parameters():
+                    param.data = param.data.to(device)
+                
+                # 再次验证
+                sample_params = list(model.parameters())[:3]
+                param_devices = [str(p.device) for p in sample_params]
+                print("✅ 强制移动后设备: {}".format(param_devices))
+        
+        # 将预构建的模型设置回配置
+        cfg.model = model
+        print("✅ 模型已预构建并移动到GCU设备")
+    
     runner = Runner.from_cfg(cfg)
     
     # 验证Runner创建后的模型设备状态
