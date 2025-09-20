@@ -234,7 +234,38 @@ class FCNHead(BaseModule):
                     seg_labels.append(gt_seg)
         
         if seg_labels:
-            seg_label = torch.stack(seg_labels, dim=0)
+            # Ensure all tensors have the same size before stacking
+            # The error occurs because different samples have different sizes (e.g., [1, 512, 512] vs [1, 600, 600])
+            if len(seg_labels) > 1:
+                # Find the target size (use the first tensor's size as reference)
+                target_shape = seg_labels[0].shape
+                
+                # Resize all tensors to match the target shape
+                resized_seg_labels = []
+                for i, seg_label in enumerate(seg_labels):
+                    if seg_label.shape != target_shape:
+                        # Resize the tensor to match target shape
+                        if seg_label.dim() == 3:  # [C, H, W]
+                            seg_label_resized = F.interpolate(
+                                seg_label.unsqueeze(0),  # Add batch dimension: [1, C, H, W]
+                                size=target_shape[-2:],  # Use last 2 dimensions as target size
+                                mode='nearest'
+                            ).squeeze(0)  # Remove batch dimension: [C, H, W]
+                        elif seg_label.dim() == 2:  # [H, W]
+                            seg_label_resized = F.interpolate(
+                                seg_label.unsqueeze(0).unsqueeze(0),  # Add batch and channel dimensions: [1, 1, H, W]
+                                size=target_shape[-2:],  # Use last 2 dimensions as target size
+                                mode='nearest'
+                            ).squeeze(0).squeeze(0)  # Remove added dimensions: [H, W]
+                        else:
+                            seg_label_resized = seg_label  # Keep as is if unexpected dimensions
+                        resized_seg_labels.append(seg_label_resized)
+                    else:
+                        resized_seg_labels.append(seg_label)
+                
+                seg_label = torch.stack(resized_seg_labels, dim=0)
+            else:
+                seg_label = torch.stack(seg_labels, dim=0)
             
             # Ensure seg_label is 3D (batch_size, height, width) for cross-entropy loss
             # Cross-entropy expects spatial targets to be 3D tensors, not 4D
