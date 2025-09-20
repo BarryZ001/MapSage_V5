@@ -58,22 +58,33 @@ class SegDataPreProcessor(BaseDataPreprocessor):
         inputs = data.get('inputs', [])
         data_samples = data.get('data_samples', [])
         
+        print(f"[DEBUG] SegDataPreProcessor.forward called")
+        print(f"[DEBUG] inputs type: {type(inputs)}, len: {len(inputs) if hasattr(inputs, '__len__') else 'N/A'}")
+        print(f"[DEBUG] data_samples type: {type(data_samples)}, len: {len(data_samples) if hasattr(data_samples, '__len__') else 'N/A'}")
+        
         # Process inputs (images)
         if isinstance(inputs, (list, tuple)):
             processed_inputs = []
-            for img in inputs:
+            for i, img in enumerate(inputs):
+                print(f"[DEBUG] Processing image {i}: type={type(img)}, shape={getattr(img, 'shape', 'N/A')}")
                 processed_img = self._process_image(img)
+                print(f"[DEBUG] Processed image {i}: shape={processed_img.shape}")
                 processed_inputs.append(processed_img)
             
             # Stack images into batch
             if processed_inputs:
                 batch_inputs = torch.stack(processed_inputs, dim=0)
+                print(f"[DEBUG] Stacked batch_inputs shape: {batch_inputs.shape}")
             else:
-                batch_inputs = torch.empty(0)
+                print(f"[DEBUG] No processed inputs, creating empty tensor")
+                # 创建正确形状的空张量而不是1D空张量
+                batch_inputs = torch.empty(0, 3, 224, 224)  # 假设默认图像大小
         else:
+            print(f"[DEBUG] Single input: type={type(inputs)}, shape={getattr(inputs, 'shape', 'N/A')}")
             batch_inputs = self._process_image(inputs)
             if batch_inputs.dim() == 3:
                 batch_inputs = batch_inputs.unsqueeze(0)
+            print(f"[DEBUG] Single batch_inputs shape: {batch_inputs.shape}")
         
         # Move to device
         if hasattr(self, 'device'):
@@ -81,44 +92,68 @@ class SegDataPreProcessor(BaseDataPreprocessor):
             self.mean = self.mean.to(self.device)
             self.std = self.std.to(self.device)
         
+        print(f"[DEBUG] Final batch_inputs shape: {batch_inputs.shape}")
+        
         # Return in the format expected by MMEngine
         return {'inputs': batch_inputs, 'data_samples': data_samples}
     
-    def _process_image(self, img: Union[torch.Tensor, np.ndarray]) -> torch.Tensor:
-        """Process a single image.
+    def _process_image(self, img: torch.Tensor) -> torch.Tensor:
+        """Process a single image tensor.
         
         Args:
-            img: Input image as tensor or numpy array.
+            img: Input image tensor or numpy array.
             
         Returns:
             torch.Tensor: Processed image tensor.
         """
+        print(f"[DEBUG] _process_image input shape: {getattr(img, 'shape', 'N/A')}")
+        
         # Convert to tensor if numpy array
         if isinstance(img, np.ndarray):
             img = torch.from_numpy(img).float()
         elif not isinstance(img, torch.Tensor):
             img = torch.tensor(img, dtype=torch.float32)
         
-        # Ensure float type
-        if img.dtype != torch.float32:
-            img = img.float()
+        # Handle empty tensor case
+        if img.numel() == 0:
+            print(f"[DEBUG] Empty tensor detected, creating default image")
+            # Create default image with the configured size or 512x512
+            if self.size:
+                h, w = self.size
+            else:
+                h, w = 512, 512  # Use 512x512 to match model expectations
+            img = torch.zeros(3, h, w, dtype=torch.float32)
         
-        # Handle different input formats
-        if img.dim() == 2:  # Grayscale
+        # Ensure float type
+        img = img.float()
+        
+        # Handle different input shapes
+        if img.dim() == 2:  # H, W -> add channel dimension
             img = img.unsqueeze(0).repeat(3, 1, 1)
         elif img.dim() == 3:
-            if img.shape[0] == 1:  # Single channel
+            if img.shape[0] == 1:  # 1, H, W -> repeat to 3 channels
                 img = img.repeat(3, 1, 1)
-            elif img.shape[-1] == 3:  # HWC format
+            elif img.shape[2] == 3:  # H, W, 3 -> transpose to 3, H, W
                 img = img.permute(2, 0, 1)
+        
+        # Resize if size is specified
+        if self.size and img.shape[-2:] != self.size:
+            import torch.nn.functional as F
+            img = F.interpolate(img.unsqueeze(0), size=self.size, mode='bilinear', align_corners=False)
+            img = img.squeeze(0)
         
         # Convert BGR to RGB if needed
         if self.bgr_to_rgb and img.shape[0] == 3:
             img = img[[2, 1, 0], :, :]
         
-        # Normalize
-        img = (img - self.mean) / self.std
+        # Move mean and std to the same device as img
+        mean = self.mean.to(img.device)
+        std = self.std.to(img.device)
         
+        # Normalize
+        img = (img - mean) / std
+        
+        print(f"[DEBUG] _process_image output shape: {img.shape}")
         return img
     
     def destruct(self, data: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
