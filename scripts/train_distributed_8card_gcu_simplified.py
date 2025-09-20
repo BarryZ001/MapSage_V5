@@ -122,58 +122,60 @@ def main():
     if torch_gcu is not None:
         cfg.device = f'gcu:{local_rank}'
         print(f"🔧 配置设备: {cfg.device}")
+        
+        # 关键修复：在Runner创建前设置当前GCU设备
+        torch_gcu.set_device(local_rank)
+        print(f"🔧 [Rank {rank}] 预设当前GCU设备: gcu:{local_rank}")
+        
+        # 强制MMEngine在正确的设备上创建模型
+        # 通过设置默认设备来确保模型从一开始就在GCU上
+        torch.cuda.set_device(local_rank)  # MMEngine可能检查CUDA设备
+        
     else:
         cfg.device = 'cpu'
         print("🔧 配置设备: CPU")
 
     # --- 步骤 4: 创建 MMEngine Runner ---
-    # Runner 会根据配置文件 cfg.model 自动在 CPU 上构建模型
     print("🚀 创建 MMEngine Runner...")
     runner = Runner.from_cfg(cfg)
     print("✅ Runner 创建成功")
 
-    # --- 步骤 5: 手动执行模型适配与DDP包装 (这是最核心的修复流程) ---
-    # 我们接管 MMEngine 的自动化流程，手动完成所有设备相关的关键操作
+    # ===== START: FINAL FIX LOGIC (基于用户提供的完整解决方案) =====
     
     if torch_gcu is not None and hasattr(runner, 'model') and runner.model is not None:
-        # 5.1 设置当前GCU设备
-        torch_gcu.set_device(local_rank)
+        # 1. Get the local rank and set the current device for this process
         device = f'gcu:{local_rank}'
+        torch_gcu.set_device(local_rank)
         print(f"🔧 [Rank {rank}] 设置当前设备为: {device}")
 
-        # 5.2 将模型从CPU强制移动到指定的GCU设备
-        runner.model = runner.model.to(device)
-        print(f"🔧 [Rank {rank}] 模型已强制移动到: {device}")
+        # 2. Force the model onto the correct GCU
+        print(f"🔧 [Rank {rank}] 强制将模型移动到GCU设备...")
+        runner.model.to(device)
         
         # 验证模型设备
         model_device = next(runner.model.parameters()).device
-        print(f"🔍 模型实际设备: {model_device}")
-        
-        # 5.3 如果是多卡训练，进行DDP相关配置
-        if world_size > 1:
-            # 转换模型中的 BatchNorm 为 SyncBatchNorm (DDP 推荐做法)
-            try:
-                runner.model = convert_sync_batchnorm(runner.model)
-                print(f"🔧 [Rank {rank}] 模型中的BatchNorm层已转换为SyncBatchNorm")
-            except Exception as e:
-                print(f"⚠️ SyncBatchNorm转换失败: {e}")
+        print(f"✅ [Rank {rank}] 模型现在位于设备: {model_device}")
 
-            # 5.4 手动用 MMDistributedDataParallel 包装模型
-            # 这是解决之前所有报错的最终手段
-            try:
-                if not isinstance(runner.model, MMDistributedDataParallel):
-                    runner.model = MMDistributedDataParallel(
-                        runner.model,
-                        device_ids=None,  # 关键：设置为None，让DDP使用当前已设置好的设备
-                        output_device=None # 关键：同样设置为None
-                    )
-                    print(f"✅ [Rank {rank}] 模型已成功包装为 MMDistributedDataParallel")
-                else:
-                    print(f"✅ [Rank {rank}] 模型已经是 MMDistributedDataParallel")
-            except Exception as e:
-                print(f"⚠️ DDP包装失败: {e}")
+        # 3. Convert BatchNorm layers to be DDP-compatible
+        if world_size > 1:
+            print(f"🔧 [Rank {rank}] 转换BatchNorm层为SyncBatchNorm...")
+            runner.model = convert_sync_batchnorm(runner.model)
+            print(f"✅ [Rank {rank}] BatchNorm层转换完成")
+
+            # 4. Manually re-wrap the model with the correct settings
+            print(f"🔧 [Rank {rank}] 手动重新包装模型为DDP...")
+            runner.model = MMDistributedDataParallel(
+                runner.model,
+                device_ids=None,  # Critical: Set to None to use the current device
+                output_device=None  # Critical: Also set to None
+            )
+            print(f"✅ [Rank {rank}] 模型已成功包装为MMDistributedDataParallel")
+        else:
+            print(f"✅ [Rank {rank}] 单卡训练，跳过DDP包装")
     else:
         print("⚠️ 跳过GCU设备配置（torch_gcu不可用或模型为空）")
+
+    # ===== END: FINAL FIX LOGIC =====
     
     # --- 步骤 6: 最终验证 ---
     if dist.is_initialized():
