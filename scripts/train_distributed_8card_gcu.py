@@ -135,16 +135,10 @@ def main():
     print(f"📁 工作目录: {cfg.work_dir}")
     print(f"🚀 启动训练 - Rank {rank}/{world_size}")
     
-    # 设置当前进程的GCU设备
+    # 设置GCU设备
     if torch_gcu is not None:
         torch_gcu.set_device(local_rank)
         print(f"🔧 设置当前进程GCU设备: {local_rank}")
-        
-        # 确保默认设备是GCU
-        import torch
-        torch.set_default_tensor_type('torch.FloatTensor')
-        if hasattr(torch_gcu, 'set_default_device'):
-            torch_gcu.set_default_device(f'gcu:{local_rank}')
         
         # 设置默认设备类型为GCU，确保新创建的tensor都在GCU上
         try:
@@ -154,17 +148,22 @@ def main():
             # 如果torch版本不支持set_default_device，跳过
             print(f"⚠️ torch版本不支持set_default_device，跳过设置")
     
-    # 修改配置，确保模型在创建时就在正确的设备上
-    if hasattr(cfg, 'model') and torch_gcu is not None:
-        # 设置模型初始化设备
-        if not hasattr(cfg.model, 'init_cfg'):
-            cfg.model.init_cfg = {}
-        cfg.model.device = f'gcu:{local_rank}'
-        print(f"🔧 配置模型初始化设备: gcu:{local_rank}")
-    
     # 创建Runner并开始训练
     print("🚀 创建Runner并开始训练...")
     runner = Runner.from_cfg(cfg)
+    
+    # 确保模型移动到正确的GCU设备
+    if torch_gcu is not None and hasattr(runner, 'model'):
+        device = f'gcu:{local_rank}'
+        print(f"🔧 手动移动模型到设备: {device}")
+        runner.model = runner.model.to(device)
+        
+        # 验证模型参数设备
+        for name, param in runner.model.named_parameters():
+            if param.device.type != 'gcu':
+                print(f"⚠️ 参数 {name} 仍在 {param.device}，手动移动到 {device}")
+                param.data = param.data.to(device)
+            break  # 只检查第一个参数作为示例
     
     print("✅ Runner创建完成，模型已配置到GCU设备")
     
