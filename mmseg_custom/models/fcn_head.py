@@ -213,9 +213,25 @@ class FCNHead(BaseModule):
         seg_labels = []
         for data_sample in processed_samples:
             if isinstance(data_sample, dict) and 'gt_sem_seg' in data_sample:
-                seg_labels.append(data_sample['gt_sem_seg'])
+                gt_seg = data_sample['gt_sem_seg']
+                # Ensure we extract tensor data, not dict
+                if isinstance(gt_seg, dict):
+                    # If gt_seg is a dict, try to extract the actual tensor
+                    if 'data' in gt_seg and isinstance(gt_seg, dict):
+                        seg_labels.append(gt_seg['data'])
+                    elif hasattr(gt_seg, 'data'):
+                        seg_labels.append(gt_seg.data)
+                    else:
+                        # Skip this sample if we can't extract tensor
+                        continue
+                else:
+                    seg_labels.append(gt_seg)
             elif hasattr(data_sample, 'gt_sem_seg'):
-                seg_labels.append(data_sample.gt_sem_seg.data)
+                gt_seg = getattr(data_sample, 'gt_sem_seg')
+                if hasattr(gt_seg, 'data'):
+                    seg_labels.append(gt_seg.data)
+                else:
+                    seg_labels.append(gt_seg)
         
         if seg_labels:
             seg_label = torch.stack(seg_labels, dim=0)
