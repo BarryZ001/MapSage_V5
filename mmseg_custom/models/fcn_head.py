@@ -246,13 +246,21 @@ class FCNHead(BaseModule):
                 )
             
             # Compute loss
-            for i, loss_decode in enumerate(self.loss_decode):
-                if loss_decode.loss_name not in losses:
-                    losses[loss_decode.loss_name] = loss_decode(
-                        seg_logits, seg_label, ignore_index=self.ignore_index)
-                else:
-                    losses[loss_decode.loss_name] += loss_decode(
-                        seg_logits, seg_label, ignore_index=self.ignore_index)
+            # Handle both single loss function and list of loss functions
+            if isinstance(self.loss_decode, (list, tuple)):
+                # Multiple loss functions
+                for i, loss_decode in enumerate(self.loss_decode):
+                    if loss_decode.loss_name not in losses:
+                        losses[loss_decode.loss_name] = loss_decode(
+                            seg_logits, seg_label, ignore_index=self.ignore_index)
+                    else:
+                        losses[loss_decode.loss_name] += loss_decode(
+                            seg_logits, seg_label, ignore_index=self.ignore_index)
+            else:
+                # Single loss function
+                loss_name = getattr(self.loss_decode, 'loss_name', 'loss_ce')
+                losses[loss_name] = self.loss_decode(
+                    seg_logits, seg_label, ignore_index=self.ignore_index)
         
         return losses
         
