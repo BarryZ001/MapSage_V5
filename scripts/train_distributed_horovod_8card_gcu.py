@@ -61,14 +61,23 @@ def setup_horovod_environment() -> Tuple[int, int, int, str]:
               logger='current')
     
     # 设置GCU设备
-    if torch.cuda.is_available():
-        torch.cuda.set_device(local_rank)
-        device = f'cuda:{local_rank}'
-    else:
-        # 对于GCU设备，使用xla格式
-        device = f'xla:{local_rank}'
-    
-    print_log(f"Using device: {device}", logger='current')
+    try:
+        import torch_gcu
+        if torch_gcu.is_available():
+            torch_gcu.set_device(local_rank)
+            device = f'gcu:{local_rank}'
+            print_log(f"Using GCU device: {device}", logger='current')
+        else:
+            device = 'cpu'
+            print_log("GCU not available, using CPU", logger='current')
+    except ImportError:
+        if torch.cuda.is_available():
+            torch.cuda.set_device(local_rank)
+            device = f'cuda:{local_rank}'
+            print_log(f"Using CUDA device: {device}", logger='current')
+        else:
+            device = 'cpu'
+            print_log("Using CPU device", logger='current')
     
     return rank, local_rank, size, device
 
@@ -190,85 +199,88 @@ def main():
         os.makedirs(cfg.work_dir, exist_ok=True)
         print_log(f"Work directory: {cfg.work_dir}", logger='current')
     
-        # 同步所有进程
-        if HOROVOD_AVAILABLE and hvd is not None:
-            hvd.allreduce(torch.tensor(0), name='sync')  # type: ignore
+    # 同步所有进程
+    if HOROVOD_AVAILABLE and hvd is not None:
+        hvd.allreduce(torch.tensor(0), name='sync')  # type: ignore
+    
+    # 设置恢复训练
+    if args.resume:
+        cfg.resume = args.resume
+        print_log(f"Resume training from {args.resume}", logger='current')
+    
+    # 设置自动混合精度
+    if args.amp:
+        cfg.optim_wrapper.type = 'AmpOptimWrapper'
+        cfg.optim_wrapper.loss_scale = 'dynamic'
+        print_log("Enabled automatic mixed precision", logger='current')
+    
+    try:
+        # 强制CPU初始化（避免设备不匹配）
+        original_device = os.environ.get('CUDA_VISIBLE_DEVICES', '')
+        os.environ['CUDA_VISIBLE_DEVICES'] = ''
         
-        # 设置恢复训练
-        if args.resume:
-            cfg.resume = args.resume
-            print_log(f"Resume training from {args.resume}", logger='current')
+        print_log("Creating runner with CPU initialization...", logger='current')
         
-        # 设置自动混合精度
-        if args.amp:
-            cfg.optim_wrapper.type = 'AmpOptimWrapper'
-            cfg.optim_wrapper.loss_scale = 'dynamic'
-            print_log("Enabled automatic mixed precision", logger='current')
+        # 创建Runner
+        runner = Runner.from_cfg(cfg)
         
-        try:
-            # 强制CPU初始化（避免设备不匹配）
-            original_device = os.environ.get('CUDA_VISIBLE_DEVICES', '')
-            os.environ['CUDA_VISIBLE_DEVICES'] = ''
-            
-            print_log("Creating runner with CPU initialization...", logger='current')
-            
-            # 创建Runner
-            runner = Runner.from_cfg(cfg)
-            
-            # 恢复设备环境
-            if original_device:
-                os.environ['CUDA_VISIBLE_DEVICES'] = original_device
-            else:
-                os.environ.pop('CUDA_VISIBLE_DEVICES', None)
-            
-            print_log("Runner created successfully", logger='current')
-            
-            # 手动将模型移动到指定设备
-            print_log(f"Moving model to device: {device}", logger='current')
-            
-            if device.startswith('xla:') and XLA_AVAILABLE and xm is not None:
-                # 对于XLA设备，需要特殊处理
-                runner.model = runner.model.to(xm.xla_device())  # type: ignore
-            else:
-                runner.model = runner.model.to(device)
-            
-            # 验证模型参数设备
-            model_device = next(runner.model.parameters()).device
-            print_log(f"Model parameters are on device: {model_device}", logger='current')
-            
-            # 获取优化器 - 安全访问optim_wrapper
-            if hasattr(runner, 'optim_wrapper') and runner.optim_wrapper is not None:
-                optim_wrapper = runner.optim_wrapper
-                # 使用getattr安全访问optimizer属性
-                optimizer = getattr(optim_wrapper, 'optimizer', None)
-                if optimizer is not None:
-                    # 使用Horovod包装模型和优化器
-                    if HOROVOD_AVAILABLE and hvd is not None:
-                        runner.model, wrapped_optimizer = wrap_model_with_horovod(runner.model, optimizer)
-                        # 更新runner中的优化器
-                        setattr(optim_wrapper, 'optimizer', wrapped_optimizer)
-                        print_log("Model and optimizer wrapped with Horovod successfully", logger='current')
-                    else:
-                        print_log("Warning: Horovod not available, skipping distributed wrapper", logger='current')
+        # 恢复设备环境
+        if original_device:
+            os.environ['CUDA_VISIBLE_DEVICES'] = original_device
+        else:
+            os.environ.pop('CUDA_VISIBLE_DEVICES', None)
+        
+        print_log("Runner created successfully", logger='current')
+        
+        # 手动将模型移动到指定设备
+        print_log(f"Moving model to device: {device}", logger='current')
+        
+        if device.startswith('gcu:'):
+            # 对于GCU设备，直接移动到指定设备
+            runner.model = runner.model.to(device)
+        elif device.startswith('xla:') and XLA_AVAILABLE and xm is not None:
+            # 对于XLA设备，需要特殊处理
+            runner.model = runner.model.to(xm.xla_device())  # type: ignore
+        else:
+            runner.model = runner.model.to(device)
+        
+        # 验证模型参数设备
+        model_device = next(runner.model.parameters()).device
+        print_log(f"Model parameters are on device: {model_device}", logger='current')
+        
+        # 获取优化器 - 安全访问optim_wrapper
+        if hasattr(runner, 'optim_wrapper') and runner.optim_wrapper is not None:
+            optim_wrapper = runner.optim_wrapper
+            # 使用getattr安全访问optimizer属性
+            optimizer = getattr(optim_wrapper, 'optimizer', None)
+            if optimizer is not None:
+                # 使用Horovod包装模型和优化器
+                if HOROVOD_AVAILABLE and hvd is not None:
+                    runner.model, wrapped_optimizer = wrap_model_with_horovod(runner.model, optimizer)
+                    # 更新runner中的优化器
+                    setattr(optim_wrapper, 'optimizer', wrapped_optimizer)
+                    print_log("Model and optimizer wrapped with Horovod successfully", logger='current')
                 else:
-                    print_log("Warning: optim_wrapper has no optimizer attribute or optimizer is None", logger='current')
+                    print_log("Warning: Horovod not available, skipping distributed wrapper", logger='current')
             else:
-                print_log("Warning: Runner has no optim_wrapper or optim_wrapper is None", logger='current')
-            
-            # 开始训练
-            print_log("Starting training...", logger='current')
-            runner.train()
-            
-            print_log("Training completed successfully!", logger='current')
-            
-        except Exception as e:
-            print_log(f"Training failed with error: {str(e)}", logger='current', level=logging.ERROR)
-            import traceback
-            print_log(f"Traceback: {traceback.format_exc()}", logger='current', level=logging.ERROR)
-            raise
+                print_log("Warning: optim_wrapper has no optimizer attribute or optimizer is None", logger='current')
+        else:
+            print_log("Warning: Runner has no optim_wrapper or optim_wrapper is None", logger='current')
         
-        finally:
-            print_log(f"Rank {rank} finished", logger='current')
+        # 开始训练
+        print_log("Starting training...", logger='current')
+        runner.train()
+        
+        print_log("Training completed successfully!", logger='current')
+        
+    except Exception as e:
+        print_log(f"Training failed with error: {str(e)}", logger='current', level=logging.ERROR)
+        import traceback
+        print_log(f"Traceback: {traceback.format_exc()}", logger='current', level=logging.ERROR)
+        raise
+        
+    finally:
+        print_log(f"Rank {rank} finished", logger='current')
 
 if __name__ == '__main__':
     main()
