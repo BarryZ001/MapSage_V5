@@ -131,6 +131,10 @@ def main():
         # 只使用GCU特定的设备设置
         print(f"🔧 [Rank {rank}] 使用GCU设备设置，跳过CUDA调用")
         
+        # 重要：设置默认tensor类型为GCU，确保模型从创建开始就在GCU上
+        torch.set_default_tensor_type(f'torch_gcu.GcuFloatTensor')
+        print(f"🔧 [Rank {rank}] 设置默认tensor类型为GCU")
+        
     else:
         cfg.device = 'cpu'
         print("🔧 配置设备: CPU")
@@ -170,6 +174,10 @@ def main():
                 output_device=None  # Critical: Also set to None
             )
             print(f"✅ [Rank {rank}] 模型已成功包装为MMDistributedDataParallel")
+            
+            # 5. 最终验证DDP包装后的模型设备
+            final_model_device = next(runner.model.parameters()).device
+            print(f"🔍 [Rank {rank}] DDP包装后模型设备: {final_model_device}")
         else:
             print(f"✅ [Rank {rank}] 单卡训练，跳过DDP包装")
     else:
