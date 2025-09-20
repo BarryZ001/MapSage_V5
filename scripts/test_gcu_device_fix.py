@@ -9,7 +9,6 @@ import os
 import sys
 import torch
 import traceback
-from typing import Optional, Any
 
 # Add project paths
 sys.path.insert(0, '/workspace/code/MapSage_V5')
@@ -46,7 +45,7 @@ def test_torch_gcu_import():
         print("ERROR: torch_gcu operation failed: " + str(e))
         return None
 
-def test_gcu_device_operations(gcu_module: Optional[Any]):
+def test_gcu_device_operations(gcu_module):
     """Test GCU device operations"""
     if gcu_module is None:
         print("WARNING: Skipping GCU device operations test (torch_gcu not available)")
@@ -82,7 +81,7 @@ def test_gcu_device_operations(gcu_module: Optional[Any]):
         print("ERROR: GCU device operations failed: " + str(e))
         return False
 
-def test_model_creation_and_movement(gcu_module: Optional[Any]):
+def test_model_creation_and_movement(gcu_module):
     """Test model creation and device movement"""
     print("\nTesting model creation and device movement...")
     
@@ -160,7 +159,7 @@ def test_mmengine_model_build():
         print("ERROR: MMEngine model test failed: " + str(e))
         return False
 
-def test_ddp_compatibility(gcu_module: Optional[Any]):
+def test_ddp_compatibility(gcu_module):
     """Test DDP wrapper compatibility"""
     print("\nTesting DDP compatibility...")
     
