@@ -291,6 +291,23 @@ def main():
     # 这样可以避免yapf格式化错误，因为cfg.model保持为字典格式
     print("🔧 让Runner自动构建模型，保持cfg.model为配置字典格式")
     
+    # ===== START: 禁用DDP的device_ids自动配置 =====
+    if cfg.get('launcher') == 'pytorch':
+        # 在 MMDistributedDataParallel 的配置中禁用 device_ids
+        # 使用model_wrapper_cfg而不是model_wrapper，保持与MMEngine的一致性
+        if not hasattr(cfg, 'model_wrapper_cfg') or cfg.model_wrapper_cfg is None:
+            cfg.model_wrapper_cfg = {}
+        
+        # 明确设置DDP配置，禁用device_ids和output_device
+        cfg.model_wrapper_cfg.update({
+            'type': 'MMDistributedDataParallel',
+            'find_unused_parameters': False,
+            'device_ids': None,  # 关键：显式设置device_ids为None
+            'output_device': None  # 关键：显式设置output_device为None
+        })
+        print("🔧 已更新model_wrapper_cfg配置，禁用device_ids和output_device自动配置")
+    # ===== END: 禁用DDP的device_ids自动配置 =====
+    
     runner = Runner.from_cfg(cfg)
     
     # 验证Runner创建后的模型设备状态
