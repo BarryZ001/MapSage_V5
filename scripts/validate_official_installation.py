@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 T20环境TopsRider软件栈官方标准验证脚本
 基于官方手册V2.1和成功经验整合

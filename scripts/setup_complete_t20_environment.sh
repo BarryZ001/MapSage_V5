@@ -136,9 +136,17 @@ pip3 install --no-cache-dir \
     transformers \
     timm
 
-# 步骤9: 安装Horovod相关依赖
+# 步骤9: 修复Python编码问题
 echo ""
-echo "📋 步骤9: 安装Horovod相关依赖..."
+echo "📋 步骤9: 修复Python编码问题..."
+echo "为所有Python脚本添加UTF-8编码声明..."
+python3 scripts/fix_python_encoding.py
+
+echo "步骤10: 修复MMCV版本兼容性..."
+echo "安装兼容的MMCV版本..."
+bash scripts/fix_mmcv_version_t20.sh
+
+echo "步骤11: 安装Horovod相关依赖..."
 echo "安装MPI相关依赖..."
 apt-get install -y \
     libnccl2 \
@@ -157,6 +165,10 @@ export HOROVOD_GPU_OPERATIONS=NCCL
 
 echo "安装Horovod..."
 pip3 install --no-cache-dir horovod[pytorch]
+
+echo "步骤12: 安装缺失模块..."
+echo "安装torch_gcu和ptex等缺失模块..."
+bash scripts/install_missing_modules_t20.sh
 
 # 步骤10: 创建必要的目录结构
 echo ""

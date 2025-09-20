@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """训练环境验证脚本
 
 验证DINOv3+MMRS-1M训练所需的环境、数据和配置。

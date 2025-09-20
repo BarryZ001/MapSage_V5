@@ -24,12 +24,14 @@ apt-get update
 apt-get install -y \
     build-essential \
     cmake \
-    libnccl2 \
-    libnccl-dev \
     libopenmpi-dev \
     openmpi-bin \
     openmpi-common \
     libgfortran5
+
+# 尝试安装NCCL（如果可用）
+echo "尝试安装NCCL库..."
+apt-get install -y libnccl2 libnccl-dev || echo "Warning: NCCL packages not available, continuing without NCCL"
 
 # 设置环境变量
 export HOROVOD_WITH_PYTORCH=1

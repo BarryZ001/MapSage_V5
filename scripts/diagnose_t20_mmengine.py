@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 T20环境MMEngine诊断脚本
 检查MMEngine及相关依赖包的安装状态

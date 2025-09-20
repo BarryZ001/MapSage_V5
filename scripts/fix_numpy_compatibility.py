@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 NumPy兼容性修复脚本
 解决TensorBoard与新版NumPy的兼容性问题

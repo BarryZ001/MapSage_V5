@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 MapSage V5 Knowledge Distillation Environment Setup
 This script sets up the environment for knowledge distillation using MMRazor

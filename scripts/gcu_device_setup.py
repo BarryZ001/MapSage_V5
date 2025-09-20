@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 GCU设备配置脚本
 用于在训练开始前正确配置GCU设备

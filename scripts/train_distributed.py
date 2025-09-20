@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # scripts/train_distributed.py - 分布式训练脚本
 
 import argparse

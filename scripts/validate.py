@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # scripts/validate.py (V14 - Definitive Manual Load for Runner)
 
 import argparse

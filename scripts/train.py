@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # scripts/train.py (简化版 - 修复导入问题)
 
 import argparse

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """GCU环境验证脚本
 
 专门用于验证燧原T20 GCU环境的配置和可用性。
