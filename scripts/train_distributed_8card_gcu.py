@@ -86,33 +86,28 @@ def setup_distributed():
     print("  - RANK: {}".format(rank))
     print("  - LOCAL_RANK: {}".format(local_rank))
     
-    # 检测可用的分布式后端
-    available_backends = []
-    backends_to_check = ['eccl', 'gloo', 'nccl']
+    # 根据燧原官方文档配置ECCL后端
+    print("🔍 检查torch_gcu和ECCL后端支持...")
     
-    for backend_name in backends_to_check:
-        try:
-            # 使用更安全的后端检测方法
-            from torch.distributed import Backend
-            if hasattr(Backend, backend_name.upper()):
-                available_backends.append(backend_name)
-                print("✅ 检测到可用后端: {}".format(backend_name))
-        except Exception as e:
-            print("⚠️ 后端 {} 检测失败: {}".format(backend_name, e))
-    
-    # 选择最佳后端
-    if 'eccl' in available_backends:
-        backend = 'eccl'
-        print("🎯 使用燧原专用后端: eccl")
-    elif 'gloo' in available_backends:
+    # 检查torch_gcu是否可用
+    try:
+        import torch_gcu
+        if torch_gcu.is_available():
+            print("✅ torch_gcu可用，设备数: {}".format(torch_gcu.device_count()))
+            # 根据官方文档，torch_gcu可用时应该使用eccl后端
+            backend = 'eccl'
+            print("🎯 使用燧原专用后端: eccl (官方推荐)")
+        else:
+            print("⚠️ torch_gcu不可用，使用备用后端")
+            backend = 'gloo'
+    except ImportError as e:
+        print("❌ torch_gcu未安装: {}".format(e))
+        print("🔄 降级使用gloo后端")
         backend = 'gloo'
-        print("🎯 使用通用后端: gloo")
-    elif 'nccl' in available_backends:
-        backend = 'nccl'
-        print("🎯 使用NVIDIA后端: nccl")
-    else:
-        backend = 'gloo'  # 默认使用gloo
-        print("⚠️ 未检测到专用后端，使用默认后端: gloo")
+    except Exception as e:
+        print("❌ torch_gcu检查失败: {}".format(e))
+        print("🔄 降级使用gloo后端")
+        backend = 'gloo'
     
     init_method = 'env://'
     
