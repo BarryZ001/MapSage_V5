@@ -308,25 +308,36 @@ def main():
         print("🔧 已更新model_wrapper_cfg配置，禁用device_ids和output_device自动配置")
     # ===== END: 禁用DDP的device_ids自动配置 =====
     
-    runner = Runner.from_cfg(cfg)
+    # ===== START: 禁用SyncBatchNorm for GCU兼容性 =====
+    # 关键修复：在Runner创建前禁用SyncBatchNorm，避免GCU设备兼容性问题
+    print("🔧 开始禁用SyncBatchNorm以兼容GCU分布式训练...")
     
-    # ===== START: Convert SyncBatchNorm for GCU =====
-    if hasattr(runner, 'model') and runner.model is not None:
-        try:
-            from mmengine.model import convert_sync_batchnorm
-            print("🔧 开始转换SyncBatchNorm层以兼容GCU分布式训练...")
-            
-            # 转换模型中的所有BatchNorm层为兼容GCU的SyncBatchNorm
-            runner.model = convert_sync_batchnorm(runner.model)
-            print("✅ SyncBatchNorm层转换完成，现在兼容GCU分布式训练")
-            
-        except ImportError as e:
-            print("⚠️ MMEngine convert_sync_batchnorm导入失败: {}".format(e))
-            print("⚠️ 将跳过SyncBatchNorm转换，使用原始BatchNorm层")
-        except Exception as e:
-            print("⚠️ SyncBatchNorm转换失败: {}".format(e))
-            print("⚠️ 将继续使用原始模型配置")
-    # ===== END: Convert SyncBatchNorm for GCU =====
+    def disable_sync_batchnorm_in_config(config_dict):
+        """递归禁用配置中的SyncBatchNorm"""
+        if isinstance(config_dict, dict):
+            for key, value in config_dict.items():
+                if key == 'norm_cfg' and isinstance(value, dict):
+                    if value.get('type') == 'SyncBN':
+                        print(f"🔧 发现SyncBN配置，替换为BN: {value}")
+                        value['type'] = 'BN'  # 使用普通BatchNorm替代SyncBatchNorm
+                        print(f"✅ 已替换为: {value}")
+                elif isinstance(value, (dict, list)):
+                    disable_sync_batchnorm_in_config(value)
+        elif isinstance(config_dict, list):
+            for item in config_dict:
+                disable_sync_batchnorm_in_config(item)
+    
+    # 禁用模型配置中的SyncBatchNorm
+    if hasattr(cfg, 'model') and cfg.model is not None:
+        disable_sync_batchnorm_in_config(cfg.model)
+        print("✅ 已禁用模型配置中的SyncBatchNorm")
+    
+    # 禁用其他可能的SyncBatchNorm配置
+    disable_sync_batchnorm_in_config(cfg._cfg_dict)
+    print("✅ SyncBatchNorm禁用完成，现在使用普通BatchNorm兼容GCU")
+    # ===== END: 禁用SyncBatchNorm for GCU兼容性 =====
+    
+    runner = Runner.from_cfg(cfg)
     
     # 验证Runner创建后的模型设备状态
     if torch_gcu is not None and hasattr(runner, 'model'):
