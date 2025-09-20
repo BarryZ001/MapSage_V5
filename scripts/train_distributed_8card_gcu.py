@@ -86,8 +86,34 @@ def setup_distributed():
     print("  - RANK: {}".format(rank))
     print("  - LOCAL_RANK: {}".format(local_rank))
     
-    # 设置分布式后端
-    backend = 'eccl'  # 燧原T20使用eccl后端
+    # 检测可用的分布式后端
+    available_backends = []
+    backends_to_check = ['eccl', 'gloo', 'nccl']
+    
+    for backend_name in backends_to_check:
+        try:
+            # 使用更安全的后端检测方法
+            from torch.distributed import Backend
+            if hasattr(Backend, backend_name.upper()):
+                available_backends.append(backend_name)
+                print("✅ 检测到可用后端: {}".format(backend_name))
+        except Exception as e:
+            print("⚠️ 后端 {} 检测失败: {}".format(backend_name, e))
+    
+    # 选择最佳后端
+    if 'eccl' in available_backends:
+        backend = 'eccl'
+        print("🎯 使用燧原专用后端: eccl")
+    elif 'gloo' in available_backends:
+        backend = 'gloo'
+        print("🎯 使用通用后端: gloo")
+    elif 'nccl' in available_backends:
+        backend = 'nccl'
+        print("🎯 使用NVIDIA后端: nccl")
+    else:
+        backend = 'gloo'  # 默认使用gloo
+        print("⚠️ 未检测到专用后端，使用默认后端: gloo")
+    
     init_method = 'env://'
     
     print("🔧 初始化分布式进程组:")
@@ -105,7 +131,22 @@ def setup_distributed():
         print("✅ 分布式进程组初始化成功")
     except Exception as e:
         print("❌ 分布式进程组初始化失败: {}".format(e))
-        raise
+        # 如果eccl失败，尝试使用gloo作为备选
+        if backend == 'eccl':
+            print("🔄 尝试使用gloo后端作为备选...")
+            try:
+                dist.init_process_group(
+                    backend='gloo',
+                    init_method=init_method,
+                    world_size=world_size,
+                    rank=rank
+                )
+                print("✅ 使用gloo后端初始化成功")
+            except Exception as e2:
+                print("❌ gloo后端也失败: {}".format(e2))
+                raise
+        else:
+            raise
     
     return world_size, rank, local_rank
 
