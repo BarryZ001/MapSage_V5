@@ -47,8 +47,39 @@ class SegDataPreProcessor(BaseDataPreprocessor):
         
     def forward(self, data: dict, training: bool = False) -> dict:
         """Forward function."""
-        inputs = data['inputs']
-        data_samples = data.get('data_samples', [])
+        # 兼容不同的数据格式
+        if 'inputs' in data:
+            # 标准格式：{'inputs': tensor, 'data_samples': [...]}
+            inputs = data['inputs']
+            data_samples = data.get('data_samples', [])
+        elif 'img' in data:
+            # CustomCollect格式：{'img': tensor, 'gt_semantic_seg': tensor, 'img_metas': DataContainer}
+            inputs = data['img']
+            data_samples = []
+            
+            # 构造data_samples
+            if 'gt_semantic_seg' in data:
+                gt_seg = data['gt_semantic_seg']
+                img_metas = data.get('img_metas', {})
+                
+                # 处理批次数据
+                if isinstance(inputs, (list, tuple)):
+                    batch_size = len(inputs)
+                elif hasattr(inputs, 'shape'):
+                    batch_size = inputs.shape[0] if inputs.dim() > 3 else 1
+                else:
+                    batch_size = 1
+                
+                for i in range(batch_size):
+                    sample = {
+                        'gt_sem_seg': {
+                            'data': gt_seg[i] if hasattr(gt_seg, '__getitem__') and batch_size > 1 else gt_seg
+                        },
+                        'metainfo': img_metas.data if hasattr(img_metas, 'data') else {}
+                    }
+                    data_samples.append(sample)
+        else:
+            raise KeyError(f"Expected 'inputs' or 'img' key in data, but got keys: {list(data.keys())}")
         
         # Process inputs
         if isinstance(inputs, list):
