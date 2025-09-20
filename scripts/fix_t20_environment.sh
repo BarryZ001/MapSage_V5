@@ -21,9 +21,9 @@ echo "✅ 检测到T20容器环境"
 echo "
 🔍 检查torch-gcu框架状态..."
 python3 -c "import torch; print('PyTorch version:', torch.__version__)" 2>/dev/null
-python3 -c "import torch_gcu; print('torch_gcu available: True')" 2>/dev/null || echo "torch_gcu available: False"
+python3 -c "import torch_gcu; print('torch_gcu.is_available():', torch_gcu.is_available())" 2>/dev/null || echo "torch_gcu available: False"
 
-if ! python3 -c "import torch_gcu" 2>/dev/null; then
+if ! python3 -c "import torch_gcu; assert torch_gcu.is_available()" 2>/dev/null; then
     echo "❌ torch-gcu框架不可用，需要重新安装TopsRider软件栈"
     echo "🔧 开始重新安装TopsRider软件栈..."
     
