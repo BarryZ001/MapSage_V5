@@ -264,11 +264,12 @@ default_hooks = dict(
     )
 )
 
-# 环境配置 - 适配GCU分布式训练，移除设备相关配置
+# 环境配置 - 燧原T20 GCU 8卡分布式训练
 env_cfg = dict(
-    cudnn_benchmark=False,  # GCU环境关闭cudnn
+    cudnn_benchmark=False,  # GCU环境下禁用cudnn
     mp_cfg=dict(mp_start_method='fork', opencv_num_threads=0),
-    dist_cfg=dict(backend='gloo')  # 使用gloo后端适配GCU，设备配置由训练脚本处理
+    dist_cfg=dict(backend='eccl'),  # 使用eccl后端支持GCU分布式训练
+    resource_limit=4096
 )
 
 # 移除device_cfg配置，避免与脚本中的设备管理冲突

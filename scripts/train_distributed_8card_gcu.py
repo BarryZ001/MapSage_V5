@@ -83,7 +83,7 @@ def setup_distributed():
         # 初始化分布式进程组
         if not dist.is_initialized():
             # 设置分布式后端
-            backend = 'gloo'  # GCU环境使用gloo后端
+            backend = 'eccl'  # GCU环境使用eccl后端
             init_method = 'env://'
             
             print(f"🔧 初始化分布式进程组:")
@@ -168,11 +168,14 @@ def main():
         
         # 设置默认设备类型为GCU，确保新创建的tensor都在GCU上
         try:
-            torch.set_default_device(f'gcu:{local_rank}')
-            print(f"🔧 设置默认tensor设备为: gcu:{local_rank}")
-        except AttributeError:
-            # 如果torch版本不支持set_default_device，跳过
-            print(f"⚠️ torch版本不支持set_default_device，跳过设置")
+            # 检查torch版本是否支持set_default_device
+            if hasattr(torch, 'set_default_device'):
+                torch.set_default_device(f'gcu:{local_rank}')
+                print(f"🔧 设置默认tensor设备为: gcu:{local_rank}")
+            else:
+                print(f"⚠️ torch版本不支持set_default_device，跳过设置")
+        except Exception as e:
+            print(f"⚠️ 设置默认设备失败: {e}")
     
     # 修改配置以避免MMEngine的设备不匹配问题
     print("🔧 修改配置以适配GCU设备...")
