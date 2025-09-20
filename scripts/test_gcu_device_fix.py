@@ -68,8 +68,8 @@ def test_gcu_device_operations(gcu_module):
             tensor = torch.randn(2, 3)
             print("INFO: CPU tensor device: " + str(tensor.device))
             
-            # Move tensor to GCU (using official GCU device interface)
-            gcu_tensor = tensor.to('gcu:0')
+            # Move tensor to GCU (using XLA device interface for T20 server)
+            gcu_tensor = tensor.to('xla:0')
             print("SUCCESS: Tensor moved to GCU successfully, device: " + str(gcu_tensor.device))
             
             return True
@@ -103,15 +103,15 @@ def test_model_creation_and_movement(gcu_module):
         print("INFO: Model initial device: " + str(first_param.device))
         
         if gcu_module is not None:
-            # Move model to GCU
-            model = model.to('gcu:0')
+            # Move model to GCU (using XLA device interface for T20 server)
+            model = model.to('xla:0')
             
             # Check device after movement
             first_param = next(model.parameters())
             print("SUCCESS: Model moved to GCU successfully, device: " + str(first_param.device))
             
             # Test inference
-            test_input = torch.randn(1, 10).to('gcu:0')
+            test_input = torch.randn(1, 10).to('xla:0')
             output = model(test_input)
             print("SUCCESS: GCU model inference successful, output device: " + str(output.device))
         else:
@@ -146,8 +146,8 @@ def test_mmengine_model_build():
         print("SUCCESS: MMEngine model building successful")
         
         if TORCH_GCU_AVAILABLE and torch_gcu is not None:
-            # Move to GCU
-            model = model.to('gcu:0')
+            # Move to GCU (using XLA device interface for T20 server)
+            model = model.to('xla:0')
             first_param = next(model.parameters())
             print("SUCCESS: MMEngine model moved to GCU successfully, device: " + str(first_param.device))
         else:
@@ -173,9 +173,9 @@ def test_ddp_compatibility(gcu_module):
         model = torch.nn.Linear(10, 5)
         
         if gcu_module is not None:
-            # Move model to GCU device
+            # Move model to GCU device (using XLA device interface for T20 server)
             local_rank = int(os.environ.get('LOCAL_RANK', 0))
-            device = 'gcu:' + str(local_rank)
+            device = 'xla:' + str(local_rank)
             model = model.to(device)
             
             print("SUCCESS: Model moved to GCU device: " + str(local_rank))
