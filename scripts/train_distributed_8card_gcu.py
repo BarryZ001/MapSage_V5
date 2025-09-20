@@ -148,6 +148,7 @@ def setup_distributed():
 def main():
     parser = argparse.ArgumentParser(description='8卡分布式训练脚本')
     parser.add_argument('config', help='训练配置文件路径')
+    parser.add_argument('--work-dir', help='工作目录路径')
     parser.add_argument('--launcher', choices=['none', 'pytorch', 'slurm', 'mpi'], 
                        default='pytorch', help='分布式启动器')
     parser.add_argument('--local_rank', type=int, default=0, help='本地进程rank')
@@ -164,7 +165,13 @@ def main():
     cfg = Config.fromfile(args.config)
     
     # 检查并创建工作目录
-    if hasattr(cfg, 'work_dir') and cfg.work_dir:
+    if args.work_dir:
+        # 使用命令行指定的工作目录
+        cfg.work_dir = args.work_dir
+        if not os.path.exists(cfg.work_dir):
+            os.makedirs(cfg.work_dir, exist_ok=True)
+            print("📁 创建工作目录: {}".format(cfg.work_dir))
+    elif hasattr(cfg, 'work_dir') and cfg.work_dir:
         if not os.path.exists(cfg.work_dir):
             os.makedirs(cfg.work_dir, exist_ok=True)
             print("📁 创建工作目录: {}".format(cfg.work_dir))
