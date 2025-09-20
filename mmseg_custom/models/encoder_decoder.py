@@ -116,7 +116,8 @@ class EncoderDecoder(BaseModel):
         if hasattr(self.decode_head, 'loss_by_feat') and callable(self.decode_head.loss_by_feat):
             loss_decode = self.decode_head.loss_by_feat(x, data_samples)
         elif hasattr(self.decode_head, 'loss') and callable(self.decode_head.loss):
-            loss_decode = self.decode_head.loss(x, data_samples)
+            # 传递train_cfg参数
+            loss_decode = self.decode_head.loss(x, data_samples, self.train_cfg)
         else:
             # 简单的占位符损失
             loss_decode = {'loss_seg': torch.tensor(0.0, requires_grad=True, device=inputs.device)}
@@ -129,7 +130,8 @@ class EncoderDecoder(BaseModel):
             if hasattr(self.auxiliary_head, 'loss_by_feat') and callable(self.auxiliary_head.loss_by_feat):
                 loss_aux = self.auxiliary_head.loss_by_feat(x, data_samples)
             elif hasattr(self.auxiliary_head, 'loss') and callable(self.auxiliary_head.loss):
-                loss_aux = self.auxiliary_head.loss(x, data_samples)
+                # 传递train_cfg参数
+                loss_aux = self.auxiliary_head.loss(x, data_samples, self.train_cfg)
             else:
                 loss_aux = {'loss_aux': torch.tensor(0.0, requires_grad=True, device=inputs.device)}
             
