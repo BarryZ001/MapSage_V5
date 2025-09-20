@@ -141,8 +141,8 @@ class SegDataPreProcessor(BaseDataPreprocessor):
             img = img[[2, 1, 0], :, :]
         
         # Apply normalization
-        mean = torch.tensor(self.mean).view(-1, 1, 1)
-        std = torch.tensor(self.std).view(-1, 1, 1)
+        mean = self.mean.clone().detach()
+        std = self.std.clone().detach()
         img = (img - mean) / std
         
         return img
