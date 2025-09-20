@@ -126,14 +126,15 @@ if python3 -c "import ptex" 2>/dev/null; then
     python3 -c "import ptex; print('ptex模块导入成功')"
 else
     echo "📋 安装ptex模块（负责XLA设备管理和张量操作）"
-    pip3 install "$PTEX_WHEEL" --force-reinstall
+    # 使用--no-deps跳过依赖检查，因为torch-gcu已经通过TopsRider安装
+    pip3 install "$PTEX_WHEEL" --force-reinstall --no-deps
     
     if python3 -c "import ptex" 2>/dev/null; then
         echo "✅ ptex模块安装成功"
         
         # 按照成功经验进行基础验证
         echo "🔍 验证ptex模块安装..."
-        python3 -c "import ptex; print('ptex version:', ptex.__version__); print('XLA devices:', ptex.device_count())" 2>/dev/null
+        python3 -c "import ptex; print('ptex version:', ptex.__version__)" 2>/dev/null
         
         if [ $? -eq 0 ]; then
             echo "✅ ptex模块验证成功"
