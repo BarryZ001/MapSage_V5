@@ -300,8 +300,23 @@ def main():
         # 构建模型
         model = MODELS.build(cfg.model)
         
-        # 强制移动到GCU设备
-        model = model.to(device)
+        # 使用torch_gcu API正确移动模型到GCU设备
+        if torch_gcu and torch_gcu.is_available():
+            print(f"🔧 使用torch_gcu API移动模型到设备: {local_rank}")
+            # 设置当前GCU设备
+            torch_gcu.set_device(local_rank)
+            
+            # 使用torch_gcu的cuda()方法移动模型（GCU兼容CUDA API）
+            model = model.cuda()
+            
+            print(f"✅ 模型已使用torch_gcu.cuda()移动到GCU设备")
+        else:
+            print("⚠️ torch_gcu不可用，尝试使用标准PyTorch API")
+            # 回退到标准PyTorch（可能不支持GCU）
+            if 'gcu' in str(device):
+                print("❌ 标准PyTorch不支持GCU设备，请检查torch_gcu安装")
+                raise RuntimeError("torch_gcu未正确安装或不可用")
+            model = model.to(device)
         
         # 验证模型设备
         sample_params = list(model.parameters())[:3]
@@ -309,11 +324,16 @@ def main():
             param_devices = [str(p.device) for p in sample_params]
             print("🔍 预构建模型设备验证: {}".format(param_devices))
             
-            # 如果仍有参数在CPU上，强制移动
+            # 检查是否成功移动到GCU
             if any('cpu' in dev for dev in param_devices):
-                print("🚨 强制移动所有参数到GCU设备...")
-                for param in model.parameters():
-                    param.data = param.data.to(device)
+                print("🚨 模型参数仍在CPU上，尝试强制移动...")
+                if torch_gcu and torch_gcu.is_available():
+                    # 使用torch_gcu API强制移动
+                    for param in model.parameters():
+                        param.data = param.data.cuda()  # 使用GCU兼容的cuda()方法
+                else:
+                    print("❌ 无法移动到GCU设备，torch_gcu不可用")
+                    raise RuntimeError("无法将模型移动到GCU设备")
                 
                 # 再次验证
                 sample_params = list(model.parameters())[:3]
