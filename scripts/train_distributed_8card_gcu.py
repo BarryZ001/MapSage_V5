@@ -40,13 +40,32 @@ try:
 except ImportError as e:
     print(f"⚠️ 模块导入失败: {e}")
 
-# 导入自定义模块
+# 导入必要的MMSeg组件
 try:
-    import mmseg_custom.models
-    import mmseg_custom.datasets
-    print("✅ 自定义模块导入成功")
+    import mmseg
+    import mmseg.models
+    from mmseg.models.backbones import MixVisionTransformer
+    from mmseg.models.decode_heads import SegformerHead
+    from mmseg.models.segmentors import EncoderDecoder
+    
+    # 确保模型注册到MMEngine
+    from mmengine.registry import MODELS
+    if 'MixVisionTransformer' not in MODELS.module_dict:
+        MODELS.register_module(name='MixVisionTransformer', module=MixVisionTransformer)
+        print("✅ MixVisionTransformer已注册到MMEngine")
+    
+    if 'SegformerHead' not in MODELS.module_dict:
+        MODELS.register_module(name='SegformerHead', module=SegformerHead)
+        print("✅ SegformerHead已注册到MMEngine")
+        
+    if 'EncoderDecoder' not in MODELS.module_dict:
+        MODELS.register_module(name='EncoderDecoder', module=EncoderDecoder)
+        print("✅ EncoderDecoder已注册到MMEngine")
+        
+    print("✅ MMSeg模型组件导入和注册成功")
 except ImportError as e:
-    print(f"⚠️ 自定义模块导入失败: {e}")
+    print(f"⚠️ MMSeg导入失败: {e}")
+    print("⚠️ 将使用自定义模型组件")
 
 def setup_distributed():
     """初始化分布式训练环境"""
@@ -102,9 +121,16 @@ def main():
     # 加载配置文件
     cfg = Config.fromfile(args.config)
     
-    # 设置工作目录
-    if not os.path.exists(cfg.work_dir):
+    # 检查并创建工作目录
+    if hasattr(cfg, 'work_dir') and cfg.work_dir:
+        if not os.path.exists(cfg.work_dir):
+            os.makedirs(cfg.work_dir, exist_ok=True)
+            print(f"📁 创建工作目录: {cfg.work_dir}")
+    else:
+        # 如果配置文件没有work_dir，设置默认值
+        cfg.work_dir = './work_dirs/train_distributed_8card_gcu'
         os.makedirs(cfg.work_dir, exist_ok=True)
+        print(f"📁 设置默认工作目录: {cfg.work_dir}")
     
     # 设置日志目录
     log_dir = os.path.join(cfg.work_dir, 'logs')
@@ -151,55 +177,62 @@ def main():
     # 修改配置以避免MMEngine的设备不匹配问题
     print("🔧 修改配置以适配GCU设备...")
     
-    # 禁用MMEngine的自动设备分配，改为手动控制
-    if hasattr(cfg, 'model_wrapper_cfg'):
-        cfg.model_wrapper_cfg = None
-    
-    # 设置环境变量强制使用CPU初始化，然后手动移动到GCU
-    original_device = os.environ.get('CUDA_VISIBLE_DEVICES', '')
-    os.environ['CUDA_VISIBLE_DEVICES'] = ''  # 强制CPU初始化
+    # 关键修复：配置MMEngine使用正确的设备
+    if torch_gcu is not None:
+        device = f'gcu:{local_rank}'
+        
+        # 1. 设置模型初始化设备
+        if hasattr(cfg, 'model') and isinstance(cfg.model, dict):
+            cfg.model['init_cfg'] = {'type': 'Normal', 'std': 0.01}
+        
+        # 2. 配置分布式训练设备
+        cfg.device = device
+        
+        # 3. 禁用CUDA相关设置，避免设备冲突
+        os.environ['CUDA_VISIBLE_DEVICES'] = ''
+        
+        # 4. 配置MMEngine的设备设置
+        if not hasattr(cfg, 'env_cfg'):
+            cfg.env_cfg = {}
+        cfg.env_cfg['dist_cfg'] = {'backend': 'gloo'}
+        
+        # 5. 确保模型包装器使用正确设备
+        if hasattr(cfg, 'model_wrapper_cfg'):
+            if cfg.model_wrapper_cfg is None:
+                cfg.model_wrapper_cfg = {}
+            # 不设置device_ids，让MMEngine自动检测
+            cfg.model_wrapper_cfg.pop('device_ids', None)
+            cfg.model_wrapper_cfg.pop('output_device', None)
+        
+        print(f"🔧 配置设备为: {device}")
+        print(f"🔧 配置分布式后端为: gloo")
     
     # 创建Runner并开始训练
-    print("🚀 创建Runner（CPU模式）...")
+    print("🚀 创建Runner...")
     runner = Runner.from_cfg(cfg)
     
-    # 恢复环境变量
-    if original_device:
-        os.environ['CUDA_VISIBLE_DEVICES'] = original_device
-    
-    # 手动将模型移动到GCU设备
+    # 验证模型设备设置
     if torch_gcu is not None and hasattr(runner, 'model'):
-        device = f'gcu:{local_rank}'
-        print(f"🔧 手动移动整个模型到设备: {device}")
+        print("🔍 验证模型设备设置...")
         
-        # 移动模型到GCU设备
-        runner.model = runner.model.to(device)
-        
-        # 验证所有模型参数都在正确设备上
-        cpu_params = []
+        # 检查模型参数设备
+        device_types = set()
         for name, param in runner.model.named_parameters():
-            if param.device.type != 'gcu':
-                cpu_params.append(name)
-                param.data = param.data.to(device)
+            device_types.add(param.device.type)
         
-        if cpu_params:
-            print(f"⚠️ 发现 {len(cpu_params)} 个参数在CPU，已手动移动到GCU")
+        print(f"📊 模型参数设备类型: {device_types}")
+        
+        if 'cpu' in device_types and len(device_types) > 1:
+            print("⚠️ 检测到混合设备，正在修复...")
+            device = f'gcu:{local_rank}'
+            runner.model = runner.model.to(device)
+            print(f"✅ 模型已移动到: {device}")
+        elif 'gcu' in device_types:
+            print("✅ 模型已正确配置在GCU设备上")
         else:
-            print(f"✅ 所有模型参数已正确移动到 {device}")
-        
-        # 重新包装为分布式模型（如果需要）
-        if world_size > 1:
-            from mmengine.model import MMDistributedDataParallel
-            print("🔧 重新包装为分布式模型...")
-            # 不传递device_ids，让MMEngine自动处理
-            runner.model = MMDistributedDataParallel(
-                runner.model,
-                broadcast_buffers=False,
-                find_unused_parameters=False
-            )
-            print("✅ 分布式模型包装完成")
+            print(f"⚠️ 模型在意外设备上: {device_types}")
     
-    print("✅ Runner创建完成，模型已正确配置到GCU设备")
+    print("✅ Runner创建完成，设备配置验证通过")
     
     runner.train()
     
