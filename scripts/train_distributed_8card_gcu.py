@@ -209,7 +209,28 @@ def main():
     if world_size > 1:
         cfg.launcher = args.launcher
         print("🔧 启用分布式训练，launcher: {}".format(args.launcher))
-        # 配置GCU设备，让MMEngine自动处理分布式
+        
+        # 关键修复：强制MMEngine使用ECCL后端
+        # 检查当前使用的后端
+        if dist.is_initialized():
+            current_backend = dist.get_backend()
+            print("🔍 当前分布式后端: {}".format(current_backend))
+            
+            # 如果当前后端是ECCL，配置MMEngine使用它
+            if current_backend == 'eccl':
+                # 确保MMEngine的分布式配置使用ECCL
+                if not hasattr(cfg, 'env_cfg'):
+                    cfg.env_cfg = {}
+                if not hasattr(cfg.env_cfg, 'dist_cfg'):
+                    cfg.env_cfg.dist_cfg = {}
+                
+                # 设置后端配置
+                cfg.env_cfg.dist_cfg['backend'] = 'eccl'
+                print("✅ 强制MMEngine使用ECCL后端")
+            else:
+                print("⚠️ 当前后端不是ECCL: {}，可能导致XLA设备兼容性问题".format(current_backend))
+        
+        # 配置GCU设备
         cfg.device = 'gcu'
         print("🔧 配置GCU设备，world_size: {}".format(world_size))
     else:
