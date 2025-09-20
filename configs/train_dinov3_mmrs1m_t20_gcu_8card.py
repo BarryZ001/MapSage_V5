@@ -268,7 +268,7 @@ default_hooks = dict(
 env_cfg = dict(
     cudnn_benchmark=False,  # GCU环境下禁用cudnn
     mp_cfg=dict(mp_start_method='fork', opencv_num_threads=0),
-    dist_cfg=dict(backend='eccl'),  # 使用eccl后端支持GCU分布式训练
+    dist_cfg=dict(backend='gloo'),  # 使用gloo后端支持GCU分布式训练
     resource_limit=4096
 )
 

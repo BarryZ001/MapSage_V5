@@ -94,19 +94,20 @@ def setup_distributed():
         import torch_gcu
         if torch_gcu.is_available():
             print("✅ torch_gcu可用，设备数: {}".format(torch_gcu.device_count()))
-            # 根据官方文档，torch_gcu可用时应该使用eccl后端
-            backend = 'eccl'
-            print("🎯 使用燧原专用后端: eccl (官方推荐)")
+            # 基于实际测试，当前T20环境ECCL后端不被PyTorch支持
+            # 直接使用gloo后端，这在GCU环境下是稳定可靠的选择
+            backend = 'gloo'
+            print("🎯 使用稳定的gloo后端 (T20环境验证可用)")
         else:
             print("⚠️ torch_gcu不可用，使用备用后端")
             backend = 'gloo'
     except ImportError as e:
         print("❌ torch_gcu未安装: {}".format(e))
-        print("🔄 降级使用gloo后端")
+        print("🔄 使用gloo后端")
         backend = 'gloo'
     except Exception as e:
         print("❌ torch_gcu检查失败: {}".format(e))
-        print("🔄 降级使用gloo后端")
+        print("🔄 使用gloo后端")
         backend = 'gloo'
     
     init_method = 'env://'
@@ -126,8 +127,8 @@ def setup_distributed():
         print("✅ 分布式进程组初始化成功")
     except Exception as e:
         print("❌ 分布式进程组初始化失败: {}".format(e))
-        # 如果eccl失败，尝试使用gloo作为备选
-        if backend == 'eccl':
+        # 如果当前后端失败，尝试使用gloo作为最后的备选
+        if backend != 'gloo':
             print("🔄 尝试使用gloo后端作为备选...")
             try:
                 dist.init_process_group(
