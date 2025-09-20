@@ -68,7 +68,7 @@ def test_gcu_device_operations(gcu_module):
             tensor = torch.randn(2, 3)
             print("INFO: CPU tensor device: " + str(tensor.device))
             
-            # Move tensor to GCU
+            # Move tensor to GCU (using official GCU device interface)
             gcu_tensor = tensor.to('gcu:0')
             print("SUCCESS: Tensor moved to GCU successfully, device: " + str(gcu_tensor.device))
             

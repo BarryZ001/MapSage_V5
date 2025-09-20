@@ -125,7 +125,7 @@ docker exec -it dinov3_trainer bash -c "
 export PATH=/opt/tops/bin:\$PATH &&
 export LD_LIBRARY_PATH=/opt/tops/lib:\$LD_LIBRARY_PATH &&
 export PYTHONPATH=/opt/tops/lib/python3.8/site-packages:\$PYTHONPATH &&
-python -c 'import torch_gcu; print(\"torch_gcu可用:\", torch_gcu.is_available())'
+python3 -c 'import torch_gcu; print("torch_gcu可用:", torch_gcu.is_available())'
 "
 ```
 
@@ -152,7 +152,7 @@ docker exec -it dinov3_trainer bash -c "
 export PATH=/opt/tops/bin:\$PATH &&
 export LD_LIBRARY_PATH=/opt/tops/lib:\$LD_LIBRARY_PATH &&
 export PYTHONPATH=/opt/tops/lib/python3.8/site-packages:\$PYTHONPATH &&
-python -c '
+python3 -c '
 import torch
 import torch_gcu
 import ptex
@@ -273,7 +273,7 @@ export LD_LIBRARY_PATH=/opt/tops/lib:$LD_LIBRARY_PATH
 export PYTHONPATH=/opt/tops/lib/python3.8/site-packages:$PYTHONPATH
 
 # 使用torch.distributed.launch启动
-python -m torch.distributed.launch \
+python3 -m torch.distributed.launch \
     --nproc_per_node=4 \
     --master_port=29500 \
     tools/train.py \

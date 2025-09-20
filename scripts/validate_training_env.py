@@ -22,19 +22,19 @@ sys.path.insert(0, str(project_root))
 
 def print_success(message):
     """打印成功信息"""
-    print(f"✅ {message}")
+    print("✅ " + message)
 
 def print_error(message):
     """打印错误信息"""
-    print(f"❌ {message}")
+    print("❌ " + message)
 
 def print_warning(message):
     """打印警告信息"""
-    print(f"⚠️  {message}")
+    print("⚠️  " + message)
 
 def print_info(message):
     """打印信息"""
-    print(f"ℹ️  {message}")
+    print("ℹ️  " + message)
 
 
 def check_python_version() -> Tuple[bool, str]:

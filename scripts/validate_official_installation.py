@@ -43,9 +43,9 @@ def check_container_environment():
     
     for dir_path in key_dirs:
         if os.path.exists(dir_path):
-            print(f"  ✅ {dir_path} 存在")
+            print("  ✅ " + dir_path + " 存在")
         else:
-            print(f"  ❌ {dir_path} 不存在")
+            print("  ❌ " + dir_path + " 不存在")
     
     return True
 
