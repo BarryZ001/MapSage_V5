@@ -94,10 +94,21 @@ def setup_distributed():
         import torch_gcu
         if torch_gcu.is_available():
             print("✅ torch_gcu可用，设备数: {}".format(torch_gcu.device_count()))
-            # 基于实际测试，当前T20环境ECCL后端不被PyTorch支持
-            # 直接使用gloo后端，这在GCU环境下是稳定可靠的选择
-            backend = 'gloo'
-            print("🎯 使用稳定的gloo后端 (T20环境验证可用)")
+            
+            # 关键修复：强制使用ECCL后端
+            # ECCL是燧原官方为GCU设备专门优化的分布式通信后端
+            backend = 'eccl'
+            print("🎯 使用燧原官方ECCL后端 (专为GCU设备优化)")
+            
+            # 检查ECCL后端是否可用
+            try:
+                # 尝试导入ECCL相关模块
+                import torch_gcu.distributed
+                print("✅ ECCL分布式模块导入成功")
+            except ImportError as e:
+                print("⚠️ ECCL模块导入失败: {}".format(e))
+                print("🔄 回退到gloo后端")
+                backend = 'gloo'
         else:
             print("⚠️ torch_gcu不可用，使用备用后端")
             backend = 'gloo'
@@ -118,6 +129,13 @@ def setup_distributed():
     
     # 初始化分布式进程组
     try:
+        # 关键修复：对于ECCL后端，需要特殊的初始化方式
+        if backend == 'eccl':
+            print("🔧 使用ECCL后端特殊初始化...")
+            # 设置ECCL环境变量
+            os.environ['ECCL_BACKEND'] = 'eccl'
+            os.environ['ECCL_DEVICE_TYPE'] = 'gcu'
+            
         dist.init_process_group(
             backend=backend,
             init_method=init_method,
@@ -127,9 +145,9 @@ def setup_distributed():
         print("✅ 分布式进程组初始化成功")
     except Exception as e:
         print("❌ 分布式进程组初始化失败: {}".format(e))
-        # 如果当前后端失败，尝试使用gloo作为最后的备选
-        if backend != 'gloo':
-            print("🔄 尝试使用gloo后端作为备选...")
+        # 如果ECCL后端失败，尝试使用gloo作为备选
+        if backend == 'eccl':
+            print("🔄 ECCL后端失败，尝试使用gloo后端作为备选...")
             try:
                 dist.init_process_group(
                     backend='gloo',
@@ -216,16 +234,9 @@ def main():
         torch_gcu.set_device(local_rank)
         print("🔧 设置当前进程GCU设备: {}".format(local_rank))
         
-        # 设置默认设备类型为GCU，确保新创建的tensor都在GCU上
-        try:
-            # 检查torch版本是否支持set_default_device
-            if hasattr(torch, 'set_default_device'):
-                torch.set_default_device("gcu:{}".format(local_rank))
-                print("🔧 设置默认tensor设备为: gcu:{}".format(local_rank))
-            else:
-                print("⚠️ torch版本不支持set_default_device，跳过设置")
-        except Exception as e:
-            print("⚠️ 设置默认设备失败: {}".format(e))
+        # 注释掉set_default_device调用，因为它可能与分布式通信冲突
+        # 让MMEngine自动处理设备配置
+        print("🔧 跳过设置默认设备，让MMEngine自动处理设备配置")
     
     # 修改配置以避免MMEngine的设备不匹配问题
     print("🔧 修改配置以适配GCU设备...")
@@ -243,10 +254,19 @@ def main():
         # 3. 禁用CUDA相关设置，避免设备冲突
         os.environ['CUDA_VISIBLE_DEVICES'] = ''
         
-        # 4. 配置MMEngine的设备设置
+        # 4. 配置MMEngine的设备设置 - T20 XLA设备兼容性修复
         if not hasattr(cfg, 'env_cfg'):
             cfg.env_cfg = {}
-        cfg.env_cfg['dist_cfg'] = {'backend': 'gloo'}
+        
+        # 关键修复：对于XLA设备，不使用标准的分布式后端
+        # 而是让MMEngine自动检测或使用CPU后端进行参数同步
+        if torch_gcu is not None:
+            # 对于T20 GCU设备，使用CPU后端进行分布式通信
+            # 这样可以避免XLA设备与Gloo后端的不兼容问题
+            cfg.env_cfg['dist_cfg'] = {'backend': 'gloo', 'init_method': 'env://'}
+            print("🔧 T20修复：配置Gloo后端用于CPU通信，模型在XLA设备上计算")
+        else:
+            cfg.env_cfg['dist_cfg'] = {'backend': 'gloo'}
         
         # 5. 确保模型包装器使用正确设备
         if hasattr(cfg, 'model_wrapper_cfg'):
@@ -265,10 +285,14 @@ def main():
         
         # 强制设置当前设备
         torch_gcu.set_device(local_rank)
-        device = "gcu:{}".format(local_rank)
+        
+        # 关键修复：对于XLA设备，使用CPU设备进行分布式通信
+        # 但模型计算仍在XLA设备上进行
+        device = "cpu"  # 分布式通信使用CPU
+        xla_device = f'xla:{local_rank}'  # 模型计算使用XLA设备
         
         # 确保配置中的设备设置正确
-        cfg.device = device
+        cfg.device = device  # MMEngine分布式通信使用CPU
         
         # 关键修复：完全禁用MMEngine的DDP device_ids设置
         # 让MMEngine自动处理设备配置，避免设备不匹配错误
@@ -278,7 +302,6 @@ def main():
         # 完全移除device_ids和output_device配置
         # 这样MMEngine会自动检测模型所在设备并正确配置DDP
         cfg.model_wrapper_cfg.pop('device_ids', None)
-        cfg.model_wrapper_cfg.pop('output_device', None)
         
         # 不设置device_ids，让MMEngine根据模型实际设备自动配置
         print("🔧 禁用DDP device_ids自动配置，让MMEngine自动检测设备")
