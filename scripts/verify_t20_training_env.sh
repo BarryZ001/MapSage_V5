@@ -241,25 +241,7 @@ if [ $? -ne 0 ]; then
     VALIDATION_PASSED=false
 fi
 
-echo ""
-echo "8️⃣ 检查项目配置文件..."
 
-# 检查常见的配置文件
-CONFIG_FILES=(
-    "configs"
-    "tools"
-    "mmseg"
-    "requirements.txt"
-    "setup.py"
-)
-
-for config in "${CONFIG_FILES[@]}"; do
-    if [ -e "$config" ]; then
-        echo "✅ 找到: $config"
-    else
-        echo "⚠️  未找到: $config"
-    fi
-done
 
 echo ""
 echo "================================================"
