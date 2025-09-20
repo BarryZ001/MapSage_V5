@@ -8,9 +8,7 @@ custom_imports = dict(
     imports=[
         'mmseg_custom.datasets',
         'mmseg_custom.transforms',
-        'mmseg',
-        'mmseg.models',
-        'mmseg.datasets'
+        'mmseg_custom.models'  # 只导入自定义模型，避免与mmseg官方模块冲突
     ],
     allow_failed_imports=False
 )
@@ -49,7 +47,7 @@ data_preprocessor = dict(
 
 # DINOv3-ViT-L/16 模型配置
 model = dict(
-    type='EncoderDecoder',
+    type='CustomEncoderDecoder',  # 使用自定义的EncoderDecoder
     data_preprocessor=data_preprocessor,
     
     # DINOv3 backbone

@@ -10,7 +10,7 @@ from mmengine.model import BaseModel
 from mmengine.registry import MODELS
 
 
-@MODELS.register_module()
+@MODELS.register_module(name='CustomEncoderDecoder')
 class EncoderDecoder(BaseModel):
     """自定义的EncoderDecoder模型，兼容T20服务器环境"""
     
