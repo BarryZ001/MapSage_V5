@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-GCU设备修复测试脚本
-用于验证torch_gcu API的正确使用和模型设备移动
+GCU Device Fix Test Script
+Test script for verifying torch_gcu API usage and model device movement
 
-使用方法：
-1. 在T20服务器的dinov3-container容器内运行此脚本
-2. 脚本会测试torch_gcu的各种API调用
-3. 验证模型能否正确移动到GCU设备
-4. 测试DDP包装器的设备兼容性
+Usage:
+1. Run this script in the dinov3-container on T20 server
+2. The script will test various torch_gcu API calls
+3. Verify that models can be correctly moved to GCU devices
+4. Test DDP wrapper device compatibility
 
-作者: MapSage团队
-日期: 2025-01-21
+Author: MapSage Team
+Date: 2025-01-21
 """
 
 import os
@@ -20,11 +20,11 @@ import torch
 import traceback
 from typing import Optional, Any
 
-# 添加项目路径
+# Add project paths
 sys.path.insert(0, '/workspace/code/MapSage_V5')
 sys.path.insert(0, '.')
 
-# 条件导入torch_gcu，避免在非GCU环境中的导入错误
+# Conditional import of torch_gcu to avoid import errors in non-GCU environments
 try:
     import torch_gcu  # type: ignore
     TORCH_GCU_AVAILABLE = True
@@ -33,236 +33,231 @@ except ImportError:
     TORCH_GCU_AVAILABLE = False
 
 def test_torch_gcu_import():
-    """测试torch_gcu导入"""
-    print("🔍 测试torch_gcu导入...")
+    """Test torch_gcu import"""
+    print("🔍 Testing torch_gcu import...")
     
     if not TORCH_GCU_AVAILABLE:
-        print("❌ torch_gcu导入失败: 模块不可用")
-        print("💡 这是正常的，torch_gcu只在燧原T20 GCU环境中可用")
+        print("❌ torch_gcu import failed: module not available")
+        print("💡 This is normal, torch_gcu is only available in Enflame T20 GCU environment")
         return None
     
     try:
-        print(f"✅ torch_gcu导入成功")
-        print(f"📊 可用GCU设备数: {torch_gcu.device_count()}")
-        print(f"🔧 当前GCU设备: {torch_gcu.current_device()}")
-        print(f"💾 GCU可用性: {torch_gcu.is_available()}")
+        print("✅ torch_gcu import successful")
+        if torch_gcu is not None:
+            print(f"📊 Available GCU devices: {torch_gcu.device_count()}")
+            print(f"🔧 Current GCU device: {torch_gcu.current_device()}")
+            print(f"💾 GCU availability: {torch_gcu.is_available()}")
         return torch_gcu
     except Exception as e:
-        print(f"❌ torch_gcu操作失败: {e}")
+        print(f"❌ torch_gcu operation failed: {e}")
         return None
 
 def test_gcu_device_operations(gcu_module: Optional[Any]):
-    """测试GCU设备操作"""
-    if not gcu_module:
-        print("⚠️ 跳过GCU设备操作测试（torch_gcu不可用）")
+    """Test GCU device operations"""
+    if gcu_module is None:
+        print("⚠️ Skipping GCU device operations test (torch_gcu not available)")
         return False
     
-    print("\n🔧 测试GCU设备操作...")
+    print("\n🔧 Testing GCU device operations...")
     
     try:
-        # 测试设备设置
+        # Test device count
         device_count = gcu_module.device_count()
-        print(f"📊 总GCU设备数: {device_count}")
+        print(f"📊 Total GCU devices: {device_count}")
         
         if device_count > 0:
-            # 测试设置设备0
+            # Test setting device 0
             gcu_module.set_device(0)
             current_device = gcu_module.current_device()
-            print(f"✅ 设置设备0成功，当前设备: {current_device}")
+            print(f"✅ Set device 0 successfully, current device: {current_device}")
             
-            # 测试创建张量
-            tensor = torch.randn(3, 3)
-            print(f"🔍 CPU张量设备: {tensor.device}")
+            # Test tensor creation
+            tensor = torch.randn(2, 3)
+            print(f"🔍 CPU tensor device: {tensor.device}")
             
-            # 测试移动到GCU
-            gcu_tensor = tensor.cuda()  # 使用GCU兼容的cuda()方法
-            print(f"✅ 张量移动到GCU成功，设备: {gcu_tensor.device}")
+            # Test moving to GCU
+            gcu_tensor = tensor.cuda()  # Use GCU-compatible cuda() method
+            print(f"✅ Tensor moved to GCU successfully, device: {gcu_tensor.device}")
             
             return True
         else:
-            print("❌ 没有可用的GCU设备")
+            print("❌ No available GCU devices")
             return False
             
     except Exception as e:
-        print(f"❌ GCU设备操作失败: {e}")
-        traceback.print_exc()
+        print(f"❌ GCU device operations failed: {e}")
         return False
 
 def test_model_creation_and_movement(gcu_module: Optional[Any]):
-    """测试模型创建和设备移动"""
-    print("\n🏗️ 测试模型创建和设备移动...")
+    """Test model creation and device movement"""
+    print("\n🏗️ Testing model creation and device movement...")
     
     try:
-        # 创建简单模型
-        model = torch.nn.Sequential(
-            torch.nn.Linear(10, 5),
-            torch.nn.ReLU(),
-            torch.nn.Linear(5, 1)
-        )
-        
-        print("✅ 模型创建成功")
-        
-        # 检查初始设备
-        first_param = next(model.parameters())
-        print(f"🔍 模型初始设备: {first_param.device}")
-        
-        if gcu_module and TORCH_GCU_AVAILABLE:
-            # 使用torch_gcu API移动模型
-            gcu_module.set_device(0)
-            model = model.cuda()  # 使用GCU兼容的cuda()方法
-            
-            # 验证移动结果
-            first_param = next(model.parameters())
-            print(f"✅ 模型移动到GCU成功，设备: {first_param.device}")
-            
-            # 测试模型推理
-            input_tensor = torch.randn(1, 10).cuda()
-            output = model(input_tensor)
-            print(f"✅ GCU模型推理成功，输出设备: {output.device}")
-            
-            return True
-        else:
-            print("⚠️ torch_gcu不可用，跳过GCU移动测试")
-            return False
-            
-    except Exception as e:
-        print(f"❌ 模型测试失败: {e}")
-        traceback.print_exc()
-        return False
-
-def test_mmengine_model_build():
-    """测试MMEngine模型构建"""
-    print("\n🔧 测试MMEngine模型构建...")
-    
-    try:
-        from mmengine.config import Config
-        from mmengine.registry import MODELS
-        
-        # 注册简单模型用于测试
-        @MODELS.register_module()
-        class SimpleTestModel(torch.nn.Module):
+        # Create simple model
+        class SimpleModel(torch.nn.Module):
             def __init__(self):
                 super().__init__()
-                self.linear = torch.nn.Linear(10, 1)
+                self.linear = torch.nn.Linear(10, 5)
             
             def forward(self, x):
                 return self.linear(x)
         
-        # 构建模型
-        model = MODELS.build(dict(type='SimpleTestModel'))
-        print("✅ MMEngine模型构建成功")
+        model = SimpleModel()
+        print("✅ Model created successfully")
         
-        # 测试设备移动
-        if TORCH_GCU_AVAILABLE and torch_gcu:
-            torch_gcu.set_device(0)
-            model = model.cuda()
+        # Check initial device
+        first_param = next(model.parameters())
+        print(f"🔍 Model initial device: {first_param.device}")
+        
+        if gcu_module is not None:
+            # Use torch_gcu API to move model
+            model = model.cuda()  # Use GCU-compatible cuda() method
             
+            # Verify movement result
             first_param = next(model.parameters())
-            print(f"✅ MMEngine模型移动到GCU成功，设备: {first_param.device}")
+            print(f"✅ Model moved to GCU successfully, device: {first_param.device}")
+            
+            # Test model inference
+            test_input = torch.randn(1, 10).cuda()
+            output = model(test_input)
+            print(f"✅ GCU model inference successful, output device: {output.device}")
+            
             return True
         else:
-            print("⚠️ torch_gcu不可用，跳过MMEngine模型GCU测试")
+            print("⚠️ torch_gcu not available, skipping GCU movement test")
             return False
             
     except Exception as e:
-        print(f"❌ MMEngine模型测试失败: {e}")
-        traceback.print_exc()
+        print(f"❌ Model test failed: {e}")
+        return False
+
+def test_mmengine_model_build():
+    """Test MMEngine model building"""
+    print("\n🔧 Testing MMEngine model building...")
+    
+    try:
+        from mmengine.registry import MODELS
+        
+        # Register simple model for testing
+        @MODELS.register_module()
+        class TestModel(torch.nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.conv = torch.nn.Conv2d(3, 64, 3, padding=1)
+                
+            def forward(self, x):
+                return self.conv(x)
+        
+        # Build model
+        model = MODELS.build(dict(type='TestModel'))
+        print("✅ MMEngine model building successful")
+        
+        # Test device movement
+        if TORCH_GCU_AVAILABLE and torch_gcu is not None:
+            model = model.cuda()
+            first_param = next(model.parameters())
+            print(f"✅ MMEngine model moved to GCU successfully, device: {first_param.device}")
+        else:
+            print("⚠️ torch_gcu not available, skipping MMEngine model GCU test")
+        
+        return True
+        
+    except Exception as e:
+        print(f"❌ MMEngine model test failed: {e}")
         return False
 
 def test_ddp_compatibility(gcu_module: Optional[Any]):
-    """测试DDP兼容性"""
-    print("\n🔗 测试DDP兼容性...")
+    """Test DDP compatibility"""
+    print("\n🔗 Testing DDP compatibility...")
     
-    # 检查分布式环境
-    if not os.environ.get('RANK'):
-        print("⚠️ 非分布式环境，跳过DDP测试")
+    # Check distributed environment
+    if not torch.distributed.is_available():
+        print("⚠️ Non-distributed environment, skipping DDP test")
         return True
     
     try:
-        import torch.distributed as dist
-        from torch.nn.parallel import DistributedDataParallel as DDP
+        # Get local rank from environment
+        local_rank = int(os.environ.get('LOCAL_RANK', 0))
         
-        # 创建简单模型
-        model = torch.nn.Linear(10, 1)
+        # Create simple model
+        model = torch.nn.Linear(10, 5)
         
-        if gcu_module and TORCH_GCU_AVAILABLE:
-            # 移动到GCU
-            local_rank = int(os.environ.get('LOCAL_RANK', 0))
+        # Move to GCU
+        if gcu_module is not None:
             gcu_module.set_device(local_rank)
             model = model.cuda()
             
-            print(f"✅ 模型已移动到GCU设备: {local_rank}")
+            print(f"✅ Model moved to GCU device: {local_rank}")
             
-            # 测试DDP包装（不指定device_ids，让MMEngine自动处理）
-            # 这里只是验证模型在正确设备上，实际DDP包装由MMEngine处理
+            # Test DDP wrapping (don't specify device_ids, let MMEngine handle automatically)
+            # Here we only verify the model is on the correct device, actual DDP wrapping is handled by MMEngine
             first_param = next(model.parameters())
-            if 'cpu' not in str(first_param.device):
-                print("✅ 模型参数不在CPU上，DDP包装应该可以成功")
+            if not first_param.device.type == 'cpu':
+                print("✅ Model parameters not on CPU, DDP wrapping should succeed")
                 return True
             else:
-                print("❌ 模型参数仍在CPU上，DDP包装会失败")
+                print("❌ Model parameters still on CPU, DDP wrapping will fail")
                 return False
         else:
-            print("⚠️ torch_gcu不可用，跳过DDP兼容性测试")
-            return False
+            print("⚠️ torch_gcu not available, skipping DDP compatibility test")
+            return True
             
     except Exception as e:
-        print(f"❌ DDP兼容性测试失败: {e}")
-        traceback.print_exc()
+        print(f"❌ DDP compatibility test failed: {e}")
         return False
 
 def main():
-    """主测试函数"""
-    print("🚀 GCU设备修复测试开始")
-    print("=" * 60)
+    """Main test function"""
+    print("🚀 GCU Device Fix Test Started")
+    print("=" * 50)
     
-    # 测试结果统计
+    # Test results statistics
     test_results = []
     
-    # 1. 测试torch_gcu导入
+    # 1. Test torch_gcu import
     gcu_module = test_torch_gcu_import()
-    test_results.append(("torch_gcu导入", gcu_module is not None))
+    test_results.append(("torch_gcu import", gcu_module is not None))
     
-    # 2. 测试GCU设备操作
+    # 2. Test GCU device operations
     device_ops_ok = test_gcu_device_operations(gcu_module)
-    test_results.append(("GCU设备操作", device_ops_ok))
+    test_results.append(("GCU device operations", device_ops_ok))
     
-    # 3. 测试模型创建和移动
+    # 3. Test model creation and movement
     model_ok = test_model_creation_and_movement(gcu_module)
-    test_results.append(("模型设备移动", model_ok))
+    test_results.append(("Model device movement", model_ok))
     
-    # 4. 测试MMEngine模型构建
+    # 4. Test MMEngine model building
     mmengine_ok = test_mmengine_model_build()
-    test_results.append(("MMEngine模型构建", mmengine_ok))
+    test_results.append(("MMEngine model building", mmengine_ok))
     
-    # 5. 测试DDP兼容性
+    # 5. Test DDP compatibility
     ddp_ok = test_ddp_compatibility(gcu_module)
-    test_results.append(("DDP兼容性", ddp_ok))
+    test_results.append(("DDP compatibility", ddp_ok))
     
-    # 输出测试结果
-    print("\n" + "=" * 60)
-    print("📊 测试结果汇总:")
-    print("=" * 60)
+    # Output test results
+    print("\n" + "=" * 50)
+    print("📊 Test Results Summary:")
+    print("-" * 30)
     
     all_passed = True
     for test_name, result in test_results:
-        status = "✅ 通过" if result else "❌ 失败"
-        print(f"{test_name:20} : {status}")
+        status = "✅ PASS" if result else "❌ FAIL"
+        print(f"{test_name:<25}: {status}")
         if not result:
             all_passed = False
     
-    print("=" * 60)
+    print("-" * 30)
     if all_passed:
-        print("🎉 所有测试通过！GCU设备修复成功！")
-        print("💡 现在可以运行8卡分布式训练了")
+        print("🎉 All tests passed! GCU device fix successful!")
+        print("💡 Now you can run 8-card distributed training")
     else:
-        print("⚠️ 部分测试失败，需要进一步调试")
-        print("💡 请检查torch_gcu安装和GCU设备配置")
+        print("⚠️ Some tests failed, further debugging needed")
+        print("💡 Please check torch_gcu installation and GCU device configuration")
     
-    print("\n📋 下一步操作:")
-    print("1. 如果测试通过，运行: bash scripts/start_8card_training.sh")
-    print("2. 如果测试失败，检查torch_gcu安装和设备配置")
-    print("3. 查看详细错误信息并根据提示修复")
+    print("\n📋 Next steps:")
+    print("1. If tests pass, run: bash scripts/start_8card_training.sh")
+    print("2. If tests fail, check torch_gcu installation and device configuration")
+    print("3. View detailed error messages and fix according to prompts")
 
 if __name__ == "__main__":
     main()
