@@ -310,6 +310,24 @@ def main():
     
     runner = Runner.from_cfg(cfg)
     
+    # ===== START: Convert SyncBatchNorm for GCU =====
+    if hasattr(runner, 'model') and runner.model is not None:
+        try:
+            from mmengine.model import convert_sync_batchnorm
+            print("🔧 开始转换SyncBatchNorm层以兼容GCU分布式训练...")
+            
+            # 转换模型中的所有BatchNorm层为兼容GCU的SyncBatchNorm
+            runner.model = convert_sync_batchnorm(runner.model)
+            print("✅ SyncBatchNorm层转换完成，现在兼容GCU分布式训练")
+            
+        except ImportError as e:
+            print("⚠️ MMEngine convert_sync_batchnorm导入失败: {}".format(e))
+            print("⚠️ 将跳过SyncBatchNorm转换，使用原始BatchNorm层")
+        except Exception as e:
+            print("⚠️ SyncBatchNorm转换失败: {}".format(e))
+            print("⚠️ 将继续使用原始模型配置")
+    # ===== END: Convert SyncBatchNorm for GCU =====
+    
     # 验证Runner创建后的模型设备状态
     if torch_gcu is not None and hasattr(runner, 'model'):
         print("🔍 验证Runner创建后的模型设备状态...")
