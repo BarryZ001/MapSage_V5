@@ -258,71 +258,70 @@ def main():
         print("🔧 配置设备为: {}".format(device))
         print("🔧 配置分布式后端为: gloo")
     
+    # 关键修复：在创建Runner前强制设置设备配置
+    if torch_gcu is not None:
+        print("🔧 T20关键修复：在Runner创建前配置设备...")
+        
+        # 强制设置当前设备
+        torch_gcu.set_device(local_rank)
+        device = "gcu:{}".format(local_rank)
+        
+        # 确保配置中的设备设置正确
+        cfg.device = device
+        
+        # 关键：设置模型包装器配置，避免DDP设备冲突
+        if not hasattr(cfg, 'model_wrapper_cfg') or cfg.model_wrapper_cfg is None:
+            cfg.model_wrapper_cfg = {}
+        
+        # 清除可能导致冲突的设备配置
+        cfg.model_wrapper_cfg.pop('device_ids', None)
+        cfg.model_wrapper_cfg.pop('output_device', None)
+        
+        # 设置正确的设备ID用于DDP
+        cfg.model_wrapper_cfg['device_ids'] = [local_rank]
+        
+        print("🔧 配置DDP设备ID: [{}]".format(local_rank))
+        print("🔧 配置模型设备: {}".format(device))
+    
     # 创建Runner并开始训练
     print("🚀 创建Runner...")
     runner = Runner.from_cfg(cfg)
     
-    # 关键修复：在DDP包装前确保模型在正确的GCU设备上
+    # 验证Runner创建后的模型设备状态
     if torch_gcu is not None and hasattr(runner, 'model'):
-        print("🔧 T20环境：确保模型在正确的GCU设备上...")
+        print("🔍 验证Runner创建后的模型设备状态...")
         
-        # 检查模型当前设备
+        # 检查模型参数设备
         model_devices = set()
         param_count = 0
         for name, param in runner.model.named_parameters():
             model_devices.add(str(param.device))
             param_count += 1
-            if param_count >= 3:  # 检查前几个参数
+            if param_count >= 5:  # 检查更多参数确保准确性
                 break
         
-        print("🔍 模型当前设备分布: {}".format(model_devices))
+        print("🔍 模型设备分布: {}".format(model_devices))
         print("🔍 检查了 {} 个参数".format(param_count))
         
-        # 如果模型参数在CPU上，必须移动到GCU设备
+        expected_device = "gcu:{}".format(local_rank)
+        
+        # 如果模型仍在CPU上，这是最后的修复机会
         if any('cpu' in device_str for device_str in model_devices):
-            print("🔄 T20关键修复：将模型从CPU移动到 gcu:{}...".format(local_rank))
+            print("🚨 紧急修复：模型仍在CPU上，强制移动到 {}".format(expected_device))
             
             # 强制移动模型到GCU设备
-            runner.model = runner.model.to("gcu:{}".format(local_rank))
+            runner.model = runner.model.to(expected_device)
             
-            # 验证移动是否成功
+            # 再次验证
             verification_devices = set()
             for name, param in runner.model.named_parameters():
                 verification_devices.add(str(param.device))
-                if len(verification_devices) >= 2:  # 检查多个参数确保一致性
+                if len(verification_devices) >= 2:
                     break
             
-            print("✅ 模型移动后设备分布: {}".format(verification_devices))
-            
-            # 确保所有参数都在正确的GCU设备上
-            expected_device = "gcu:{}".format(local_rank)
-            if all(expected_device in device_str for device_str in verification_devices):
-                print("✅ 模型成功移动到 {}".format(expected_device))
-            else:
-                print("❌ 模型移动失败，期望设备: {}, 实际设备: {}".format(expected_device, verification_devices))
+            print("✅ 紧急修复后设备分布: {}".format(verification_devices))
         else:
-            print("✅ 模型已在正确的GCU设备上: {}".format(model_devices))
-    
-    # 验证模型设备设置
-    if torch_gcu is not None and hasattr(runner, 'model'):
-        print("🔍 验证模型设备设置...")
-        
-        # 检查模型参数设备
-        device_types = set()
-        for name, param in runner.model.named_parameters():
-            device_types.add(param.device.type)
-        
-        print("📊 模型参数设备类型: {}".format(device_types))
-        
-        if 'cpu' in device_types and len(device_types) > 1:
-            print("⚠️ 检测到混合设备，正在修复...")
-            device = "gcu:{}".format(local_rank)
-            runner.model = runner.model.to(device)
-            print("✅ 模型已移动到: {}".format(device))
-        elif 'gcu' in device_types:
-            print("✅ 模型已正确配置在GCU设备上")
-        else:
-            print("⚠️ 模型在意外设备上: {}".format(device_types))
+            print("✅ 模型已正确配置在GCU设备上: {}".format(model_devices))
     
     print("✅ Runner创建完成，设备配置验证通过")
     
