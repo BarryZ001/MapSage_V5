@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 GCU设备修复测试脚本
 用于验证torch_gcu API的正确使用和模型设备移动
