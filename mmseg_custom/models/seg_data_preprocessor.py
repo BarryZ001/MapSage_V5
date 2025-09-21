@@ -134,7 +134,9 @@ class SegDataPreProcessor(BaseDataPreprocessor):
                     # Update the sample with device-moved data
                     sample = sample.copy()
                     sample['gt_sem_seg'] = {'data': gt_seg_data}
-                    print(f"DEBUG: Moved gt_sem_seg from {original_device} to {gt_seg_data.device}")
+                    # Only print device movement if actually moving to different device
+                    if str(original_device) != str(gt_seg_data.device):
+                        print(f"DEBUG: Moved gt_sem_seg from {original_device} to {gt_seg_data.device}")
             
             processed_data_samples.append(sample)
         

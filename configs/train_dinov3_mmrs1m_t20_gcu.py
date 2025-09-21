@@ -273,11 +273,12 @@ env_cfg = dict(
     dist_cfg=dict(backend='eccl')  # 使用ECCL后端替代NCCL
 )
 
-# GCU设备配置
-device_cfg = dict(
-    type='gcu',  # 指定使用GCU设备
-    device_ids=[0, 1, 2, 3, 4, 5, 6, 7],  # 使用所有8个GCU设备
-)
+# GCU设备配置 - 已移除，避免与训练脚本中的设备管理冲突
+# 所有设备配置都由训练脚本动态处理，确保模型正确移动到GCU设备
+# device_cfg = dict(
+#     type='gcu',  # 指定使用GCU设备
+#     device_ids=[0, 1, 2, 3, 4, 5, 6, 7],  # 使用所有8个GCU设备
+# )
 
 # 可视化后端
 vis_backends = [

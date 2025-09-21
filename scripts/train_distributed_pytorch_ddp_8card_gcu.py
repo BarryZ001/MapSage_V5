@@ -236,9 +236,11 @@ def setup_distributed_environment():
             import torch_gcu  # type: ignore
             # torch_gcu provides is_available() and device_count()
             if getattr(torch_gcu, 'is_available', lambda: False)() and getattr(torch_gcu, 'device_count', lambda: 0)() > 0:
-                device = f'gcu:{local_rank}'
+                # 使用正确的燧原T20 GCU设备格式
+                device = f'dtu:{local_rank}'
                 try:
                     torch_gcu.set_device(local_rank)
+                    print(f"[{datetime.now()}] Successfully set torch_gcu device: {local_rank}")
                 except Exception as e:
                     # best-effort, not fatal
                     print(f"[{datetime.now()}] Warning: torch_gcu.set_device failed: {e}")
@@ -355,6 +357,23 @@ def modify_config_for_distributed(cfg, rank, world_size, work_dir, backend_used=
             cfg.env_cfg = dict()
         cfg.env_cfg['dist_cfg'] = dict(backend=backend_used)
 
+    # 设置设备配置 - 确保模型和数据都移动到正确的GCU设备
+    local_rank = int(os.environ.get('LOCAL_RANK', 0))
+    if GCU_AVAILABLE:
+        device = f'dtu:{local_rank}'
+        cfg.device = device
+        print(f"[{datetime.now()}] Config device set to: {device}")
+        
+        # 设置模型包装器配置，确保正确的设备分配
+        cfg.model_wrapper_cfg = dict(
+            type='MMDistributedDataParallel',
+            find_unused_parameters=False,
+            broadcast_buffers=False,
+            device_ids=None,  # 让MMEngine自动处理设备分配
+            output_device=None
+        )
+        print(f"[{datetime.now()}] Model wrapper configured for GCU distributed training")
+
     # 调整batch size（仅打印）
     try:
         if hasattr(cfg, 'train_dataloader') and hasattr(cfg.train_dataloader, 'batch_size'):
@@ -444,6 +463,31 @@ def main():
             print("Starting distributed training... (rank 0)")
 
         runner = Runner.from_cfg(cfg)
+        
+        # 显式验证和移动模型到正确的设备
+        if GCU_AVAILABLE and hasattr(runner, 'model'):
+            local_rank = int(os.environ.get('LOCAL_RANK', 0))
+            target_device = f'dtu:{local_rank}'
+            
+            try:
+                # 检查模型当前设备
+                model_device = next(runner.model.parameters()).device
+                print(f"[{datetime.now()}] Model current device: {model_device}")
+                
+                # 如果模型不在正确的GCU设备上，显式移动
+                if str(model_device) != target_device:
+                    print(f"[{datetime.now()}] Moving model from {model_device} to {target_device}")
+                    runner.model = runner.model.to(target_device)
+                    
+                    # 验证移动是否成功
+                    new_device = next(runner.model.parameters()).device
+                    print(f"[{datetime.now()}] Model moved to device: {new_device}")
+                else:
+                    print(f"[{datetime.now()}] Model already on correct device: {model_device}")
+                    
+            except Exception as e:
+                print(f"[{datetime.now()}] Warning: Could not verify/move model device: {e}")
+        
         runner.train()
 
         if rank == 0:
