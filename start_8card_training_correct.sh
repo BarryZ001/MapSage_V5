@@ -32,19 +32,36 @@ export ECCL_DEVICE_TYPE=gcu
 export ECCL_DEBUG=1
 
 # 配置训练参数
-CONFIG_FILE="configs/train_dinov3_mmrs1m_t20_gcu_8card.py"
-WORK_DIR="./work_dirs/dinov3_mmrs1m_t20_gcu_8card_correct"
+CONFIG_FILE="configs/train_dinov3_mmrs1m_t20_gcu.py"
+WORK_DIR="./work_dirs/dinov3_mmrs1m_final"
+TRAIN_SCRIPT="scripts/train_distributed_pytorch_ddp_8card_gcu.py"
 
 echo "📄 配置文件: $CONFIG_FILE"
 echo "📁 工作目录: $WORK_DIR"
+echo "🐍 训练脚本: $TRAIN_SCRIPT"
+
+# 检查必要文件
+if [ ! -f "$CONFIG_FILE" ]; then
+    echo "❌ 配置文件不存在: $CONFIG_FILE"
+    exit 1
+fi
+
+if [ ! -f "$TRAIN_SCRIPT" ]; then
+    echo "❌ 训练脚本不存在: $TRAIN_SCRIPT"
+    exit 1
+fi
 
 # 创建工作目录
 mkdir -p "$WORK_DIR"
 
 # 停止之前的训练进程
 echo "🛑 停止之前的训练进程..."
+pkill -f "train_distributed_pytorch_ddp_8card_gcu.py" || true
 pkill -f "train_distributed_8card_gcu.py" || true
 sleep 2
+
+# 设置Python路径
+export PYTHONPATH="${PWD}:${PYTHONPATH}"
 
 # 使用torchrun启动8卡分布式训练
 echo "🚀 使用torchrun启动8卡分布式训练..."
@@ -54,10 +71,12 @@ torchrun \
     --nproc_per_node=8 \
     --master_addr=127.0.0.1 \
     --master_port=29500 \
-    scripts/train_distributed_8card_gcu.py \
-    "$CONFIG_FILE" \
+    "$TRAIN_SCRIPT" \
+    --config "$CONFIG_FILE" \
     --work-dir "$WORK_DIR" \
-    --launcher pytorch
+    --launcher pytorch \
+    --seed 42 \
+    --deterministic
 
 echo "✅ 8卡分布式训练启动完成"
 echo "📊 请在容器外使用 'efsmi' 命令监控GCU设备使用情况"
