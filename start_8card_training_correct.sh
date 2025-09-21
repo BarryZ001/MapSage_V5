@@ -8,9 +8,18 @@ echo "🚀 启动MapSage V5 - 8卡分布式训练"
 echo "📅 时间: $(date)"
 echo "🖥️  主机: $(hostname)"
 
-# 检查GCU设备
+# 检查GCU设备（容器内使用Python检查）
 echo "🔍 检查GCU设备状态..."
-efsmi
+python3 -c "
+try:
+    import torch_gcu
+    device_count = torch_gcu.device_count()
+    print(f'✅ 检测到 {device_count} 张GCU设备')
+    for i in range(device_count):
+        print(f'   - GCU设备 {i}: 可用')
+except Exception as e:
+    print(f'❌ GCU设备检查失败: {e}')
+"
 
 # 配置环境变量
 export WORLD_SIZE=8
@@ -51,5 +60,6 @@ torchrun \
     --launcher pytorch
 
 echo "✅ 8卡分布式训练启动完成"
-echo "📊 请使用 'efsmi' 命令监控GCU设备使用情况"
+echo "📊 请在容器外使用 'efsmi' 命令监控GCU设备使用情况"
+echo "📊 或在容器内使用 'python3 -c \"import torch_gcu; print(torch_gcu.device_count())\"' 检查设备"
 echo "📝 训练日志保存在: $WORK_DIR/logs/"
