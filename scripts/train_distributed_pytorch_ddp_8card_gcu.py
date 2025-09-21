@@ -56,6 +56,20 @@ except ImportError as e:
     print(f"Error importing MMSegmentation: {e}")
     sys.exit(1)
 
+# 导入自定义模块以确保模型注册
+try:
+    import mmseg_custom  # 导入自定义模块包
+    print("Custom modules imported successfully")
+except ImportError as e:
+    print(f"Warning: Could not import custom modules: {e}")
+    # 尝试单独导入关键模块
+    try:
+        from mmseg_custom.models import EncoderDecoder
+        print("EncoderDecoder model imported successfully")
+    except ImportError as e2:
+        print(f"Error: Could not import EncoderDecoder model: {e2}")
+        print("Please ensure mmseg_custom package is properly installed")
+
 
 def find_python_module(name: str) -> bool:
     """helper: check if python module exists"""
