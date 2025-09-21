@@ -264,12 +264,20 @@ default_hooks = dict(
     )
 )
 
-# 环境配置 - 燧原T20 GCU 8卡分布式训练
+# 环境配置 - 燧原T20 GCU 8卡分布式训练# 环境配置
 env_cfg = dict(
     cudnn_benchmark=False,  # GCU环境下禁用cudnn
     mp_cfg=dict(mp_start_method='fork', opencv_num_threads=0),
     dist_cfg=dict(backend='gloo'),  # 使用gloo后端支持GCU分布式训练，避免CUDA调用
     resource_limit=4096
+)
+
+# 模型包装器配置 - 专门为GCU环境配置
+model_wrapper_cfg = dict(
+    type='MMDistributedDataParallel',
+    find_unused_parameters=False,
+    broadcast_buffers=False,
+    # 不设置device_ids，让模型自动处理设备分配
 )
 
 # 移除device_cfg配置，避免与脚本中的设备管理冲突

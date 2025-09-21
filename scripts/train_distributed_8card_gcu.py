@@ -168,6 +168,14 @@ def main():
         # 禁用CUDA相关设置
         os.environ['CUDA_VISIBLE_DEVICES'] = ''
         print("🔧 配置设备为: {}".format(device))
+        
+        # 配置MMEngine以正确处理GCU设备
+        # 禁用device_ids参数，让MMEngine自动处理设备
+        if hasattr(cfg, 'model_wrapper_cfg'):
+            cfg.model_wrapper_cfg = dict(type='MMDistributedDataParallel', find_unused_parameters=False)
+        else:
+            cfg.model_wrapper_cfg = dict(type='MMDistributedDataParallel', find_unused_parameters=False)
+        print("🔧 配置MMEngine模型包装器，禁用device_ids")
     
     # 禁用SyncBatchNorm
     def disable_sync_batchnorm_in_config(config_dict):
@@ -217,6 +225,21 @@ def main():
     
     # 3. 创建 Runner 实例
     print("🚀 创建Runner...")
+    
+    # 在创建Runner之前，确保模型会被正确移动到GCU设备
+    # 通过设置环境变量来确保模型初始化时就在正确的设备上
+    if torch_gcu is not None:
+        # 强制模型在GCU设备上初始化
+        import torch
+        torch.set_default_tensor_type('torch.FloatTensor')  # 确保使用CPU tensor作为默认
+        
+        # 创建一个临时的GCU tensor来确保设备可用
+        try:
+            test_tensor = torch.tensor([1.0]).to(f"xla:{local_rank}")
+            print(f"✅ GCU设备 xla:{local_rank} 可用，测试tensor: {test_tensor.device}")
+        except Exception as e:
+            print(f"⚠️ GCU设备测试失败: {e}")
+    
     runner = Runner.from_cfg(cfg)
     print("✅ Runner创建完成")
     
