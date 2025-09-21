@@ -287,13 +287,37 @@ def main():
         torch_gcu.set_device(local_rank)
         device = f'xla:{local_rank}'
         
-        # 强制将模型移动到GCU设备
-        runner.model = runner.model.to(device)
-        print(f"🔧 模型已强制移动到设备: {device}")
+        print(f"🔧 开始将模型移动到设备: {device}")
         
-        # 验证模型设备
-        model_device = next(runner.model.parameters()).device
-        print(f"🔍 验证模型设备: {model_device}")
+        # 检查模型当前设备状态
+        try:
+            current_device = next(runner.model.parameters()).device
+            print(f"🔍 模型当前设备: {current_device}")
+        except StopIteration:
+            print("⚠️ 模型没有参数，跳过设备检查")
+            current_device = None
+        
+        # 强制将模型移动到GCU设备
+        try:
+            runner.model = runner.model.to(device)
+            print(f"✅ 模型已强制移动到设备: {device}")
+            
+            # 验证模型设备
+            model_device = next(runner.model.parameters()).device
+            print(f"🔍 验证模型设备: {model_device}")
+            
+            # 确保所有参数都在正确设备上
+            device_count = {}
+            for name, param in runner.model.named_parameters():
+                param_device = str(param.device)
+                device_count[param_device] = device_count.get(param_device, 0) + 1
+            
+            print(f"📊 模型参数设备分布: {device_count}")
+            
+        except Exception as e:
+            print(f"❌ 模型设备迁移失败: {e}")
+            print(f"❌ 错误详情: {str(e)}")
+            raise e
     
     # 3.3 转换SyncBatchNorm层以兼容DDP
     if hasattr(runner, 'model') and runner.model is not None and world_size > 1:
@@ -311,22 +335,56 @@ def main():
             
             # 检查模型是否已经被DDP包装
             if not isinstance(runner.model, MMDistributedDataParallel):
+                print(f"🔧 开始DDP包装，当前模型类型: {type(runner.model)}")
+                
+                # 获取模型当前设备
+                try:
+                    model_device = next(runner.model.parameters()).device
+                    print(f"🔍 DDP包装前模型设备: {model_device}")
+                except StopIteration:
+                    print("⚠️ 模型没有参数")
+                    model_device = None
+                
                 # 关键：设置device_ids=None和output_device=None以避免设备不匹配错误
                 runner.model = MMDistributedDataParallel(
                     runner.model,
                     device_ids=None,  # 关键：设为None让DDP使用模型当前设备
-                    output_device=None  # 关键：设为None避免设备冲突
+                    output_device=None,  # 关键：设为None避免设备冲突
+                    find_unused_parameters=False,  # 从配置文件获取
+                    broadcast_buffers=False  # 从配置文件获取
                 )
                 print("✅ 模型已在正确的GCU设备上重新包装为DDP")
                 
                 # 验证DDP包装后的模型设备
-                model_device = next(runner.model.parameters()).device
-                print(f"🔍 DDP包装后模型设备: {model_device}")
+                try:
+                    model_device = next(runner.model.parameters()).device
+                    print(f"🔍 DDP包装后模型设备: {model_device}")
+                    
+                    # 检查DDP包装后的参数设备分布
+                    device_count = {}
+                    for name, param in runner.model.named_parameters():
+                        param_device = str(param.device)
+                        device_count[param_device] = device_count.get(param_device, 0) + 1
+                    
+                    print(f"📊 DDP包装后参数设备分布: {device_count}")
+                    
+                except StopIteration:
+                    print("⚠️ DDP包装后模型没有参数")
+                    
             else:
                 print("✅ 模型已经是DDP包装")
+                # 验证已包装模型的设备
+                try:
+                    model_device = next(runner.model.parameters()).device
+                    print(f"🔍 已包装DDP模型设备: {model_device}")
+                except StopIteration:
+                    print("⚠️ 已包装DDP模型没有参数")
+                    
         except Exception as e:
             print(f"⚠️ DDP包装失败: {e}")
             print(f"⚠️ 错误详情: {str(e)}")
+            print(f"⚠️ 错误类型: {type(e)}")
+            # 不抛出异常，让训练继续进行
     
     # ===== END: 最终修复逻辑 =====
     

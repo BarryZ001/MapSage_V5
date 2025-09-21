@@ -272,12 +272,13 @@ env_cfg = dict(
     resource_limit=4096
 )
 
-# 模型包装器配置 - 专门为GCU环境配置
+# 模型包装器配置 - 避免分布式训练设备不匹配问题
 model_wrapper_cfg = dict(
     type='MMDistributedDataParallel',
     find_unused_parameters=False,
     broadcast_buffers=False,
-    # 不设置device_ids，让模型自动处理设备分配
+    device_ids=None,  # 关键：设置为None避免设备不匹配错误
+    output_device=None  # 关键：设置为None让DDP使用模型当前设备
 )
 
 # 移除device_cfg配置，避免与脚本中的设备管理冲突
