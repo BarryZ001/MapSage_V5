@@ -49,7 +49,7 @@ data_preprocessor = dict(
 
 # DINOv3-ViT-L/16 模型配置
 model = dict(
-    type='EncoderDecoder',
+    type='CustomEncoderDecoder',  # 使用自定义的EncoderDecoder，与8卡配置保持一致
     data_preprocessor=data_preprocessor,
     
     # DINOv3 ViT-Large/16 backbone
@@ -346,8 +346,8 @@ distillation_config = dict(
 # 模型EMA配置
 model_ema_config = dict(
     enable=True,
-    momentum=0.9999,
-    device='xla'  # GCU环境使用xla设备
+    momentum=0.9999
+    # 设备配置由训练脚本动态设置，避免硬编码设备类型
 )
 
 # 混合精度训练（GCU环境可能需要调整）

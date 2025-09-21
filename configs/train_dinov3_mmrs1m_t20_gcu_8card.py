@@ -264,11 +264,11 @@ default_hooks = dict(
     )
 )
 
-# 环境配置 - 燧原T20 GCU 8卡分布式训练# 环境配置
+# 环境配置 - 燧原T20 GCU 8卡分布式训练
 env_cfg = dict(
     cudnn_benchmark=False,  # GCU环境下禁用cudnn
     mp_cfg=dict(mp_start_method='fork', opencv_num_threads=0),
-    dist_cfg=dict(backend='gloo'),  # 使用gloo后端支持GCU分布式训练，避免CUDA调用
+    dist_cfg=dict(backend='eccl'),  # 使用eccl高性能后端，充分利用GCU间高速互联
     resource_limit=4096
 )
 
@@ -345,15 +345,15 @@ distillation_config = dict(
     temperature=4.0
 )
 
-# EMA配置 - 移除硬编码设备配置，让训练脚本动态设置
+# EMA配置 - 移除硬编码设备配置，让训练脚本动态设置# EMA配置 - 8卡训练暂时禁用以避免设备冲突
 model_ema_config = dict(
     enable=False,  # 暂时禁用EMA以避免设备冲突
     momentum=0.9999
     # device配置由训练脚本动态设置
 )
 
-# 混合精度训练
-fp16 = dict(loss_scale=512.0)
+# 混合精度训练由--amp标志控制，移除配置文件中的fp16设置避免冲突
+# fp16 = dict(loss_scale=512.0)  # 已移除，使用训练脚本的--amp标志替代
 
 # 梯度累积
 accumulative_counts = 1  # 8卡训练不需要梯度累积
