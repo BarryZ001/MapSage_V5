@@ -345,8 +345,55 @@ def main():
             except:
                 print("⚠️ 无法设置默认设备，继续使用CPU初始化")
     
-    runner = Runner.from_cfg(cfg)
-    print("✅ Runner创建完成")
+    # 关键修复：强制设置模型初始化设备
+    print("🔧 强制设置模型初始化在GCU设备上...")
+    if torch_gcu is not None:
+        # 临时修改torch的默认tensor类型，确保模型参数在GCU上初始化
+        original_default_tensor_type = torch.get_default_dtype()
+        try:
+            # 创建一个GCU上的tensor作为模板
+            device_str = f'xla:{local_rank}'
+            print(f"🔧 设置模型初始化设备: {device_str}")
+            
+            # 在配置中明确指定设备
+            cfg.device = device_str
+            
+            # 创建Runner
+            runner = Runner.from_cfg(cfg)
+            print("✅ Runner创建完成")
+            
+            # 立即检查并移动模型到正确设备
+            if hasattr(runner, 'model') and runner.model is not None:
+                print("🔧 检查模型设备状态...")
+                
+                # 获取模型当前设备
+                try:
+                    current_device = next(runner.model.parameters()).device
+                    print(f"🔍 模型当前设备: {current_device}")
+                    
+                    # 如果模型不在正确的GCU设备上，强制移动
+                    if str(current_device) != device_str:
+                        print(f"⚠️ 模型设备不匹配，从 {current_device} 移动到 {device_str}")
+                        runner.model = runner.model.to(device_str)
+                        print(f"✅ 模型已移动到设备: {device_str}")
+                        
+                        # 再次验证
+                        new_device = next(runner.model.parameters()).device
+                        print(f"🔍 移动后模型设备: {new_device}")
+                    else:
+                        print(f"✅ 模型已在正确设备: {current_device}")
+                        
+                except Exception as e:
+                    print(f"⚠️ 检查模型设备时出错: {e}")
+                    
+        except Exception as e:
+            print(f"❌ 设置模型初始化设备失败: {e}")
+            # 回退到默认创建方式
+            runner = Runner.from_cfg(cfg)
+            print("✅ Runner创建完成（回退模式）")
+    else:
+         runner = Runner.from_cfg(cfg)
+         print("✅ Runner创建完成")
     
     # ===== START: 最终修复逻辑 (在Runner创建后，训练开始前) =====
     print("🔧 开始执行最终修复逻辑...")
