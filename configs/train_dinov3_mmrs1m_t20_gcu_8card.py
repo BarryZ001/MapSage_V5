@@ -122,14 +122,14 @@ train_pipeline = [
         img_scale=img_size,
         keep_ratio=True
     ),
-    # 🚨 暂时注释掉复杂的数据增强以排除瓶颈
-    # dict(
-    #     type='RandomCrop',
-    #     crop_size=crop_size,
-    #     cat_max_ratio=0.75
-    # ),
-    # dict(type='CustomRandomFlip', prob=0.5),
-    # dict(type='PhotoMetricDistortion'),  # 最可能的瓶颈源
+    # 🚀 恢复数据增强以获得最佳训练效果
+    dict(
+        type='RandomCrop',
+        crop_size=crop_size,
+        cat_max_ratio=0.75
+    ),
+    dict(type='CustomRandomFlip', prob=0.5),
+    dict(type='PhotoMetricDistortion'),  # 恢复光度变换增强
     dict(type='CustomNormalize', **img_norm_cfg),
     dict(type='CustomPad', size=crop_size, pad_val=0, seg_pad_val=255),
     dict(type='CustomDefaultFormatBundle'),
@@ -154,11 +154,11 @@ val_pipeline = [
 test_pipeline = val_pipeline
 
 # 数据加载器配置 - 8卡分布式训练
-# 🔧 调试模式：num_workers=0 用于诊断数据加载瓶颈
+# 🚀 性能模式：恢复多进程数据加载以获得最佳性能
 train_dataloader = dict(
     batch_size=2,  # 每卡batch_size，总batch_size = 2 * 8 = 16
-    num_workers=0,  # 🚨 临时设为0以诊断多进程数据加载问题
-    persistent_workers=False,  # num_workers=0时必须设为False
+    num_workers=8,  # 🔥 恢复多进程数据加载以提升性能
+    persistent_workers=True,  # 启用持久化worker以减少进程创建开销
     sampler=dict(type='InfiniteSampler', shuffle=True),
     dataset=dict(
         type=dataset_type,

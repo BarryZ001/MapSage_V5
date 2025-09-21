@@ -350,8 +350,8 @@ model_ema_config = dict(
     # 设备配置由训练脚本动态设置，避免硬编码设备类型
 )
 
-# 混合精度训练（GCU环境可能需要调整）
-fp16 = dict(loss_scale=512.0)
+# 混合精度训练由训练脚本的--amp标志控制，移除配置文件中的fp16设置以避免冲突
+# fp16 = dict(loss_scale=512.0)  # 已移除，使用训练脚本的--amp标志替代
 
 # 梯度累积
 accumulative_counts = 2  # 等效batch_size = 4 * 4 * 2 = 32
