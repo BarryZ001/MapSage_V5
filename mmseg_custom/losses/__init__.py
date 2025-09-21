@@ -1,6 +1,9 @@
 # 导入MMSeg的损失函数并注册到MMEngine的MODELS注册表中
 from mmengine.registry import MODELS
 
+# 初始化可用的损失函数列表
+_available_losses = []
+
 # 导入MMSeg的损失函数
 try:
     from mmseg.models.losses import CrossEntropyLoss, DiceLoss, FocalLoss, LovaszLoss
@@ -10,6 +13,9 @@ try:
     MODELS.register_module(name='DiceLoss', module=DiceLoss, force=True)
     MODELS.register_module(name='FocalLoss', module=FocalLoss, force=True)
     MODELS.register_module(name='LovaszLoss', module=LovaszLoss, force=True)
+    
+    # 添加到可用损失函数列表
+    _available_losses.extend(['CrossEntropyLoss', 'DiceLoss', 'FocalLoss', 'LovaszLoss'])
     
     print("✅ 成功注册MMSeg损失函数到MMEngine MODELS注册表")
     
@@ -36,8 +42,12 @@ except ImportError as e:
                 loss = F.cross_entropy(pred, target, ignore_index=self.ignore_index)
             return loss * self.loss_weight
     
-    # 注册简单实现
+    # 注册简单实现并添加到当前模块
     MODELS.register_module(name='CrossEntropyLoss', module=SimpleCrossEntropyLoss, force=True)
+    CrossEntropyLoss = SimpleCrossEntropyLoss
+    _available_losses.append('CrossEntropyLoss')
+    
     print("✅ 注册简单CrossEntropyLoss实现到MMEngine MODELS注册表")
 
-__all__ = ['CrossEntropyLoss', 'DiceLoss', 'FocalLoss', 'LovaszLoss']
+# 动态设置__all__
+__all__ = _available_losses

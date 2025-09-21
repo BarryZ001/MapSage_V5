@@ -45,6 +45,7 @@ except ImportError as e:
 try:
     from mmseg_custom.models import *  # type: ignore
     from mmseg_custom.datasets import *  # type: ignore
+    print("✅ 自定义模块导入成功")
 except ImportError as e:
     print("⚠️ 自定义模块导入失败: {}".format(e))
 
