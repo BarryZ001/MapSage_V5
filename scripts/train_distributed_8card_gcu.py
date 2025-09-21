@@ -161,7 +161,7 @@ def main():
         torch_gcu.set_device(local_rank)
         print("🔧 设置当前进程GCU设备: {}".format(local_rank))
         
-        device = "gcu:{}".format(local_rank)
+        device = f"xla:{local_rank}"
         cfg.device = device
         
         # 禁用CUDA相关设置
@@ -242,9 +242,9 @@ def main():
     
     # 3.2 关键修复：强制将模型移动到正确的GCU设备
     if torch_gcu is not None and hasattr(runner, 'model') and runner.model is not None:
-        # 设置当前进程的GCU设备
+        # 设置GCU设备
         torch_gcu.set_device(local_rank)
-        device = f'gcu:{local_rank}'
+        device = f'xla:{local_rank}'
         
         # 强制将模型移动到GCU设备
         runner.model = runner.model.to(device)
