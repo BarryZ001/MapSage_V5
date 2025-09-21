@@ -94,9 +94,10 @@ def setup_distributed_environment():
     
     # 初始化进程组
     if world_size > 1:
-        # 设置分布式后端
+        # 设置分布式后端 - ECCL后端在当前PyTorch版本中不可用，使用gloo作为GCU的备选方案
         if device.startswith('gcu'):
-            backend = 'eccl'  # GCU使用ECCL后端
+            backend = 'gloo'  # GCU使用GLOO后端作为备选方案
+            print("Warning: ECCL backend not available, using GLOO backend for GCU")
         elif device.startswith('cuda'):
             backend = 'nccl'  # CUDA使用NCCL后端
         else:
