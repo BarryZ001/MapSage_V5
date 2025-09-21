@@ -52,7 +52,7 @@ export MASTER_PORT=$PORT
 python3 -m torch.distributed.launch \
     --nproc_per_node=$GPUS \
     --master_port=$PORT \
-    tools/train.py \
+    scripts/train.py \
     $CONFIG_FILE \
     --work-dir $WORK_DIR \
     --launcher pytorch \

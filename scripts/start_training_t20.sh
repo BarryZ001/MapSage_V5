@@ -88,7 +88,7 @@ echo "   tops-smi (查看GCU使用情况)"
 echo "\n🚀 启动训练..."
 
 # 启动训练 - 使用T20 GCU专用配置
-python3 tools/train.py configs/train_dinov3_mmrs1m_t20_gcu.py \
+python3 scripts/train.py configs/train_dinov3_mmrs1m_t20_gcu.py \
     --work-dir work_dirs/dinov3_mmrs1m_t20_gcu \
     --seed 42 \
     --deterministic

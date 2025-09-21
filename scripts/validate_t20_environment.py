@@ -201,7 +201,7 @@ def check_project_structure():
         'configs',
         'mmseg_custom',
         'scripts',
-        'tools/train.py',
+        'scripts/train.py',
         'configs/train_dinov3_mmrs1m_t20_gcu.py',
         'configs/train_dinov3_loveda_t20_gcu.py'
     ]

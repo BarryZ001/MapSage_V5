@@ -55,7 +55,7 @@ echo "🚀 启动分布式训练..."
 python3 -m torch.distributed.launch \
     --nproc_per_node=$NUM_GPUS \
     --master_port=$PORT \
-    tools/train.py \
+    scripts/train.py \
     $CONFIG_FILE \
     --work-dir $WORK_DIR \
     --launcher pytorch \

@@ -78,7 +78,7 @@ torchrun \
     --rdzv_id=100 \
     --rdzv_backend=c10d \
     --rdzv_endpoint=localhost:29500 \
-    tools/train.py \
+    scripts/train.py \
     "$CONFIG_FILE" \
     --work-dir "$WORK_DIR" \
     --launcher pytorch \
