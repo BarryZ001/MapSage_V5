@@ -318,6 +318,25 @@ def main():
         except Exception as e:
             print(f"⚠️ GCU设备测试失败: {e}")
     
+    # 关键修复：在创建Runner之前设置正确的模型包装器配置
+    print("🔧 配置MMEngine模型包装器，禁用device_ids...")
+    if not hasattr(cfg, 'model_wrapper_cfg') or cfg.model_wrapper_cfg is None:
+        cfg.model_wrapper_cfg = dict(
+            type='MMDistributedDataParallel',
+            find_unused_parameters=False,
+            broadcast_buffers=False,
+            device_ids=None,  # 关键：设为None避免设备不匹配错误
+            output_device=None  # 关键：设为None让DDP使用模型当前设备
+        )
+        print("✅ 设置了新的model_wrapper_cfg配置")
+    else:
+        # 修改现有配置
+        cfg.model_wrapper_cfg.device_ids = None
+        cfg.model_wrapper_cfg.output_device = None
+        print("✅ 修改了现有的model_wrapper_cfg配置")
+    
+    print(f"🔍 最终model_wrapper_cfg: {cfg.model_wrapper_cfg}")
+    
     runner = Runner.from_cfg(cfg)
     print("✅ Runner创建完成")
     
