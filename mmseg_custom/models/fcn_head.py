@@ -158,8 +158,8 @@ class FCNHead(BaseModule):
         seg_logits = self.forward(inputs)
         losses = self.loss_by_feat(seg_logits, batch_data_samples)
         return losses
-        
-        def loss_by_feat(self, seg_logits: Union[torch.Tensor, List[torch.Tensor]],
+    
+    def loss_by_feat(self, seg_logits: Union[torch.Tensor, List[torch.Tensor]],
                      batch_data_samples: Union[List, Dict]) -> dict:
         """Compute segmentation loss with proper batch size handling."""
         
