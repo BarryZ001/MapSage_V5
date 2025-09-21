@@ -3,7 +3,13 @@ import os
 import os.path as osp
 from typing import Dict, List, Optional, Union
 
-import mmcv
+try:
+    import mmcv
+except ImportError:
+    # 如果mmcv不可用，使用基础的cv2或PIL替代
+    mmcv = None
+    print("Warning: mmcv not available, using fallback image loading")
+
 import numpy as np
 from mmengine.fileio import get_local_path
 from PIL import Image
@@ -734,5 +740,9 @@ class MMRS1MDataset(BaseDataset):
             
         # 加载实际分割图
         seg_map_path = data_info['seg_map_path']
-        seg_map = mmcv.imread(seg_map_path, flag='unchanged', backend='pillow')
+        if mmcv is not None:
+            seg_map = mmcv.imread(seg_map_path, flag='unchanged', backend='pillow')
+        else:
+            # 使用PIL作为fallback
+            seg_map = np.array(Image.open(seg_map_path))
         return seg_map.squeeze() if seg_map.ndim == 3 else seg_map

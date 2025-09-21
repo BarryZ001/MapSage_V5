@@ -4,7 +4,14 @@
 兼容MMSeg 0.30.0版本的PIPELINES注册表。
 """
 
-import mmcv
+try:
+    import mmcv
+    MMCV_AVAILABLE = True
+except ImportError:
+    mmcv = None
+    MMCV_AVAILABLE = False
+    print("Warning: mmcv not available, using fallback implementations")
+
 import numpy as np
 import os.path as osp
 from typing import Dict, List, Optional, Tuple, Union, Sequence

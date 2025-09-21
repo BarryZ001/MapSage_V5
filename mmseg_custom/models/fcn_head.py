@@ -282,6 +282,12 @@ class FCNHead(BaseModule):
             if seg_label.dtype != torch.long:
                 seg_label = seg_label.long()
             
+            # CRITICAL FIX: Move seg_label to the same device as seg_logits
+            # This fixes the "Input tensor is not a Dtu node: CPULongType" error
+            if seg_label.device != seg_logits.device:
+                seg_label = seg_label.to(seg_logits.device)
+                print(f"DEBUG: Moved seg_label from {seg_label.device} to {seg_logits.device}")
+            
             # Resize logits to match label size if needed
             if seg_logits.shape[-2:] != seg_label.shape[-2:]:
                 seg_logits = F.interpolate(

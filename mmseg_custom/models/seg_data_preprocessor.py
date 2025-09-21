@@ -116,7 +116,28 @@ class SegDataPreProcessor(BaseDataPreprocessor):
             # 使用标准PyTorch设备移动
             batch_inputs = batch_inputs.to(self.device)
         
-        return {'inputs': batch_inputs, 'data_samples': data_samples}
+        # CRITICAL FIX: Also move data_samples to the same device
+        # This ensures labels are on the same device as inputs
+        processed_data_samples = []
+        for sample in data_samples:
+            if isinstance(sample, dict) and 'gt_sem_seg' in sample:
+                gt_seg_data = sample['gt_sem_seg']['data']
+                if isinstance(gt_seg_data, torch.Tensor):
+                    # Move gt_sem_seg to the same device as inputs
+                    if GCU_AVAILABLE and hasattr(self, 'device') and self.device == 'xla':
+                        device = ptex.device("xla")
+                        gt_seg_data = gt_seg_data.to(device)
+                    else:
+                        gt_seg_data = gt_seg_data.to(self.device)
+                    
+                    # Update the sample with device-moved data
+                    sample = sample.copy()
+                    sample['gt_sem_seg'] = {'data': gt_seg_data}
+                    print(f"DEBUG: Moved gt_sem_seg from CPU to {gt_seg_data.device}")
+            
+            processed_data_samples.append(sample)
+        
+        return {'inputs': batch_inputs, 'data_samples': processed_data_samples}
     
     def _process_image(self, img):
         """Process a single image."""
