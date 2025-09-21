@@ -233,6 +233,8 @@ class FCNHead(BaseModule):
         seg_labels = []
         for i, data_sample in enumerate(data_samples_list):
             try:
+                seg_label = None
+                
                 if hasattr(data_sample, 'gt_sem_seg'):
                     # Standard SegDataSample format
                     if hasattr(data_sample.gt_sem_seg, 'data'):
@@ -240,26 +242,52 @@ class FCNHead(BaseModule):
                     else:
                         seg_label = data_sample.gt_sem_seg
                 elif isinstance(data_sample, dict) and 'gt_sem_seg' in data_sample:
-                    # Handle dict format
-                    seg_label = data_sample['gt_sem_seg']
+                    # Handle dict format - need to extract data from nested dict
+                    gt_sem_seg = data_sample['gt_sem_seg']
+                    if isinstance(gt_sem_seg, dict) and 'data' in gt_sem_seg:
+                        seg_label = gt_sem_seg['data']
+                    else:
+                        seg_label = gt_sem_seg
                 else:
                     # Create dummy segmentation
                     print(f"[FCN_HEAD_DEBUG] Creating dummy segmentation for sample {i}")
                     seg_label = torch.zeros(seg_logits.shape[-2:], dtype=torch.long, device=seg_logits.device)
                 
+                # Ensure seg_label is a tensor
+                if not isinstance(seg_label, torch.Tensor):
+                    if isinstance(seg_label, (list, tuple, np.ndarray)):
+                        seg_label = torch.tensor(seg_label, dtype=torch.long, device=seg_logits.device)
+                    elif seg_label is None:
+                        seg_label = torch.zeros(seg_logits.shape[-2:], dtype=torch.long, device=seg_logits.device)
+                    else:
+                        print(f"[FCN_HEAD_DEBUG] Unexpected seg_label type: {type(seg_label)}, creating dummy")
+                        seg_label = torch.zeros(seg_logits.shape[-2:], dtype=torch.long, device=seg_logits.device)
+                
                 # Ensure proper device and shape
-                if isinstance(seg_label, torch.Tensor):
-                    seg_label = seg_label.to(seg_logits.device)
-                    # Resize if necessary
-                    if seg_label.shape != seg_logits.shape[-2:]:
+                seg_label = seg_label.to(seg_logits.device)
+                
+                # Resize if necessary
+                if seg_label.shape != seg_logits.shape[-2:]:
+                    if seg_label.dim() == 2:
                         seg_label = torch.nn.functional.interpolate(
                             seg_label.unsqueeze(0).unsqueeze(0).float(),
                             size=seg_logits.shape[-2:],
                             mode='nearest'
                         ).squeeze().long()
-                else:
-                    # Convert to tensor if not already
-                    seg_label = torch.tensor(seg_label, dtype=torch.long, device=seg_logits.device)
+                    elif seg_label.dim() == 3:
+                        seg_label = torch.nn.functional.interpolate(
+                            seg_label.unsqueeze(0).float(),
+                            size=seg_logits.shape[-2:],
+                            mode='nearest'
+                        ).squeeze().long()
+                    else:
+                        print(f"[FCN_HEAD_DEBUG] Unexpected seg_label dimensions: {seg_label.shape}")
+                        seg_label = torch.zeros(seg_logits.shape[-2:], dtype=torch.long, device=seg_logits.device)
+                
+                # Final validation - ensure it's 2D tensor
+                if seg_label.dim() != 2:
+                    print(f"[FCN_HEAD_DEBUG] Final seg_label has wrong dimensions: {seg_label.shape}, creating 2D dummy")
+                    seg_label = torch.zeros(seg_logits.shape[-2:], dtype=torch.long, device=seg_logits.device)
                 
                 seg_labels.append(seg_label)
                 print(f"[FCN_HEAD_DEBUG] Processed sample {i}, seg_label shape: {seg_label.shape}")
