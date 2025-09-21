@@ -65,25 +65,42 @@ def setup_distributed_environment():
     print(f"Distributed setup: rank={rank}, local_rank={local_rank}, world_size={world_size}")
     
     # 设置设备
-    if GCU_AVAILABLE and hasattr(torch, 'gcu') and torch.gcu.is_available():  # type: ignore
-        device = f'gcu:{local_rank}'
-        torch.gcu.set_device(local_rank)  # type: ignore
-        print(f"Using GCU device: {device}")
-    else:
-        device = f'cuda:{local_rank}' if torch.cuda.is_available() else 'cpu'
+    device = 'cpu'  # 默认设备
+    
+    # 优先检查GCU设备
+    if GCU_AVAILABLE:
+        try:
+            import torch_gcu  # type: ignore
+            if torch_gcu.is_available() and torch_gcu.device_count() > 0:
+                device = f'gcu:{local_rank}'
+                torch_gcu.set_device(local_rank)
+                # 设置GCU环境变量
+                os.environ['TOPS_VISIBLE_DEVICES'] = str(local_rank)
+                os.environ['CUDA_VISIBLE_DEVICES'] = ''  # 禁用CUDA
+                print(f"Using GCU device: {device}")
+            else:
+                print("GCU not available, falling back to CPU/CUDA")
+        except Exception as e:
+            print(f"GCU setup failed: {e}, falling back to CPU/CUDA")
+    
+    # 如果GCU不可用，检查CUDA
+    if device == 'cpu':
         if torch.cuda.is_available():
+            device = f'cuda:{local_rank}'
             torch.cuda.set_device(local_rank)
-        print(f"Using device: {device}")
+            print(f"Using CUDA device: {device}")
+        else:
+            print(f"Using device: {device}")
     
     # 初始化进程组
     if world_size > 1:
         # 设置分布式后端
-        if GCU_AVAILABLE:
-            backend = 'nccl'  # GCU通常使用NCCL后端
-        elif torch.cuda.is_available():
-            backend = 'nccl'
+        if device.startswith('gcu'):
+            backend = 'eccl'  # GCU使用ECCL后端
+        elif device.startswith('cuda'):
+            backend = 'nccl'  # CUDA使用NCCL后端
         else:
-            backend = 'gloo'
+            backend = 'gloo'  # CPU使用GLOO后端
         
         print(f"Initializing distributed training with backend: {backend}")
         dist.init_process_group(backend=backend, rank=rank, world_size=world_size)
