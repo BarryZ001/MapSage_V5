@@ -116,6 +116,10 @@ def parse_args():
     parser.add_argument('--auto-scale-lr', action='store_true', help='根据GPU数量自动缩放学习率')
     
     # 添加分布式训练相关参数
+    parser.add_argument('--launcher', choices=['none', 'pytorch', 'slurm', 'mpi'], 
+                       default='pytorch', help='分布式启动器')
+    parser.add_argument('--seed', type=int, default=42, help='随机种子')
+    parser.add_argument('--deterministic', action='store_true', help='启用确定性训练')
     parser.add_argument('--local_rank', type=int, default=0, 
                        help='Local rank for distributed training (automatically set by torch.distributed.launch)')
     parser.add_argument('--local-rank', type=int, default=0, dest='local_rank',
