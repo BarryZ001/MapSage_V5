@@ -30,6 +30,17 @@ except ImportError as e:
 def main():
     parser = argparse.ArgumentParser(description='MMSegmentation training script')
     parser.add_argument('config', help='train config file path')
+    parser.add_argument('--work-dir', help='the dir to save logs and models')
+    parser.add_argument('--launcher', 
+                        choices=['none', 'pytorch', 'slurm', 'mpi'],
+                        default='none',
+                        help='job launcher')
+    parser.add_argument('--local_rank', type=int, default=0,
+                        help='local rank for distributed training')
+    parser.add_argument('--seed', type=int, default=None,
+                        help='random seed')
+    parser.add_argument('--deterministic', action='store_true',
+                        help='whether to set deterministic options for CUDNN backend')
     args = parser.parse_args()
 
     print("📦 正在初始化MMSegmentation模块...")
@@ -43,10 +54,22 @@ def main():
     cfg = Config.fromfile(args.config)
     
     # 设置工作目录
-    if cfg.get('work_dir', None) is None:
+    if args.work_dir is not None:
+        cfg.work_dir = args.work_dir
+    elif cfg.get('work_dir', None) is None:
         cfg.work_dir = './work_dirs'
     
     print(f"📁 工作目录: {cfg.work_dir}")
+    
+    # 设置随机种子
+    if args.seed is not None:
+        cfg.randomness = dict(seed=args.seed, deterministic=args.deterministic)
+        print(f"🎲 随机种子: {args.seed}, 确定性: {args.deterministic}")
+    
+    # 设置启动器
+    if args.launcher != 'none':
+        cfg.launcher = args.launcher
+        print(f"🚀 启动器: {args.launcher}")
     
     # 创建Runner并开始训练
     print("🚀 开始训练...")
