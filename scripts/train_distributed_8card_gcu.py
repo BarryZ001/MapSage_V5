@@ -203,8 +203,31 @@ def main():
     # 2. 初始化分布式环境 (绕过MMEngine的CUDA调用，直接使用torch.distributed)
     def init_process_group_with_fallback(init_method='env://'):
         """尝试多种backend初始化分布式训练"""
-        candidates = ['eccl', 'nccl', 'gloo']
+        candidates = ['gloo', 'nccl']  # 移除eccl，因为它不是标准的PyTorch分布式后端
         errors = {}
+        
+        # 首先尝试使用ECCL包装器
+        try:
+            print("🔄 尝试使用ECCL包装器初始化分布式")
+            # 导入ECCL包装器
+            import sys
+            sys.path.append('/opt/tops/eccl/lib/python3.8/site-packages')
+            import eccl
+            
+            # 使用gloo作为基础backend，但通过ECCL进行通信
+            dist.init_process_group(
+                backend='gloo', 
+                init_method=init_method,
+                rank=int(os.environ.get('RANK', 0)),
+                world_size=int(os.environ.get('WORLD_SIZE', 1))
+            )
+            print("✅ 分布式初始化成功，使用ECCL包装器 + gloo backend")
+            return 'eccl_gloo'
+            
+        except Exception as e:
+            error_msg = f"ECCL包装器失败: {type(e).__name__}: {e}"
+            errors['eccl'] = error_msg
+            print(f"⚠️ {error_msg}")
         
         for backend in candidates:
             try:
@@ -216,7 +239,12 @@ def main():
                     print(f"⚠️ {backend}: nccl不可用，跳过")
                     continue
                 
-                dist.init_process_group(backend=backend, init_method=init_method)
+                dist.init_process_group(
+                    backend=backend, 
+                    init_method=init_method,
+                    rank=int(os.environ.get('RANK', 0)),
+                    world_size=int(os.environ.get('WORLD_SIZE', 1))
+                )
                 print(f"✅ 分布式初始化成功，使用backend: {backend}")
                 return backend
                 
@@ -237,7 +265,13 @@ def main():
         for b, e in errors.items():
             msg.append(f"  - {b}: {e}")
         msg.append(f"torch.distributed.is_available(): {dist.is_available()}")
-        msg.append(f"torch.cuda.is_available(): {torch.cuda.is_available()}")
+        
+        # 安全检查torch模块
+        try:
+            import torch
+            msg.append(f"torch.cuda.is_available(): {torch.cuda.is_available()}")
+        except Exception as e:
+            msg.append(f"torch.cuda检查失败: {e}")
         
         # 检查torch_gcu状态
         try:
