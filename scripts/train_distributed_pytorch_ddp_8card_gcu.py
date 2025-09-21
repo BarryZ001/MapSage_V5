@@ -109,7 +109,7 @@ def cleanup_distributed():
 def parse_args():
     """解析命令行参数"""
     parser = argparse.ArgumentParser(description='PyTorch DDP分布式训练 - T20 GCU 8卡')
-    parser.add_argument('config', help='训练配置文件路径')
+    parser.add_argument('--config', required=True, help='训练配置文件路径')
     parser.add_argument('--work-dir', help='工作目录，用于保存日志和模型')
     parser.add_argument('--resume', help='恢复训练的检查点路径')
     parser.add_argument('--amp', action='store_true', help='启用自动混合精度训练')
