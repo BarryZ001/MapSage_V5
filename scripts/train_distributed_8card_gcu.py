@@ -319,23 +319,31 @@ def main():
             print(f"⚠️ GCU设备测试失败: {e}")
     
     # 关键修复：在创建Runner之前设置正确的模型包装器配置
-    print("🔧 配置MMEngine模型包装器，禁用device_ids...")
-    if not hasattr(cfg, 'model_wrapper_cfg') or cfg.model_wrapper_cfg is None:
-        cfg.model_wrapper_cfg = dict(
-            type='MMDistributedDataParallel',
-            find_unused_parameters=False,
-            broadcast_buffers=False,
-            device_ids=None,  # 关键：设为None避免设备不匹配错误
-            output_device=None  # 关键：设为None让DDP使用模型当前设备
-        )
-        print("✅ 设置了新的model_wrapper_cfg配置")
-    else:
-        # 修改现有配置
-        cfg.model_wrapper_cfg.device_ids = None
-        cfg.model_wrapper_cfg.output_device = None
-        print("✅ 修改了现有的model_wrapper_cfg配置")
+    print("🔧 配置MMEngine模型包装器，完全禁用device_ids和output_device...")
     
+    # 强制设置模型包装器配置为None，让MMEngine使用默认的DDP包装
+    cfg.model_wrapper_cfg = dict(
+        type='MMDistributedDataParallel',
+        find_unused_parameters=False,
+        broadcast_buffers=False,
+        # 关键修复：完全不设置device_ids和output_device，让DDP自动处理
+    )
+    print("✅ 设置了兼容GCU的model_wrapper_cfg配置")
     print(f"🔍 最终model_wrapper_cfg: {cfg.model_wrapper_cfg}")
+    
+    # 在创建Runner之前，预先设置GCU设备环境
+    if torch_gcu is not None:
+        print(f"🔧 预设置GCU设备环境，local_rank: {local_rank}")
+        torch_gcu.set_device(local_rank)
+        
+        # 设置默认设备为当前GCU设备
+        import torch
+        if hasattr(torch, 'set_default_device'):
+            try:
+                torch.set_default_device(f'xla:{local_rank}')
+                print(f"✅ 设置默认设备为: xla:{local_rank}")
+            except:
+                print("⚠️ 无法设置默认设备，继续使用CPU初始化")
     
     runner = Runner.from_cfg(cfg)
     print("✅ Runner创建完成")
@@ -443,12 +451,15 @@ def main():
                     model_device = None
                 
                 # 关键：设置device_ids=None和output_device=None以避免设备不匹配错误
+                # 这是修复DDP设备不匹配错误的核心逻辑
                 runner.model = MMDistributedDataParallel(
                     runner.model,
                     device_ids=None,  # 关键：设为None让DDP使用模型当前设备
                     output_device=None,  # 关键：设为None避免设备冲突
                     find_unused_parameters=False,  # 从配置文件获取
-                    broadcast_buffers=False  # 从配置文件获取
+                    broadcast_buffers=False,  # 从配置文件获取
+                    # 添加额外的GCU兼容性配置
+                    static_graph=False,  # 禁用静态图优化，避免GCU兼容性问题
                 )
                 print("✅ 模型已在正确的GCU设备上重新包装为DDP")
                 
