@@ -192,11 +192,28 @@ def main():
     disable_sync_batchnorm_in_config(cfg._cfg_dict)
     print("✅ SyncBatchNorm禁用完成，现在使用普通BatchNorm兼容GCU")
     
-    # 2. 初始化分布式环境 (让MMEngine按标准方式初始化)
+    # 2. 初始化分布式环境 (绕过MMEngine的CUDA调用，直接使用torch.distributed)
     if cfg.get('launcher', 'none') == 'pytorch':
-        from mmengine.dist import init_dist
-        init_dist(launcher='pytorch', backend=cfg.env_cfg.dist_cfg.get('backend', 'eccl'))
-        print("🔧 MMEngine分布式环境初始化完成")
+        # 获取分布式参数
+        rank = int(os.environ.get('RANK', 0))
+        local_rank = int(os.environ.get('LOCAL_RANK', 0))
+        world_size = int(os.environ.get('WORLD_SIZE', 1))
+        
+        # 设置分布式环境变量
+        os.environ['MASTER_ADDR'] = os.environ.get('MASTER_ADDR', '127.0.0.1')
+        os.environ['MASTER_PORT'] = os.environ.get('MASTER_PORT', '29500')
+        
+        # 直接使用torch.distributed初始化，避免MMEngine的CUDA调用
+        if not dist.is_initialized():
+            dist.init_process_group(
+                backend='gloo',  # 使用gloo后端，兼容GCU
+                rank=rank,
+                world_size=world_size,
+                init_method=f"tcp://{os.environ['MASTER_ADDR']}:{os.environ['MASTER_PORT']}"
+            )
+            print(f"🔧 分布式环境初始化完成 - Rank {rank}/{world_size}, Backend: {dist.get_backend()}")
+        else:
+            print("🔧 分布式环境已初始化")
     
     # 3. 创建 Runner 实例
     print("🚀 创建Runner...")
