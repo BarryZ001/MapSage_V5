@@ -124,6 +124,7 @@ class SegDataPreProcessor(BaseDataPreprocessor):
                 gt_seg_data = sample['gt_sem_seg']['data']
                 if isinstance(gt_seg_data, torch.Tensor):
                     # Move gt_sem_seg to the same device as inputs
+                    original_device = gt_seg_data.device
                     if GCU_AVAILABLE and hasattr(self, 'device') and self.device == 'xla':
                         device = ptex.device("xla")
                         gt_seg_data = gt_seg_data.to(device)
@@ -133,7 +134,7 @@ class SegDataPreProcessor(BaseDataPreprocessor):
                     # Update the sample with device-moved data
                     sample = sample.copy()
                     sample['gt_sem_seg'] = {'data': gt_seg_data}
-                    print(f"DEBUG: Moved gt_sem_seg from CPU to {gt_seg_data.device}")
+                    print(f"DEBUG: Moved gt_sem_seg from {original_device} to {gt_seg_data.device}")
             
             processed_data_samples.append(sample)
         
