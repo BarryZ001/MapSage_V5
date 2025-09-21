@@ -13,7 +13,7 @@ import warnings
 import traceback
 from pathlib import Path
 import importlib
-from datetime import datetime
+from datetime import datetime, timedelta
 
 # 添加项目根目录到Python路径
 project_root = Path(__file__).parent.parent
@@ -69,7 +69,7 @@ def find_python_module(name: str) -> bool:
 def init_distributed_with_fallback(init_method='env://', verbose=True):
     """
     Try to initialize torch.distributed process group with a prioritized list:
-    - eccl (if python module available)
+    - eccl (if python module available and properly registered)
     - nccl (if torch reports nccl available)
     - gloo (always fallback)
     Returns selected backend string.
@@ -78,16 +78,58 @@ def init_distributed_with_fallback(init_method='env://', verbose=True):
     candidates = []
     errs = {}
 
-    # Prefer eccl only if python shim available
+    # Try to register ECCL backend if available
+    eccl_available = False
     if find_python_module("eccl"):
+        try:
+            # Import eccl with try-except to handle import errors gracefully
+            try:
+                import eccl  # type: ignore
+            except ImportError:
+                if verbose:
+                    print(f"[{datetime.now()}] ECCL module found but import failed")
+                eccl = None
+            
+            if eccl is not None:
+                # Try to register ECCL backend with PyTorch
+                if hasattr(eccl, 'init') and hasattr(dist, 'Backend'):
+                    # Check if ECCL backend is already registered
+                    if hasattr(dist.Backend, 'ECCL') or 'eccl' in getattr(dist, '_backend_registry', {}):
+                        eccl_available = True
+                        if verbose:
+                            print(f"[{datetime.now()}] ECCL backend already registered")
+                    else:
+                        # Try to register ECCL backend (this may not work in all PyTorch versions)
+                        try:
+                            # Check if register_backend exists (newer PyTorch versions)
+                            if hasattr(dist, 'register_backend'):
+                                dist.register_backend('eccl', eccl)  # type: ignore
+                                eccl_available = True
+                                if verbose:
+                                    print(f"[{datetime.now()}] ECCL backend registered successfully")
+                            else:
+                                # For older PyTorch versions, just try to use eccl directly
+                                eccl_available = True
+                                if verbose:
+                                    print(f"[{datetime.now()}] ECCL backend available (direct usage)")
+                        except Exception as reg_e:
+                            if verbose:
+                                print(f"[{datetime.now()}] Failed to register ECCL backend: {reg_e}")
+        except Exception as e:
+            if verbose:
+                print(f"[{datetime.now()}] ECCL module import/setup failed: {e}")
+
+    # Build candidate list
+    if eccl_available:
         candidates.append("eccl")
+    
     # Add nccl if available in this PyTorch build
     try:
         if getattr(dist, "is_nccl_available", lambda: False)():
             candidates.append("nccl")
     except Exception:
-        # ignore
         pass
+    
     # Always allow gloo as fallback
     candidates.append("gloo")
 
@@ -99,8 +141,37 @@ def init_distributed_with_fallback(init_method='env://', verbose=True):
         try:
             if verbose:
                 print(f"[{datetime.now()}] Trying init_process_group backend='{backend}', init_method='{init_method}'")
+            
+            # Special handling for GLOO to improve network configuration
+            if backend == "gloo":
+                # Set network interface for GLOO if not already set
+                if not os.environ.get('GLOO_SOCKET_IFNAME'):
+                    # Try to find a suitable network interface
+                    try:
+                        import socket
+                        hostname = socket.gethostname()
+                        # Common network interfaces in containers/servers
+                        for iface in ['eth0', 'ens3', 'enp0s3', 'lo']:
+                            try:
+                                import subprocess
+                                result = subprocess.run(['ip', 'addr', 'show', iface], 
+                                                      capture_output=True, text=True, timeout=5)
+                                if result.returncode == 0 and 'inet ' in result.stdout:
+                                    os.environ['GLOO_SOCKET_IFNAME'] = iface
+                                    if verbose:
+                                        print(f"[{datetime.now()}] Set GLOO_SOCKET_IFNAME={iface}")
+                                    break
+                            except Exception:
+                                continue
+                    except Exception:
+                        pass
+                
+                # Set timeout for GLOO
+                if not os.environ.get('GLOO_TIMEOUT_SECONDS'):
+                    os.environ['GLOO_TIMEOUT_SECONDS'] = '300'  # 5 minutes
+            
             # call init (torchrun sets envs like RANK/WORLD_SIZE/LOCAL_RANK)
-            dist.init_process_group(backend=backend, init_method=init_method)
+            dist.init_process_group(backend=backend, init_method=init_method, timeout=timedelta(seconds=300))
             if verbose:
                 print(f"[{datetime.now()}] Successfully initialized distributed backend='{backend}'")
             return backend
@@ -128,6 +199,7 @@ def init_distributed_with_fallback(init_method='env://', verbose=True):
         f"torch.distributed.is_available(): {dist.is_available()}",
         f"LD_LIBRARY_PATH={os.environ.get('LD_LIBRARY_PATH')}",
         f"PYTHONPATH={os.environ.get('PYTHONPATH')}",
+        f"GLOO_SOCKET_IFNAME={os.environ.get('GLOO_SOCKET_IFNAME')}",
     ]
     raise RuntimeError("\n".join(diag))
 
@@ -186,21 +258,33 @@ def setup_distributed_environment():
             # Try prioritized backends
             backend_used = init_distributed_with_fallback(init_method=init_method, verbose=True)
         except Exception as e:
-            # If initialization fails, print diagnostics and re-raise
+            # If initialization fails, print diagnostics and fallback to single-process
             print(f"[{datetime.now()}] Error initializing distributed: {e}")
+            print(f"[{datetime.now()}] Falling back to single-process training mode")
             traceback.print_exc()
-            raise
+            
+            # Force single-process mode
+            world_size = 1
+            rank = 0
+            local_rank = 0
+            backend_used = 'none'
+            print(f"[{datetime.now()}] Single-process fallback: rank={rank}, local_rank={local_rank}, world_size={world_size}")
 
-        # After init, verify
-        if dist.is_initialized():
-            print(f"[{datetime.now()}] Distributed training initialized successfully with backend='{backend_used}'")
-            try:
-                print(f"[{datetime.now()}] Process group size: {dist.get_world_size()}")
-                print(f"[{datetime.now()}] Current rank: {dist.get_rank()}")
-            except Exception:
-                pass
-        else:
-            raise RuntimeError("Failed to initialize distributed training (post-init check)")
+        # After init, verify (only if we didn't fallback)
+        if world_size > 1:
+            if dist.is_initialized():
+                print(f"[{datetime.now()}] Distributed training initialized successfully with backend='{backend_used}'")
+                try:
+                    print(f"[{datetime.now()}] Process group size: {dist.get_world_size()}")
+                    print(f"[{datetime.now()}] Current rank: {dist.get_rank()}")
+                except Exception:
+                    pass
+            else:
+                print(f"[{datetime.now()}] Warning: Distributed init reported success but not initialized, falling back to single-process")
+                world_size = 1
+                rank = 0
+                local_rank = 0
+                backend_used = 'none'
 
     else:
         # single process / single device
