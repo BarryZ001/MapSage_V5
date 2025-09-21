@@ -5,16 +5,21 @@
 在燧原T20 GCU环境下进行8卡分布式训练时，出现以下错误：
 
 ```
-ValueError: DistributedDataParallel device_ids and module parameters device mismatch. 
-device_ids[0] on device cuda:2, but module parameters are on device cpu.
+ValueError: DistributedDataParallel device_ids and output_device arguments only work with single-device/multiple-device GPU modules or CPU modules, but got device_ids [2], output_device None, and module parameters {device(type='cpu')}.
 ```
+
+**错误出现在多个进程中**：
+- 所有8个训练进程都报告相同的错误
+- 错误发生在 MMEngine 的 `wrap_model` 函数中
+- 具体位置：`/usr/local/lib/python3.8/dist-packages/mmengine/model/wrappers/distributed.py:93`
 
 ## 错误分析
 
 ### 根本原因
-1. **设备初始化时机问题**：模型在CPU上初始化，但DistributedDataParallel尝试使用GPU设备ID
-2. **MMEngine配置冲突**：默认的模型包装器配置包含device_ids参数，与GCU环境不兼容
-3. **设备迁移不完整**：模型参数没有正确迁移到目标GCU设备
+1. **设备不匹配**：模型参数仍在CPU上（`device(type='cpu')`），但DDP包装器尝试使用特定的设备ID（如 `device_ids [2]`）
+2. **配置问题**：尽管配置文件中已设置 `device_ids=None`，但在实际运行时仍然传递了具体的设备ID
+3. **设备迁移时机**：模型在DDP包装前没有正确迁移到GCU设备
+4. **MMEngine包装逻辑**：MMEngine的模型包装器可能覆盖了配置文件中的设置
 
 ### 错误堆栈分析
 - 错误发生在`torch.nn.parallel.distributed.py`的DistributedDataParallel初始化过程中

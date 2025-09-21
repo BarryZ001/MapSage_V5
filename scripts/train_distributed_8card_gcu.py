@@ -201,6 +201,53 @@ def main():
     print("✅ SyncBatchNorm禁用完成，现在使用普通BatchNorm兼容GCU")
     
     # 2. 初始化分布式环境 (绕过MMEngine的CUDA调用，直接使用torch.distributed)
+    def init_process_group_with_fallback(init_method='env://'):
+        """尝试多种backend初始化分布式训练"""
+        candidates = ['eccl', 'nccl', 'gloo']
+        errors = {}
+        
+        for backend in candidates:
+            try:
+                print(f"🔄 尝试初始化分布式backend: {backend}")
+                
+                # 小优化：如果尝试 nccl，则先检查是否可用
+                if backend == 'nccl' and not getattr(dist, "is_nccl_available", lambda: False)():
+                    errors[backend] = "nccl not available"
+                    print(f"⚠️ {backend}: nccl不可用，跳过")
+                    continue
+                
+                dist.init_process_group(backend=backend, init_method=init_method)
+                print(f"✅ 分布式初始化成功，使用backend: {backend}")
+                return backend
+                
+            except Exception as e:
+                error_msg = f"{type(e).__name__}: {e}"
+                errors[backend] = error_msg
+                print(f"❌ {backend} 初始化失败: {error_msg}")
+                
+                # 清理失败的初始化
+                try:
+                    if dist.is_initialized():
+                        dist.destroy_process_group()
+                except Exception:
+                    pass
+        
+        # 全部失败 -> 抛错并打印诊断
+        msg = ["❌ 所有分布式backend初始化失败:"]
+        for b, e in errors.items():
+            msg.append(f"  - {b}: {e}")
+        msg.append(f"torch.distributed.is_available(): {dist.is_available()}")
+        msg.append(f"torch.cuda.is_available(): {torch.cuda.is_available()}")
+        
+        # 检查torch_gcu状态
+        try:
+            import torch_gcu
+            msg.append(f"torch_gcu.device_count(): {torch_gcu.device_count()}")
+        except ImportError:
+            msg.append("torch_gcu: 未安装")
+        
+        raise RuntimeError("\n".join(msg))
+    
     if cfg.get('launcher', 'none') == 'pytorch':
         # 获取分布式参数
         rank = int(os.environ.get('RANK', 0))
@@ -211,14 +258,11 @@ def main():
         os.environ['MASTER_ADDR'] = os.environ.get('MASTER_ADDR', '127.0.0.1')
         os.environ['MASTER_PORT'] = os.environ.get('MASTER_PORT', '29500')
         
-        # 直接使用torch.distributed初始化，避免MMEngine的CUDA调用
+        # 使用fallback逻辑初始化分布式环境
         if not dist.is_initialized():
-            dist.init_process_group(
-                backend='gloo',  # 使用gloo后端，兼容GCU
-                rank=rank,
-                world_size=world_size,
-                init_method=f"tcp://{os.environ['MASTER_ADDR']}:{os.environ['MASTER_PORT']}"
-            )
+            init_method = f"tcp://{os.environ['MASTER_ADDR']}:{os.environ['MASTER_PORT']}"
+            backend_used = init_process_group_with_fallback(init_method=init_method)
+            print(f"🌐 分布式训练已启动，使用backend: {backend_used}")
             print(f"🔧 分布式环境初始化完成 - Rank {rank}/{world_size}, Backend: {dist.get_backend()}")
         else:
             print("🔧 分布式环境已初始化")
