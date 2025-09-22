@@ -1,7 +1,5 @@
 # MapSage V5 - T20 GCU环境依赖包 (基于成功经验配置)
-# 核心深度学习框架
-torch>=1.13.0,<2.0.0
-torchvision>=0.14.0,<1.0.0
+# 注意: torch和torchvision由T20环境提供，不在此文件中指定
 
 # MMSegmentation生态系统 - 稳定版本
 mmcv>=2.0.0rc4,<2.2.0
@@ -114,6 +112,7 @@ tifffile==2023.12.9
 tzdata==2023.4
 wcwidth==0.2.12
 
-# 特殊依赖 (T20环境特定)
-# torch_gcu - 由T20环境提供，不在requirements.txt中指定
-# eccl - 由T20环境提供，不在requirements.txt中指定
+# T20环境特定说明:
+# - torch 和 torchvision: 由T20环境的TopsRider软件栈提供
+# - torch_gcu: 由T20环境提供，用于GCU设备支持
+# - eccl: 由T20环境提供，用于分布式训练后端
