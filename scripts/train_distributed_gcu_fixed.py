@@ -163,29 +163,69 @@ def main():
             cfg.train_dataloader.batch_size = max(1, original_batch_size // world_size)
             print(f"📊 调整batch size: {original_batch_size} -> {cfg.train_dataloader.batch_size} (per process)")
         
+        # 配置MMEngine的分布式设置以正确处理GCU设备
+        if world_size > 1 and device_str is not None:
+            # 设置MMEngine不使用GPU风格的device_ids
+            if not hasattr(cfg, 'model_wrapper_cfg'):
+                cfg.model_wrapper_cfg = {}
+            
+            # 配置分布式包装器，避免传递device_ids
+            cfg.model_wrapper_cfg.update({
+                'type': 'MMDistributedDataParallel',
+                'device_ids': None,  # 不使用GPU风格的device_ids
+                'output_device': None,
+                'broadcast_buffers': False,  # GCU环境下可能需要禁用
+                'find_unused_parameters': True  # 帮助调试未使用的参数
+            })
+            print("🔧 配置MMEngine DDP包装器以支持GCU设备")
+        
+        # 设置默认设备，确保模型构建时就在正确设备上
+        if device_str is not None:
+            try:
+                if ptex is not None:
+                    # 使用ptex设备
+                    device = ptex.device("xla")
+                    # ptex可能不支持torch.set_default_device，使用环境变量
+                    os.environ['PTEX_DEFAULT_DEVICE'] = 'xla'
+                    print(f"🔧 设置默认设备为ptex: {device}")
+                elif torch_gcu is not None:
+                    # 使用torch_gcu设备
+                    device = torch_gcu.device(local_rank)
+                    # torch_gcu可能不支持set_default_device，将在Runner创建后手动移动模型
+                    print(f"🔧 准备使用GCU设备: {device}")
+            except Exception as e:
+                print(f"⚠️ 设置默认设备失败: {e}")
+        
         print(f"📁 工作目录: {cfg.work_dir}")
         print(f"🚀 启动训练 - Rank {rank}/{world_size}")
         
         # 创建Runner
         runner = Runner.from_cfg(cfg)
         
-        # 在Runner创建后，手动将模型移动到GCU设备
+        # 确保模型在正确的设备上（如果默认设备设置失败的话）
         if device_str is not None and hasattr(runner, 'model'):
-            print(f"🔧 将模型移动到设备: {device_str}")
-            try:
-                if ptex is not None:
-                    # 使用ptex设备
-                    device = ptex.device("xla")
-                    runner.model = runner.model.to(device)
-                    print(f"✅ 模型已移动到ptex设备: {device}")
-                elif torch_gcu is not None:
-                    # 使用torch_gcu设备
-                    device = torch_gcu.device(local_rank)
-                    runner.model = runner.model.to(device)
-                    print(f"✅ 模型已移动到GCU设备: {device}")
-            except Exception as e:
-                print(f"⚠️ 移动模型到设备失败: {e}")
-                print("🔄 尝试使用CPU训练")
+            # 检查模型是否已经在正确设备上
+            model_device = next(runner.model.parameters()).device
+            print(f"🔍 当前模型设备: {model_device}")
+            
+            if 'cpu' in str(model_device):
+                print(f"🔧 模型仍在CPU上，手动移动到设备: {device_str}")
+                try:
+                    if ptex is not None:
+                        # 使用ptex设备
+                        device = ptex.device("xla")
+                        runner.model = runner.model.to(device)
+                        print(f"✅ 模型已移动到ptex设备: {device}")
+                    elif torch_gcu is not None:
+                        # 使用torch_gcu设备
+                        device = torch_gcu.device(local_rank)
+                        runner.model = runner.model.to(device)
+                        print(f"✅ 模型已移动到GCU设备: {device}")
+                except Exception as e:
+                    print(f"⚠️ 移动模型到设备失败: {e}")
+                    print("🔄 尝试使用CPU训练")
+            else:
+                print(f"✅ 模型已在正确设备上: {model_device}")
         
         runner.train()
         
