@@ -15,7 +15,7 @@ def check_gcu_environment():
     
     # 检查torch_gcu模块
     try:
-        import torch_gcu
+        import torch_gcu  # type: ignore
         print(f"✅ torch_gcu 已安装")
         
         # 检查版本信息
@@ -70,7 +70,7 @@ def check_distributed_backends():
     
     # 检查ECCL（GCU专用）
     try:
-        import eccl
+        import eccl  # type: ignore
         backends.append('eccl')
         print("✅ ECCL后端可用")
     except ImportError:

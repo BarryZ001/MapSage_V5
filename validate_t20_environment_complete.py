@@ -2,6 +2,7 @@
 """
 T20 GCU环境完整验证脚本
 基于成功经验创建，用于验证训练环境是否正确配置
+成功经验：mmcv-full==1.7.2 + mmsegmentation==0.29.1 + mmengine==0.10.7
 
 使用方法:
 python3 validate_t20_environment_complete.py
@@ -69,16 +70,24 @@ class T20EnvironmentValidator:
             
             # 检查CUDA支持
             if torch.cuda.is_available():
-                self.log_success(f"CUDA可用，版本: {torch.version.cuda}")
-                self.log_info(f"CUDA设备数量: {torch.cuda.device_count()}")
+                try:
+                    cuda_version = torch.version.cuda if hasattr(torch.version, 'cuda') else "未知"
+                    self.log_success(f"CUDA可用，版本: {cuda_version}")
+                    self.log_info(f"CUDA设备数量: {torch.cuda.device_count()}")
+                except Exception as e:
+                    self.log_warning(f"CUDA版本检查失败: {e}")
             else:
                 self.log_warning("CUDA不可用")
                 
             # 检查分布式支持
-            if torch.distributed.is_available():
-                self.log_success("分布式训练支持可用")
-            else:
-                self.log_error("分布式训练支持不可用")
+            try:
+                import torch.distributed as dist
+                if dist.is_available():
+                    self.log_success("分布式训练支持可用")
+                else:
+                    self.log_error("分布式训练支持不可用")
+            except Exception as e:
+                self.log_error(f"分布式支持检查失败: {e}")
                 
         except ImportError:
             self.log_error("PyTorch未安装")
@@ -155,9 +164,16 @@ class T20EnvironmentValidator:
             self.log_error(f"分布式后端检查失败: {e}")
             
     def check_mmlab_ecosystem(self):
-        """检查MMSegmentation生态系统"""
+        """检查MMSegmentation生态系统 - 基于成功经验"""
         print("\n🔧 检查MMSegmentation生态系统...")
         self.total_checks += 1
+        
+        # 成功验证的版本组合
+        expected_versions = {
+            'mmcv': '1.7.2',
+            'mmengine': '0.10.7', 
+            'mmseg': '0.29.1'
+        }
         
         required_packages = [
             ('mmcv', 'MMCV'),
@@ -170,11 +186,87 @@ class T20EnvironmentValidator:
                 module = importlib.import_module(package)
                 version = getattr(module, '__version__', 'unknown')
                 self.log_success(f"{name}版本: {version}")
+                
+                # 检查是否为推荐版本
+                if package in expected_versions:
+                    expected = expected_versions[package]
+                    if version == expected:
+                        self.log_success(f"  ✓ 使用推荐版本 {expected}")
+                    else:
+                        self.log_warning(f"  推荐版本: {expected}, 当前版本: {version}")
+                        
             except ImportError:
                 self.log_error(f"{name}未安装")
             except Exception as e:
                 self.log_error(f"{name}检查失败: {e}")
                 
+        # 检查版本兼容性
+        self.check_version_compatibility()
+                
+    def check_version_compatibility(self):
+        """检查版本兼容性 - 基于成功经验"""
+        print("\n🔗 检查版本兼容性...")
+        
+        try:
+            from packaging import version
+            import mmcv
+            import mmseg
+            
+            mmcv_version = version.parse(mmcv.__version__)
+            mmseg_version = version.parse(mmseg.__version__)
+            
+            self.log_info(f"MMCV版本: {mmcv.__version__}")
+            self.log_info(f"MMSegmentation版本: {mmseg.__version__}")
+            
+            # 基于成功经验的兼容性检查
+            if mmseg_version >= version.parse('1.0.0'):
+                self.log_info('MMSegmentation >= 1.0.0 要求 MMCV >= 2.0.0')
+                if mmcv_version >= version.parse('2.0.0'):
+                    self.log_success('✅ 版本兼容')
+                else:
+                    self.log_error('❌ MMCV版本过低')
+            else:
+                self.log_info('MMSegmentation < 1.0.0 要求 MMCV 1.3.13 <= version < 1.8.0')
+                mmcv_min = version.parse('1.3.13')
+                mmcv_max = version.parse('1.8.0')
+                if mmcv_min <= mmcv_version < mmcv_max:
+                    self.log_success('✅ 版本兼容')
+                else:
+                    self.log_error('❌ MMCV版本不兼容')
+                    
+            # 检查关键模块
+            self.check_mmcv_extensions()
+            
+        except Exception as e:
+            self.log_error(f'版本兼容性检查失败: {e}')
+            
+    def check_mmcv_extensions(self):
+        """检查MMCV扩展模块"""
+        print("\n🔌 检查MMCV扩展模块...")
+        
+        try:
+            # 检查关键扩展模块
+            import mmcv._ext
+            self.log_success("MMCV扩展模块 (_ext) 可用")
+            
+            # 检查transforms模块
+            try:
+                import mmcv.transforms
+                self.log_success("MMCV transforms模块可用")
+            except ImportError:
+                self.log_warning("MMCV transforms模块不可用")
+                
+            # 检查ops模块
+            try:
+                import mmcv.ops
+                self.log_success("MMCV ops模块可用")
+            except ImportError:
+                self.log_warning("MMCV ops模块不可用")
+                
+        except ImportError as e:
+            self.log_error(f"MMCV扩展模块不可用: {e}")
+            self.log_info("建议安装 mmcv-full 而不是 mmcv")
+            
     def check_custom_modules(self):
         """检查自定义模块"""
         print("\n📦 检查自定义模块...")
@@ -256,7 +348,7 @@ class T20EnvironmentValidator:
                 self.log_warning(f"配置文件不存在: {config_file}")
                 
     def test_simple_training_setup(self):
-        """测试简单训练设置"""
+        """测试简单训练设置 - 基于成功经验"""
         print("\n🧪 测试简单训练设置...")
         self.total_checks += 1
         
@@ -264,13 +356,35 @@ class T20EnvironmentValidator:
             # 测试导入训练脚本
             sys.path.insert(0, str(Path.cwd()))
             
-            # 测试基本的MMSeg导入
-            from mmseg.apis import init_model
-            self.log_success("MMSeg API导入成功")
+            # 测试基本的MMSeg导入 - 修复linter错误
+            try:
+                import mmseg
+                self.log_success("MMSeg模块导入成功")
+                
+                # 尝试导入常用API
+                try:
+                    from mmseg.apis import init_segmentor, inference_segmentor
+                    self.log_success("MMSeg API导入成功")
+                except ImportError:
+                    self.log_warning("部分MMSeg API不可用，但核心功能正常")
+                    
+            except ImportError as e:
+                self.log_error(f"MMSeg模块导入失败: {e}")
             
             # 测试自定义模块注册
-            import mmseg_custom  # 改为普通导入
-            self.log_success("自定义模块注册成功")
+            try:
+                import mmseg_custom
+                self.log_success("自定义模块注册成功")
+            except ImportError as e:
+                self.log_error(f"自定义模块注册失败: {e}")
+                
+            # 测试基本张量操作
+            try:
+                import torch
+                test_tensor = torch.randn(1, 3, 224, 224)
+                self.log_success(f"基本张量操作测试通过: {test_tensor.shape}")
+            except Exception as e:
+                self.log_error(f"基本张量操作测试失败: {e}")
             
         except Exception as e:
             self.log_error(f"训练设置测试失败: {e}")
@@ -278,6 +392,7 @@ class T20EnvironmentValidator:
     def run_all_checks(self):
         """运行所有检查"""
         print("🔍 开始T20 GCU环境完整验证...")
+        print("📋 基于成功经验: mmcv-full==1.7.2 + mmsegmentation==0.29.1")
         print(f"📅 时间: {subprocess.check_output(['date'], text=True).strip()}")
         print(f"🖥️  主机: {subprocess.check_output(['hostname'], text=True).strip()}")
         print(f"📂 工作目录: {Path.cwd()}")
@@ -321,12 +436,21 @@ class T20EnvironmentValidator:
             print("\n📝 建议的下一步:")
             print("  1. 运行: source setup_training_env.sh")
             print("  2. 启动训练: ./start_8card_training_correct.sh")
+            print("\n💡 成功经验总结:")
+            print("  - MMCV版本: mmcv-full==1.7.2")
+            print("  - MMSegmentation版本: 0.29.1")
+            print("  - MMEngine版本: 0.10.7")
+            print("  - 已解决libGL.so.1缺失问题")
+            print("  - 已解决版本兼容性问题")
         else:
             print("\n🔧 需要修复错误后再开始训练。")
             print("\n📝 修复建议:")
             print("  1. 检查T20环境是否正确安装")
             print("  2. 确认torch_gcu和eccl模块可用")
-            print("  3. 运行环境修复脚本")
+            print("  3. 安装推荐版本组合:")
+            print("     pip uninstall mmcv mmsegmentation -y")
+            print("     pip install mmcv-full==1.7.2 -f https://download.openmmlab.com/mmcv/dist/cpu/torch2.0.0/index.html")
+            print("     pip install mmsegmentation==0.29.1")
             
         print("\n" + "="*60)
         

@@ -256,7 +256,15 @@ def main():
                 # 清理失败的初始化
                 try:
                     if dist.is_initialized():
-                        dist.destroy_process_group()
+                        # 使用torch_gcu.distributed.destroy_process_group
+                        try:
+                            import torch_gcu.distributed as gcu_dist
+                            gcu_dist.destroy_process_group()
+                            print("✅ 使用torch_gcu.distributed.destroy_process_group清理完成")
+                        except ImportError:
+                            # 回退到标准方法
+                            dist.destroy_process_group()
+                            print("✅ 分布式进程组清理完成")
                 except Exception:
                     pass
         

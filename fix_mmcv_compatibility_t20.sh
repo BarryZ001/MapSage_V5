@@ -1,10 +1,9 @@
 #!/bin/bash
 
-# T20服务器MMCV兼容性修复脚本
-# 解决MMCV==2.2.0与MMSegmentation不兼容的问题
+# T20环境MMCV兼容性修复脚本
+# 解决MMCV版本与MMSegmentation的兼容性问题
 
-echo "🔧 T20服务器MMCV兼容性修复脚本"
-echo "解决MMCV版本与MMSegmentation的兼容性问题..."
+echo "🔧 开始修复T20环境MMCV版本与MMSegmentation的兼容性问题..."
 
 # 检查当前环境
 echo "📋 检查当前环境状态..."
