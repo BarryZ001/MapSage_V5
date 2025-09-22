@@ -8,6 +8,21 @@ import torch
 import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel as DDP
 
+# 修复distutils.version兼容性问题
+try:
+    # Python 3.8+ 中distutils.version被移除，使用packaging.version替代
+    from packaging import version
+    import distutils
+    if not hasattr(distutils, 'version'):
+        distutils.version = version
+        print("✅ 修复distutils.version兼容性问题")
+except ImportError:
+    try:
+        # 如果packaging不可用，尝试使用distutils.version
+        from distutils import version
+    except ImportError:
+        print("⚠️ 无法导入版本处理模块，可能影响TensorBoard功能")
+
 # 添加项目根目录到Python路径
 sys.path.insert(0, '.')
 
@@ -59,22 +74,45 @@ def setup_distributed():
     
     print(f"🌍 分布式训练设置: world_size={world_size}, rank={rank}, local_rank={local_rank}")
     
+    # 验证环境变量设置
+    master_addr = os.environ.get('MASTER_ADDR', '127.0.0.1')
+    master_port = os.environ.get('MASTER_PORT', '29500')
+    print(f"🔧 Master地址: {master_addr}:{master_port}")
+    
     # 如果是多进程分布式训练，初始化进程组
     if world_size > 1:
-        # 设置分布式后端 - 统一使用gloo后端
-        os.environ['MMENGINE_DDP_BACKEND'] = 'gloo'
-        print("🔧 设置MMEngine DDP后端为gloo")
+        # 优先尝试使用eccl后端（GCU专用）
+        backend = 'eccl' if USE_GCU_DISTRIBUTED else 'gloo'
+        os.environ['MMENGINE_DDP_BACKEND'] = backend
+        print(f"🔧 设置MMEngine DDP后端为: {backend}")
         
-        # 初始化分布式进程组 - 统一使用gloo后端
+        # 初始化分布式进程组
         if not dist.is_initialized():
-            backend = 'gloo'
-            dist.init_process_group(
-                backend=backend,
-                init_method=f"tcp://{os.environ.get('MASTER_ADDR', '127.0.0.1')}:{os.environ.get('MASTER_PORT', '29500')}",
-                world_size=world_size,
-                rank=rank
-            )
-            print(f"✅ 分布式进程组初始化完成 - Backend: {backend}")
+            try:
+                dist.init_process_group(
+                    backend=backend,
+                    init_method=f"tcp://{master_addr}:{master_port}",
+                    world_size=world_size,
+                    rank=rank,
+                    timeout=torch.distributed.default_pg_timeout * 2  # 增加超时时间
+                )
+                print(f"✅ 分布式进程组初始化完成 - Backend: {backend}")
+            except Exception as e:
+                print(f"⚠️ {backend}后端初始化失败: {e}")
+                if backend == 'eccl':
+                    print("🔄 回退到gloo后端")
+                    backend = 'gloo'
+                    os.environ['MMENGINE_DDP_BACKEND'] = backend
+                    dist.init_process_group(
+                        backend=backend,
+                        init_method=f"tcp://{master_addr}:{master_port}",
+                        world_size=world_size,
+                        rank=rank,
+                        timeout=torch.distributed.default_pg_timeout * 2
+                    )
+                    print(f"✅ 分布式进程组初始化完成 - Backend: {backend}")
+                else:
+                    raise
     
     # 设置GCU设备
     if torch_gcu is not None:
