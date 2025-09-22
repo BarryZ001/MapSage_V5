@@ -61,17 +61,13 @@ def setup_distributed():
     
     # 如果是多进程分布式训练，初始化进程组
     if world_size > 1:
-        # 设置分布式后端
-        if USE_GCU_DISTRIBUTED:
-            os.environ['MMENGINE_DDP_BACKEND'] = 'eccl'
-            print("🔧 设置MMEngine DDP后端为eccl (GCU)")
-        else:
-            os.environ['MMENGINE_DDP_BACKEND'] = 'gloo'
-            print("🔧 设置MMEngine DDP后端为gloo")
+        # 设置分布式后端 - 统一使用gloo后端
+        os.environ['MMENGINE_DDP_BACKEND'] = 'gloo'
+        print("🔧 设置MMEngine DDP后端为gloo")
         
-        # 初始化分布式进程组
+        # 初始化分布式进程组 - 统一使用gloo后端
         if not dist.is_initialized():
-            backend = 'eccl' if USE_GCU_DISTRIBUTED else 'gloo'
+            backend = 'gloo'
             dist.init_process_group(
                 backend=backend,
                 init_method=f"tcp://{os.environ.get('MASTER_ADDR', '127.0.0.1')}:{os.environ.get('MASTER_PORT', '29500')}",
