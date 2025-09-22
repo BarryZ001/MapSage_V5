@@ -236,14 +236,16 @@ def setup_distributed_environment():
             import torch_gcu  # type: ignore
             # torch_gcu provides is_available() and device_count()
             if getattr(torch_gcu, 'is_available', lambda: False)() and getattr(torch_gcu, 'device_count', lambda: 0)() > 0:
-                # 使用正确的燧原T20 GCU设备格式
-                device = f'dtu:{local_rank}'
+                # 使用torch_gcu.device()创建正确的GCU设备对象
                 try:
                     torch_gcu.set_device(local_rank)
+                    device = torch_gcu.device(local_rank)  # 使用torch_gcu.device()而不是字符串
                     print(f"[{datetime.now()}] Successfully set torch_gcu device: {local_rank}")
+                    print(f"[{datetime.now()}] GCU device object: {device}")
                 except Exception as e:
-                    # best-effort, not fatal
-                    print(f"[{datetime.now()}] Warning: torch_gcu.set_device failed: {e}")
+                    # 如果torch_gcu.device()不可用，回退到CPU
+                    print(f"[{datetime.now()}] Warning: torch_gcu.device() failed: {e}")
+                    device = 'cpu'
                 # 设置环境变量便于其它库发现设备
                 os.environ['TOPS_VISIBLE_DEVICES'] = str(local_rank)
                 os.environ['CUDA_VISIBLE_DEVICES'] = ''  # 禁用 CUDA 可见性
@@ -467,15 +469,18 @@ def main():
         # 显式验证和移动模型到正确的设备
         if GCU_AVAILABLE and hasattr(runner, 'model'):
             local_rank = int(os.environ.get('LOCAL_RANK', 0))
-            target_device = f'dtu:{local_rank}'
             
             try:
+                # 使用torch_gcu.device()获取正确的设备对象
+                import torch_gcu
+                target_device = torch_gcu.device(local_rank)
+                
                 # 检查模型当前设备
                 model_device = next(runner.model.parameters()).device
                 print(f"[{datetime.now()}] Model current device: {model_device}")
                 
                 # 如果模型不在正确的GCU设备上，显式移动
-                if str(model_device) != target_device:
+                if str(model_device) != str(target_device):
                     print(f"[{datetime.now()}] Moving model from {model_device} to {target_device}")
                     runner.model = runner.model.to(target_device)
                     

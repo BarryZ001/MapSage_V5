@@ -13,12 +13,24 @@ echo "🔍 检查GCU设备状态..."
 python3 -c "
 try:
     import torch_gcu
-    device_count = torch_gcu.device_count()
-    print(f'✅ 检测到 {device_count} 张GCU设备')
-    for i in range(device_count):
-        print(f'   - GCU设备 {i}: 可用')
+    if hasattr(torch_gcu, 'is_available') and torch_gcu.is_available():
+        device_count = torch_gcu.device_count()
+        print(f'✅ 检测到 {device_count} 张GCU设备')
+        for i in range(device_count):
+            try:
+                device = torch_gcu.device(i)
+                print(f'   - GCU设备 {i}: 可用 (device: {device})')
+            except Exception as e:
+                print(f'   - GCU设备 {i}: 错误 - {e}')
+    else:
+        print('❌ torch_gcu不可用或未检测到GCU设备')
+        exit(1)
+except ImportError:
+    print('❌ torch_gcu模块未安装')
+    exit(1)
 except Exception as e:
     print(f'❌ GCU设备检查失败: {e}')
+    exit(1)
 "
 
 # 配置环境变量
