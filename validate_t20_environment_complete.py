@@ -269,7 +269,7 @@ class T20EnvironmentValidator:
             self.log_success("MMSeg API导入成功")
             
             # 测试自定义模块注册
-            from mmseg_custom import *  # noqa
+            import mmseg_custom  # 改为普通导入
             self.log_success("自定义模块注册成功")
             
         except Exception as e:
