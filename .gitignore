@@ -99,6 +99,3 @@ mlruns/
 # Tensorboard
 runs/
 logs/
-
-# 忽略所有名为 requirements.txt 的文件
-requirements.txt

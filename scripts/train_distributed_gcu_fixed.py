@@ -81,8 +81,8 @@ def setup_distributed():
     
     # 如果是多进程分布式训练，初始化进程组
     if world_size > 1:
-        # 优先尝试使用eccl后端（GCU专用）
-        backend = 'eccl' if USE_GCU_DISTRIBUTED else 'gloo'
+        # 强制使用gloo后端，因为PyTorch不识别eccl后端
+        backend = 'gloo'
         os.environ['MMENGINE_DDP_BACKEND'] = backend
         print(f"🔧 设置MMEngine DDP后端为: {backend}")
         
@@ -98,21 +98,8 @@ def setup_distributed():
                 )
                 print(f"✅ 分布式进程组初始化完成 - Backend: {backend}")
             except Exception as e:
-                print(f"⚠️ {backend}后端初始化失败: {e}")
-                if backend == 'eccl':
-                    print("🔄 回退到gloo后端")
-                    backend = 'gloo'
-                    os.environ['MMENGINE_DDP_BACKEND'] = backend
-                    dist.init_process_group(
-                        backend=backend,
-                        init_method=f"tcp://{master_addr}:{master_port}",
-                        world_size=world_size,
-                        rank=rank,
-                        timeout=torch.distributed.default_pg_timeout * 2
-                    )
-                    print(f"✅ 分布式进程组初始化完成 - Backend: {backend}")
-                else:
-                    raise
+                print(f"❌ {backend}后端初始化失败: {e}")
+                raise
     
     # 设置GCU设备
     if torch_gcu is not None:
