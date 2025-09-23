@@ -194,6 +194,7 @@ def main():
     parser.add_argument('config', help='train config file path')
     parser.add_argument('--launcher', choices=['none', 'pytorch', 'slurm', 'mpi'], default='pytorch', help='job launcher')
     parser.add_argument('--backend', choices=['nccl', 'gloo', 'mpi'], default='gloo', help='distributed backend')
+    parser.add_argument('--work-dir', type=str, help='the dir to save logs and models')
     parser.add_argument('--max-retries', type=int, default=3, help='maximum retries for distributed initialization')
     parser.add_argument('--retry-delay', type=int, default=5, help='delay between retries in seconds')
     args = parser.parse_args()
@@ -246,7 +247,10 @@ def main():
             print("ℹ️ custom_imports属性不存在或已被移除")
         
         # 设置工作目录
-        if cfg.get('work_dir', None) is None:
+        if args.work_dir:
+            cfg.work_dir = args.work_dir
+            print(f"🔧 设置工作目录为: {args.work_dir}")
+        elif cfg.get('work_dir', None) is None:
             cfg.work_dir = './work_dirs'
         
         # 设置GCU设备
