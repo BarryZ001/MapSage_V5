@@ -19,7 +19,7 @@ try:
         print("✅ 修复distutils.version兼容性问题")
 except ImportError:
     try:
-        from distutils import version
+        import distutils.version
     except ImportError:
         print("⚠️ 无法导入版本处理模块，可能影响TensorBoard功能")
 
@@ -31,8 +31,8 @@ from mmengine.runner import Runner
 
 # 尝试导入torch_gcu和ptex
 try:
-    import torch_gcu
-    import torch_gcu.distributed as gcu_dist
+    import torch_gcu  # type: ignore
+    import torch_gcu.distributed as gcu_dist  # type: ignore
     print(f"✅ torch_gcu导入成功，可用设备数: {torch_gcu.device_count()}")
     print("✅ torch_gcu.distributed模块导入成功")
     USE_GCU_DISTRIBUTED = True
@@ -43,7 +43,7 @@ except ImportError as e:
     USE_GCU_DISTRIBUTED = False
 
 try:
-    import ptex
+    import ptex  # type: ignore
     print("✅ ptex导入成功")
 except ImportError as e:
     print(f"⚠️ ptex导入失败: {e}")
@@ -118,7 +118,8 @@ def setup_distributed_robust(backend='gloo', max_retries=3, retry_delay=5):
                     print(f"🔄 尝试初始化分布式进程组 (第{attempt + 1}次)")
                     
                     # 设置更长的超时时间
-                    timeout = torch.distributed.default_pg_timeout * 4
+                    import datetime
+                    timeout = datetime.timedelta(seconds=timeout_seconds)
                     
                     dist.init_process_group(
                         backend=backend,
