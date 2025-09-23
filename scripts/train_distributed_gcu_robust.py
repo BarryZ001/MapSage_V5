@@ -15,11 +15,52 @@ try:
     from packaging import version
     import distutils
     if not hasattr(distutils, 'version'):
-        distutils.version = version
-        print("✅ 修复distutils.version兼容性问题")
+        # 创建一个兼容的version模块
+        class CompatVersion:
+            def __init__(self):
+                self.Version = version.Version
+                # 为了兼容TensorBoard，添加LooseVersion类
+                try:
+                    from packaging.version import LegacyVersion  # type: ignore
+                    self.LooseVersion = LegacyVersion
+                except ImportError:
+                    # 如果LegacyVersion也不存在，创建一个简单的兼容类
+                    class LooseVersion:
+                        def __init__(self, vstring):
+                            self.vstring = str(vstring)
+                        
+                        def __str__(self):
+                            return self.vstring
+                        
+                        def __repr__(self):
+                            return f"LooseVersion('{self.vstring}')"
+                        
+                        def __eq__(self, other):
+                            return str(self) == str(other)
+                        
+                        def __lt__(self, other):
+                            try:
+                                return version.Version(self.vstring) < version.Version(str(other))
+                            except:
+                                return str(self) < str(other)
+                        
+                        def __le__(self, other):
+                            return self == other or self < other
+                        
+                        def __gt__(self, other):
+                            return not self <= other
+                        
+                        def __ge__(self, other):
+                            return not self < other
+                    
+                    self.LooseVersion = LooseVersion
+        
+        distutils.version = CompatVersion()
+        print("✅ 修复distutils.version兼容性问题，添加LooseVersion支持")
 except ImportError:
     try:
         import distutils.version
+        print("✅ 使用系统原生distutils.version")
     except ImportError:
         print("⚠️ 无法导入版本处理模块，可能影响TensorBoard功能")
 
