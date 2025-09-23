@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import argparse
+# 修复protobuf兼容性问题 - 必须在导入任何其他模块之前设置
 import os
+os.environ['PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION'] = 'python'
+print("✅ 设置 PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python 以修复 protobuf 兼容性问题")
+
+import argparse
 import sys
 import time
 import socket
