@@ -238,9 +238,12 @@ def main():
         original_custom_imports = getattr(cfg, 'custom_imports', None)
         
         # 临时移除可能导致pickle问题的custom_imports
-        if hasattr(cfg, 'custom_imports'):
-            delattr(cfg, 'custom_imports')
-            print("🔧 临时移除custom_imports以避免pickle错误")
+        try:
+            if hasattr(cfg, 'custom_imports'):
+                delattr(cfg, 'custom_imports')
+                print("🔧 临时移除custom_imports以避免pickle错误")
+        except AttributeError:
+            print("ℹ️ custom_imports属性不存在或已被移除")
         
         # 设置工作目录
         if cfg.get('work_dir', None) is None:
