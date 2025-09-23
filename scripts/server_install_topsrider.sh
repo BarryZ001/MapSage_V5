@@ -36,8 +36,50 @@ check_system() {
         error "系统不支持dpkg包管理器，无法安装DEB包"
     fi
     
-    # 检查Python环境
-    if ! command -v python3 &> /dev/null; then
+    # 检查GCU硬件
+    log "检查GCU硬件..."
+    GCU_COUNT=$(lspci | grep -i enflame | wc -l)
+    if [ "$GCU_COUNT" -eq 0 ]; then
+        log "警告: 未通过lspci检测到GCU设备。这可能表示:"
+        log "  1. 硬件未正确连接"
+        log "  2. 驱动程序未安装"
+        log "  3. 在容器中运行且无设备访问权限"
+        log "继续安装，但硬件功能可能受限。"
+    else
+        log "检测到 $GCU_COUNT 个GCU设备"
+    fi
+    
+    # 检查是否在容器中运行
+    if [ -f /.dockerenv ]; then
+        log "在Docker容器中运行"
+        log "警告: 检测到容器环境。请确保为GCU访问提供适当的设备映射。"
+    fi
+    
+    # 检查GCU硬件
+    log "检查GCU硬件..."
+    GCU_COUNT=$(lspci | grep -i enflame | wc -l)
+    if [ "$GCU_COUNT" -eq 0 ]; then
+        log "警告: 未通过lspci检测到GCU设备。这可能表示:"
+        log "  1. 硬件未正确连接"
+        log "  2. 驱动程序未安装"
+        log "  3. 在容器中运行且无设备访问权限"
+        log "继续安装，但硬件功能可能受限。"
+        echo "gcu_hardware_detected=false" >> "$INSTALL_REPORT"
+        echo "gcu_count=0" >> "$INSTALL_REPORT"
+    else
+        log "检测到 $GCU_COUNT 个GCU设备"
+        echo "gcu_hardware_detected=true" >> "$INSTALL_REPORT"
+        echo "gcu_count=$GCU_COUNT" >> "$INSTALL_REPORT"
+    fi
+    
+    # 检查是否在容器中运行
+    if [ -f /.dockerenv ]; then
+        log "在Docker容器中运行"
+        log "警告: 检测到容器环境。请确保为GCU访问提供适当的设备映射。"
+        echo "running_in_container=true" >> "$INSTALL_REPORT"
+    else
+        echo "running_in_container=false" >> "$INSTALL_REPORT"
+    fi
         error "未找到Python3，请先安装Python3"
     fi
     
