@@ -65,7 +65,7 @@ try:
 except ImportError as e:
     print(f"⚠️ 自定义模块导入失败: {e}")
 
-def setup_distributed():
+def setup_distributed(backend='gloo'):
     """设置分布式训练环境"""
     # 获取分布式训练参数
     rank = int(os.environ.get('RANK', 0))
@@ -81,8 +81,7 @@ def setup_distributed():
     
     # 如果是多进程分布式训练，初始化进程组
     if world_size > 1:
-        # 强制使用gloo后端，因为PyTorch不识别eccl后端
-        backend = 'gloo'
+        # 使用传入的backend参数，默认为gloo
         os.environ['MMENGINE_DDP_BACKEND'] = backend
         print(f"🔧 设置MMEngine DDP后端为: {backend}")
         
@@ -140,12 +139,13 @@ def main():
     parser = argparse.ArgumentParser(description='MMSegmentation distributed training script for GCU')
     parser.add_argument('config', help='train config file path')
     parser.add_argument('--launcher', choices=['none', 'pytorch', 'slurm', 'mpi'], default='pytorch', help='job launcher')
+    parser.add_argument('--backend', choices=['nccl', 'gloo', 'mpi'], default='gloo', help='distributed backend')
     args = parser.parse_args()
 
     print("📦 正在初始化分布式MMSegmentation训练...")
     
     # 设置分布式环境
-    rank, local_rank, world_size = setup_distributed()
+    rank, local_rank, world_size = setup_distributed(args.backend)
     
     try:
         # 从文件加载配置
