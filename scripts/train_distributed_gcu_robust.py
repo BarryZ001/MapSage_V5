@@ -316,8 +316,48 @@ def main():
             print(f"⚠️ 配置深拷贝测试失败: {e}")
             # 如果深拷贝失败，尝试重新构建配置
             print("🔧 尝试重新构建配置...")
-            cfg_dict = cfg.to_dict()
-            cfg = Config(cfg_dict)
+            try:
+                cfg_dict = cfg.to_dict()
+                # 递归清理配置字典中的不可序列化对象
+                def clean_dict_for_pickle(obj):
+                    if isinstance(obj, dict):
+                        cleaned = {}
+                        for k, v in obj.items():
+                            try:
+                                # 测试是否可以pickle
+                                import pickle
+                                pickle.dumps(v)
+                                cleaned[k] = clean_dict_for_pickle(v)
+                            except (TypeError, AttributeError) as e:
+                                print(f"⚠️ 跳过不可序列化的配置项: {k} ({type(v).__name__})")
+                                # 跳过不可序列化的对象
+                                continue
+                        return cleaned
+                    elif isinstance(obj, (list, tuple)):
+                        cleaned = []
+                        for item in obj:
+                            try:
+                                import pickle
+                                pickle.dumps(item)
+                                cleaned.append(clean_dict_for_pickle(item))
+                            except (TypeError, AttributeError):
+                                print(f"⚠️ 跳过列表中不可序列化的项: {type(item).__name__}")
+                                continue
+                        return cleaned
+                    else:
+                        return obj
+                
+                cleaned_cfg_dict = clean_dict_for_pickle(cfg_dict)
+                # 确保cleaned_cfg_dict是字典类型
+                if isinstance(cleaned_cfg_dict, dict):
+                    cfg = Config(cleaned_cfg_dict)
+                    print("✅ 配置重建成功")
+                else:
+                    print(f"❌ 配置清理后不是字典类型: {type(cleaned_cfg_dict)}")
+                    raise TypeError("配置清理后不是字典类型")
+            except Exception as rebuild_error:
+                print(f"❌ 配置重建失败: {rebuild_error}")
+                raise
         
         # 创建Runner并开始训练
         runner = Runner.from_cfg(cfg)

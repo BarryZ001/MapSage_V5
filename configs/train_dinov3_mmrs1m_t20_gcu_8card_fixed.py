@@ -13,12 +13,9 @@ custom_imports = dict(
     allow_failed_imports=False
 )
 
-# 打印自定义模块导入状态
-try:
-    import mmseg_custom
-    print("✅ 自定义模块mmseg_custom导入成功")
-except ImportError as e:
-    print(f"⚠️ 自定义模块导入失败: {e}")
+# 打印自定义模块导入状态 - 移除直接import以避免pickle错误
+# 模块导入通过custom_imports配置处理，不需要在配置文件中直接导入
+print("ℹ️ 自定义模块将通过custom_imports配置自动导入")
 
 # 基础配置
 work_dir = './work_dirs/dinov3_mmrs1m_t20_gcu_8card'
