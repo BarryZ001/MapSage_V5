@@ -8,14 +8,14 @@
 import os
 import sys
 import torch
-import torch.distributed as dist
+import torch.distributed as dist  # type: ignore
 import time
 
 def test_gcu_import():
     """测试torch_gcu导入"""
     try:
-        import torch_gcu
-        import torch_gcu.distributed as gcu_dist
+        import torch_gcu  # type: ignore
+        import torch_gcu.distributed as gcu_dist  # type: ignore
         print(f"✅ torch_gcu导入成功，可用设备数: {torch_gcu.device_count()}")
         print("✅ torch_gcu.distributed模块导入成功")
         return True, torch_gcu, gcu_dist
@@ -66,7 +66,7 @@ def test_distributed_init():
                 init_method=f"tcp://{master_addr}:{master_port}",
                 world_size=world_size,
                 rank=rank,
-                timeout=torch.distributed.default_pg_timeout * 2
+                timeout=dist.default_pg_timeout * 2  # type: ignore
             )
             print(f"✅ {backend}后端初始化成功")
             
