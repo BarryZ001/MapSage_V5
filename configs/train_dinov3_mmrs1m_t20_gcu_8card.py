@@ -78,7 +78,7 @@ model = dict(
         norm_cfg=dict(type='SyncBN', requires_grad=True),
         num_conv=2,
         upsampling_method='bilinear',
-        num_upsampe_layer=2,
+        num_upsample_layer=2,
         align_corners=False,
         loss_decode=dict(
             type='CrossEntropyLoss',

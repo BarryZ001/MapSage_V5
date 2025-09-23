@@ -366,6 +366,14 @@ def main():
             # 在配置中明确指定设备
             cfg.device = device_str
             
+            # 关键修复：禁用DDP的device_ids和output_device配置
+            # 这是解决"DistributedDataParallel device_ids and output_device arguments only work with single-device/multiple-device GPU modules"错误的核心
+            if hasattr(cfg, 'model_wrapper_cfg') and cfg.model_wrapper_cfg is not None:
+                print("🔧 修复DDP配置以兼容GCU设备...")
+                cfg.model_wrapper_cfg.device_ids = None
+                cfg.model_wrapper_cfg.output_device = None
+                print("✅ DDP配置已修复：device_ids=None, output_device=None")
+            
             # 创建Runner
             runner = Runner.from_cfg(cfg)
             print("✅ Runner创建完成")
@@ -380,8 +388,8 @@ def main():
                     print(f"🔍 模型当前设备: {current_device}")
                     
                     # 如果模型不在正确的GCU设备上，强制移动
-                    if str(current_device) != device_str:
-                        print(f"⚠️ 模型设备不匹配，从 {current_device} 移动到 {device_str}")
+                    if str(current_device) != device_str and 'cpu' in str(current_device):
+                        print(f"⚠️ 模型在CPU上，需要移动到GCU设备: {device_str}")
                         runner.model = runner.model.to(device_str)
                         print(f"✅ 模型已移动到设备: {device_str}")
                         
@@ -396,12 +404,25 @@ def main():
                     
         except Exception as e:
             print(f"❌ 设置模型初始化设备失败: {e}")
-            # 回退到默认创建方式
+            # 回退到默认创建方式，但仍然修复DDP配置
+            if hasattr(cfg, 'model_wrapper_cfg') and cfg.model_wrapper_cfg is not None:
+                print("🔧 回退模式下修复DDP配置...")
+                cfg.model_wrapper_cfg.device_ids = None
+                cfg.model_wrapper_cfg.output_device = None
+                print("✅ DDP配置已修复（回退模式）")
+            
             runner = Runner.from_cfg(cfg)
             print("✅ Runner创建完成（回退模式）")
     else:
-         runner = Runner.from_cfg(cfg)
-         print("✅ Runner创建完成")
+        # 即使没有torch_gcu，也要修复DDP配置
+        if hasattr(cfg, 'model_wrapper_cfg') and cfg.model_wrapper_cfg is not None:
+            print("🔧 修复DDP配置（无GCU模式）...")
+            cfg.model_wrapper_cfg.device_ids = None
+            cfg.model_wrapper_cfg.output_device = None
+            print("✅ DDP配置已修复（无GCU模式）")
+            
+        runner = Runner.from_cfg(cfg)
+        print("✅ Runner创建完成")
     
     # ===== START: 最终修复逻辑 (在Runner创建后，训练开始前) =====
     print("🔧 开始执行最终修复逻辑...")

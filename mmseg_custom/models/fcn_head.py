@@ -214,40 +214,55 @@ class FCNHead(BaseModule):
                 print(f"[FCN_HEAD_DEBUG] Truncating samples to match batch size {batch_size}")
                 data_samples_list = data_samples_list[:batch_size]
             else:
-                # Create dummy samples to match batch size
-                print(f"[FCN_HEAD_DEBUG] Creating dummy samples to match batch size {batch_size}")
-                dummy_samples = []
-                for i in range(batch_size):
-                    if i < len(data_samples_list):
-                        dummy_samples.append(data_samples_list[i])
-                    else:
-                        # Create dummy sample
-                        dummy_seg = torch.zeros(seg_logits.shape[-2:], dtype=torch.long, device=seg_logits.device)
-                        dummy_sample = type('DummySample', (), {})()
-                        dummy_sample.gt_sem_seg = type('DummyGT', (), {})()
-                        dummy_sample.gt_sem_seg.data = dummy_seg
-                        dummy_samples.append(dummy_sample)
-                data_samples_list = dummy_samples
+                        # Create dummy samples to match batch size
+                        print(f"[FCN_HEAD_DEBUG] Creating dummy samples to match batch size {batch_size}")
+                        dummy_samples = []
+                        for i in range(batch_size):
+                            if i < len(data_samples_list):
+                                dummy_samples.append(data_samples_list[i])
+                            else:
+                                # Create dummy sample with proper structure
+                                dummy_seg = torch.zeros(seg_logits.shape[-2:], dtype=torch.long, device=seg_logits.device)
+                                dummy_sample = {
+                                    'gt_sem_seg': {
+                                        'data': dummy_seg
+                                    }
+                                }
+                                dummy_samples.append(dummy_sample)
+                        data_samples_list = dummy_samples
         
         # Process each data sample to extract segmentation labels
         seg_labels = []
         for i, data_sample in enumerate(data_samples_list):
             try:
                 seg_label = None
+                print(f"[FCN_HEAD_DEBUG] Processing sample {i}, type: {type(data_sample)}")
                 
                 if hasattr(data_sample, 'gt_sem_seg'):
                     # Standard SegDataSample format
-                    if hasattr(data_sample.gt_sem_seg, 'data'):
-                        seg_label = data_sample.gt_sem_seg.data
-                    else:
-                        seg_label = data_sample.gt_sem_seg
-                elif isinstance(data_sample, dict) and 'gt_sem_seg' in data_sample:
-                    # Handle dict format - need to extract data from nested dict
-                    gt_sem_seg = data_sample['gt_sem_seg']
-                    if isinstance(gt_sem_seg, dict) and 'data' in gt_sem_seg:
-                        seg_label = gt_sem_seg['data']
+                    print(f"[FCN_HEAD_DEBUG] Sample {i} has gt_sem_seg attribute")
+                    gt_sem_seg = data_sample.gt_sem_seg
+                    print(f"[FCN_HEAD_DEBUG] gt_sem_seg type: {type(gt_sem_seg)}")
+                    
+                    if hasattr(gt_sem_seg, 'data'):
+                        seg_label = gt_sem_seg.data
+                        print(f"[FCN_HEAD_DEBUG] Extracted seg_label from gt_sem_seg.data, type: {type(seg_label)}")
                     else:
                         seg_label = gt_sem_seg
+                        print(f"[FCN_HEAD_DEBUG] Using gt_sem_seg directly, type: {type(seg_label)}")
+                        
+                elif isinstance(data_sample, dict) and 'gt_sem_seg' in data_sample:
+                    # Handle dict format - need to extract data from nested dict
+                    print(f"[FCN_HEAD_DEBUG] Sample {i} is dict with gt_sem_seg key")
+                    gt_sem_seg = data_sample['gt_sem_seg']
+                    print(f"[FCN_HEAD_DEBUG] gt_sem_seg from dict, type: {type(gt_sem_seg)}")
+                    
+                    if isinstance(gt_sem_seg, dict) and 'data' in gt_sem_seg:
+                        seg_label = gt_sem_seg['data']
+                        print(f"[FCN_HEAD_DEBUG] Extracted seg_label from nested dict, type: {type(seg_label)}")
+                    else:
+                        seg_label = gt_sem_seg
+                        print(f"[FCN_HEAD_DEBUG] Using gt_sem_seg from dict directly, type: {type(seg_label)}")
                 else:
                     # Create dummy segmentation
                     print(f"[FCN_HEAD_DEBUG] Creating dummy segmentation for sample {i}")
@@ -255,31 +270,114 @@ class FCNHead(BaseModule):
                 
                 # Ensure seg_label is a tensor
                 if not isinstance(seg_label, torch.Tensor):
-                    if isinstance(seg_label, (list, tuple, np.ndarray)):
-                        seg_label = torch.tensor(seg_label, dtype=torch.long, device=seg_logits.device)
+                    print(f"[FCN_HEAD_DEBUG] Converting seg_label to tensor, current type: {type(seg_label)}")
+                    print(f"[FCN_HEAD_DEBUG] seg_label content preview: {seg_label}")
+                    
+                    if isinstance(seg_label, (list, tuple)):
+                        print(f"[FCN_HEAD_DEBUG] seg_label is list/tuple with length: {len(seg_label)}")
+                        if len(seg_label) > 0:
+                            print(f"[FCN_HEAD_DEBUG] First element type: {type(seg_label[0])}")
+                            print(f"[FCN_HEAD_DEBUG] First element content: {seg_label[0]}")
+                        
+                        try:
+                            # 尝试递归处理嵌套的list结构
+                            def flatten_and_convert(data):
+                                if isinstance(data, (list, tuple)):
+                                    if len(data) == 1:
+                                        return flatten_and_convert(data[0])
+                                    else:
+                                        # 如果是多元素列表，尝试转换为numpy数组再转tensor
+                                        import numpy as np
+                                        return np.array(data)
+                                elif isinstance(data, torch.Tensor):
+                                    return data
+                                elif hasattr(data, '__array__'):  # numpy array check
+                                    return data
+                                else:
+                                    print(f"[FCN_HEAD_DEBUG] Unexpected nested type: {type(data)}")
+                                    return None
+                            
+                            flattened = flatten_and_convert(seg_label)
+                            print(f"[FCN_HEAD_DEBUG] Flattened result type: {type(flattened)}")
+                            
+                            if isinstance(flattened, torch.Tensor):
+                                seg_label = flattened.to(dtype=torch.long, device=seg_logits.device)
+                            elif hasattr(flattened, '__array__'):  # numpy array
+                                import numpy as np
+                                seg_label = torch.from_numpy(np.array(flattened)).to(dtype=torch.long, device=seg_logits.device)
+                            else:
+                                print(f"[FCN_HEAD_DEBUG] Failed to flatten, creating dummy tensor")
+                                seg_label = torch.zeros(seg_logits.shape[-2:], dtype=torch.long, device=seg_logits.device)
+                                
+                        except Exception as convert_error:
+                            print(f"[FCN_HEAD_DEBUG] Error in list/tuple conversion: {convert_error}")
+                            seg_label = torch.zeros(seg_logits.shape[-2:], dtype=torch.long, device=seg_logits.device)
+                            
+                    elif hasattr(seg_label, '__array__'):  # numpy array check
+                        try:
+                            import numpy as np
+                            seg_label = torch.from_numpy(np.array(seg_label)).to(dtype=torch.long, device=seg_logits.device)
+                        except Exception as np_error:
+                            print(f"[FCN_HEAD_DEBUG] Error converting numpy array: {np_error}")
+                            seg_label = torch.zeros(seg_logits.shape[-2:], dtype=torch.long, device=seg_logits.device)
+                            
                     elif seg_label is None:
                         seg_label = torch.zeros(seg_logits.shape[-2:], dtype=torch.long, device=seg_logits.device)
                     else:
                         print(f"[FCN_HEAD_DEBUG] Unexpected seg_label type: {type(seg_label)}, creating dummy")
                         seg_label = torch.zeros(seg_logits.shape[-2:], dtype=torch.long, device=seg_logits.device)
+                else:
+                    print(f"[FCN_HEAD_DEBUG] seg_label is already tensor, dtype: {seg_label.dtype}, device: {seg_label.device}")
                 
                 # Ensure proper device and shape
                 seg_label = seg_label.to(seg_logits.device)
                 
+                print(f"[FCN_HEAD_DEBUG] seg_label shape before resize: {seg_label.shape}")
+                print(f"[FCN_HEAD_DEBUG] Target shape: {seg_logits.shape[-2:]}")
+                
                 # Resize if necessary
                 if seg_label.shape != seg_logits.shape[-2:]:
+                    print(f"[FCN_HEAD_DEBUG] Resizing seg_label from {seg_label.shape[-2:]} to {seg_logits.shape[-2:]}")
                     if seg_label.dim() == 2:
-                        seg_label = torch.nn.functional.interpolate(
-                            seg_label.unsqueeze(0).unsqueeze(0).float(),
+                        # 修复：先转换为float，插值后再转换为long，避免索引错误
+                        seg_label_float = seg_label.unsqueeze(0).unsqueeze(0).float()
+                        print(f"[FCN_HEAD_DEBUG] Added dimensions for interpolation: {seg_label_float.shape}")
+                        seg_label_resized = torch.nn.functional.interpolate(
+                            seg_label_float,
                             size=seg_logits.shape[-2:],
                             mode='nearest'
-                        ).squeeze().long()
+                        )
+                        print(f"[FCN_HEAD_DEBUG] After interpolation: {seg_label_resized.shape}")
+                        # 安全地squeeze和转换数据类型
+                        seg_label = seg_label_resized.squeeze(0).squeeze(0)
+                        print(f"[FCN_HEAD_DEBUG] Removed dimensions after interpolation: {seg_label.shape}")
+                        try:
+                            seg_label = seg_label.long()
+                            print(f"[FCN_HEAD_DEBUG] Successfully converted back to long: {seg_label.dtype}")
+                        except Exception as e:
+                            print(f"[FCN_HEAD_DEBUG] Error converting to long: {e}")
+                            seg_label = seg_label.round().long()
+                            print(f"[FCN_HEAD_DEBUG] Used round() fallback: {seg_label.dtype}")
                     elif seg_label.dim() == 3:
-                        seg_label = torch.nn.functional.interpolate(
-                            seg_label.unsqueeze(0).float(),
+                        # 修复：先转换为float，插值后再转换为long，避免索引错误
+                        seg_label_float = seg_label.unsqueeze(0).float()
+                        print(f"[FCN_HEAD_DEBUG] Added batch dimension for interpolation: {seg_label_float.shape}")
+                        seg_label_resized = torch.nn.functional.interpolate(
+                            seg_label_float,
                             size=seg_logits.shape[-2:],
                             mode='nearest'
-                        ).squeeze().long()
+                        )
+                        print(f"[FCN_HEAD_DEBUG] After interpolation: {seg_label_resized.shape}")
+                        # 安全地squeeze和转换数据类型
+                        seg_label = seg_label_resized.squeeze(0)
+                        print(f"[FCN_HEAD_DEBUG] Removed batch dimension after interpolation: {seg_label.shape}")
+                        try:
+                            seg_label = seg_label.long()
+                            print(f"[FCN_HEAD_DEBUG] Successfully converted back to long: {seg_label.dtype}")
+                        except Exception as e:
+                            print(f"[FCN_HEAD_DEBUG] Error converting to long: {e}")
+                            seg_label = seg_label.round().long()
+                            print(f"[FCN_HEAD_DEBUG] Used round() fallback: {seg_label.dtype}")
                     else:
                         print(f"[FCN_HEAD_DEBUG] Unexpected seg_label dimensions: {seg_label.shape}")
                         seg_label = torch.zeros(seg_logits.shape[-2:], dtype=torch.long, device=seg_logits.device)
@@ -289,6 +387,7 @@ class FCNHead(BaseModule):
                     print(f"[FCN_HEAD_DEBUG] Final seg_label has wrong dimensions: {seg_label.shape}, creating 2D dummy")
                     seg_label = torch.zeros(seg_logits.shape[-2:], dtype=torch.long, device=seg_logits.device)
                 
+                print(f"[FCN_HEAD_DEBUG] Final seg_label shape for sample {i}: {seg_label.shape}")
                 seg_labels.append(seg_label)
                 print(f"[FCN_HEAD_DEBUG] Processed sample {i}, seg_label shape: {seg_label.shape}")
                 

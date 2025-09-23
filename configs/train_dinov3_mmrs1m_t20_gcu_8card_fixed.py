@@ -79,7 +79,7 @@ model = dict(
         img_size=img_size,
         embed_dims=1024,
         num_classes=num_classes,
-        norm_cfg=dict(type='SyncBN', requires_grad=True),
+        norm_cfg=dict(type='BN', requires_grad=True),
         num_conv=2,
         upsampling_method='bilinear',
         num_upsample_layer=2,  # 修复：num_upsampe_layer -> num_upsample_layer
@@ -102,7 +102,7 @@ model = dict(
         concat_input=False,
         dropout_ratio=0.1,
         num_classes=num_classes,
-        norm_cfg=dict(type='SyncBN', requires_grad=True),
+        norm_cfg=dict(type='BN', requires_grad=True),
         align_corners=False,
         loss_decode=dict(
             type='CrossEntropyLoss',
@@ -371,4 +371,4 @@ batch_size = 2  # 从train_dataloader配置中获取
 print(f"📈 批次大小: {batch_size} x 8 cards = {batch_size * 8}")
 print(f"🔥 计算环境: 燧原T20 GCU - 8卡分布式训练")
 print(f"⚙️ 设备配置: 动态分配 - 训练脚本将根据local_rank设置为gcu:{{local_rank}}")
-print(f"✅ 主要修复: task_type=segmentation, 拼写错误修正, 字段名统一, 动态loss_scale")
+print(f"✅ 主要修复: task_type=segmentation, 拼写错误修正, 字段名统一, 动态loss_scale, SyncBN->BN")

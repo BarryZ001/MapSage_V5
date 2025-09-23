@@ -32,7 +32,7 @@ class VisionTransformerUpHead(BaseModule):
         norm_cfg (dict): Config for normalization layers.
         num_conv (int): Number of convolution layers in the head.
         upsampling_method (str): Method for upsampling ('bilinear', 'nearest', 'deconv').
-        num_upsampe_layer (int): Number of upsampling layers.
+        num_upsample_layer (int): Number of upsampling layers.
         align_corners (bool): Whether to align corners in interpolation.
         loss_decode (dict): Config for decode loss.
         init_cfg (dict, optional): Initialization config.
@@ -48,7 +48,7 @@ class VisionTransformerUpHead(BaseModule):
                  norm_cfg: dict = dict(type='SyncBN', requires_grad=True),
                  num_conv: int = 2,
                  upsampling_method: str = 'bilinear',
-                 num_upsampe_layer: int = 2,
+                 num_upsample_layer: int = 2,
                  align_corners: bool = False,
                  loss_decode: dict = dict(
                      type='CrossEntropyLoss',
@@ -66,7 +66,7 @@ class VisionTransformerUpHead(BaseModule):
         self.norm_cfg = norm_cfg
         self.num_conv = num_conv
         self.upsampling_method = upsampling_method
-        self.num_upsampe_layer = num_upsampe_layer
+        self.num_upsample_layer = num_upsample_layer
         self.align_corners = align_corners
         self.loss_decode_cfg = loss_decode
         
@@ -106,19 +106,19 @@ class VisionTransformerUpHead(BaseModule):
             upsample_layers = []
             current_channels = self.channels
             
-            for i in range(self.num_upsampe_layer):
+            for i in range(self.num_upsample_layer):
                 upsample_layers.extend([
                     nn.ConvTranspose2d(
                         current_channels,
-                        current_channels // 2 if i < self.num_upsampe_layer - 1 else current_channels,
+                        current_channels // 2 if i < self.num_upsample_layer - 1 else current_channels,
                         kernel_size=4,
                         stride=2,
                         padding=1
                     ),
-                    build_norm_layer(self.norm_cfg, current_channels // 2 if i < self.num_upsampe_layer - 1 else current_channels)[1],
+                    build_norm_layer(self.norm_cfg, current_channels // 2 if i < self.num_upsample_layer - 1 else current_channels)[1],
                     nn.ReLU(inplace=True)
                 ])
-                if i < self.num_upsampe_layer - 1:
+                if i < self.num_upsample_layer - 1:
                     current_channels = current_channels // 2
                     
             self.upsample_layers = nn.Sequential(*upsample_layers)
@@ -170,7 +170,7 @@ class VisionTransformerUpHead(BaseModule):
         else:
             # Use interpolation
             target_size = (self.img_size[0] // 4, self.img_size[1] // 4)  # 4x upsampling
-            for _ in range(self.num_upsampe_layer):
+            for _ in range(self.num_upsample_layer):
                 target_size = (target_size[0] * 2, target_size[1] * 2)
                 x = F.interpolate(
                     x, 

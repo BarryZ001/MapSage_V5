@@ -66,6 +66,8 @@ class MMRS1MDataset(BaseDataset):
             data_list = self._load_classification_data()
         elif self.task_type == 'detection':
             data_list = self._load_detection_data()
+        elif self.task_type == 'segmentation':
+            data_list = self._load_segmentation_data()
         elif self.task_type == 'caption':
             data_list = self._load_caption_data()
         elif self.task_type == 'vqa':
@@ -398,6 +400,191 @@ class MMRS1MDataset(BaseDataset):
         
         return data_list
     
+    def _load_segmentation_data(self) -> List[dict]:
+        """加载语义分割任务数据。"""
+        data_list = []
+        
+        if not self.data_root:
+            return data_list
+            
+        print(f"[MMRS1M] 尝试从路径加载分割数据: {self.data_root}")
+        
+        # 根据真实MMRS1M数据结构加载分割数据
+        # 通常分割数据可能在classification目录中，或者有专门的segmentation目录
+        segmentation_dir = osp.join(self.data_root, 'segmentation')
+        classification_dir = osp.join(self.data_root, 'classification')
+        
+        # 优先检查是否有专门的分割目录
+        if osp.exists(segmentation_dir):
+            print(f"[MMRS1M] 找到专门的分割目录: {segmentation_dir}")
+            data_list = self._load_segmentation_from_dir(segmentation_dir, 'segmentation')
+        elif osp.exists(classification_dir):
+            print(f"[MMRS1M] 使用分类目录进行分割任务: {classification_dir}")
+            # 使用分类数据集，但将其适配为分割任务
+            data_list = self._load_segmentation_from_classification(classification_dir)
+        else:
+            print(f"[MMRS1M] 未找到合适的分割数据目录")
+        
+        print(f"[MMRS1M] 分割数据加载完成，共{len(data_list)}个样本")
+        return data_list
+    
+    def _load_segmentation_from_dir(self, seg_dir: str, dataset_name: str) -> List[dict]:
+        """从专门的分割目录加载数据。"""
+        data_list = []
+        
+        # 查找图像和标注目录
+        images_dir = osp.join(seg_dir, 'images')
+        labels_dir = osp.join(seg_dir, 'labels')
+        masks_dir = osp.join(seg_dir, 'masks')
+        annotations_dir = osp.join(seg_dir, 'annotations')
+        
+        # 确定标注目录
+        seg_map_dir = None
+        if osp.exists(labels_dir):
+            seg_map_dir = labels_dir
+        elif osp.exists(masks_dir):
+            seg_map_dir = masks_dir
+        elif osp.exists(annotations_dir):
+            seg_map_dir = annotations_dir
+        
+        if not osp.exists(images_dir):
+            print(f"[MMRS1M] 分割数据集{dataset_name}缺少images目录")
+            return data_list
+            
+        # 遍历图像文件
+        for img_file in os.listdir(images_dir):
+            if img_file.lower().endswith(('.jpg', '.jpeg', '.png', '.tif', '.tiff')):
+                img_path = osp.join(images_dir, img_file)
+                
+                # 查找对应的分割标注
+                seg_map_path = None
+                if seg_map_dir:
+                    # 尝试不同的标注文件扩展名
+                    base_name = osp.splitext(img_file)[0]
+                    for ext in ['.png', '.tif', '.tiff', '.jpg', '.jpeg']:
+                        seg_file = base_name + ext
+                        seg_path = osp.join(seg_map_dir, seg_file)
+                        if osp.exists(seg_path):
+                            seg_map_path = seg_path
+                            break
+                
+                data_info = {
+                    'img_path': img_path,
+                    'seg_map_path': seg_map_path,
+                    'label': None,  # 分割任务使用seg_map_path
+                    'dataset': dataset_name,
+                    'modality': self.modality,
+                    'task_type': self.task_type,
+                    'seg_fields': ['gt_semantic_seg'] if seg_map_path else []
+                }
+                
+                if self.instruction_format:
+                    data_info['instruction'] = f"Perform semantic segmentation on this {dataset_name} remote sensing image. Identify and segment different land cover types."
+                    data_info['response'] = "Semantic segmentation mask with different land cover classes."
+                    
+                data_list.append(data_info)
+        
+        return data_list
+    
+    def _load_segmentation_from_classification(self, classification_dir: str) -> List[dict]:
+        """从分类数据集适配为分割任务。"""
+        data_list = []
+        
+        # 使用分类数据集的结构，但适配为分割任务
+        # 这里我们将分类标签转换为简单的分割标签
+        classification_datasets = [
+            'DCSR', 'EuroSAT_split', 'FGSCR_split', 'NWPU-RESISC45_split',
+            'RSSCN7_split', 'UCMerced_split', 'WHU-RS19_split'
+        ]
+        
+        for dataset_name in classification_datasets:
+            dataset_path = osp.join(classification_dir, dataset_name)
+            if not osp.exists(dataset_path):
+                continue
+                
+            print(f"[MMRS1M] 适配分类数据集为分割任务: {dataset_name}")
+            
+            # 检查数据集结构
+            train_path = osp.join(dataset_path, 'train')
+            test_path = osp.join(dataset_path, 'test')
+            images_path = osp.join(dataset_path, 'images')
+            
+            if osp.exists(train_path) or osp.exists(test_path):
+                # 有train/test分割的数据集
+                for split in ['train', 'test']:
+                    split_path = osp.join(dataset_path, split)
+                    if osp.exists(split_path):
+                        # 遍历每个类别目录
+                        try:
+                            categories = os.listdir(split_path)
+                            for category_dir in categories:
+                                category_path = osp.join(split_path, category_dir)
+                                if osp.isdir(category_path):
+                                    class_id = self._get_class_id_from_dataset(dataset_name, category_dir)
+                                    
+                                    # 遍历类别目录中的图像文件
+                                    try:
+                                        img_files = [f for f in os.listdir(category_path) 
+                                                   if f.lower().endswith(('.jpg', '.jpeg', '.png', '.tif', '.tiff'))]
+                                        
+                                        for img_file in img_files:
+                                            img_path = osp.join(category_path, img_file)
+                                            
+                                            data_info = {
+                                                'img_path': img_path,
+                                                'seg_map_path': None,  # 分类数据没有分割标注
+                                                'label': class_id,
+                                                'category': category_dir,
+                                                'dataset': dataset_name,
+                                                'split': split,
+                                                'modality': self.modality,
+                                                'task_type': self.task_type,
+                                                'seg_fields': []  # 没有真实的分割标注
+                                            }
+                                            
+                                            if self.instruction_format:
+                                                data_info['instruction'] = f"Perform semantic segmentation on this {dataset_name} remote sensing image showing {category_dir}."
+                                                data_info['response'] = f"Segmentation mask for {category_dir} land cover type."
+                                                
+                                            data_list.append(data_info)
+                                    except Exception as e:
+                                        print(f"[MMRS1M] 处理类别{category_dir}时出错: {e}")
+                                        continue
+                        except Exception as e:
+                            print(f"[MMRS1M] 处理{split}分割时出错: {e}")
+                            continue
+                            
+            elif osp.exists(images_path):
+                # 只有images目录的数据集
+                try:
+                    img_files = [f for f in os.listdir(images_path) 
+                               if f.lower().endswith(('.jpg', '.jpeg', '.png', '.tif', '.tiff'))]
+                    
+                    for img_file in img_files:
+                        img_path = osp.join(images_path, img_file)
+                        
+                        data_info = {
+                            'img_path': img_path,
+                            'seg_map_path': None,
+                            'label': 0,  # 默认类别
+                            'category': 'unknown',
+                            'dataset': dataset_name,
+                            'split': 'all',
+                            'modality': self.modality,
+                            'task_type': self.task_type,
+                            'seg_fields': []
+                        }
+                        
+                        if self.instruction_format:
+                            data_info['instruction'] = f"Perform semantic segmentation on this {dataset_name} remote sensing image."
+                            data_info['response'] = "Semantic segmentation mask with land cover classes."
+                            
+                        data_list.append(data_info)
+                except Exception as e:
+                    print(f"[MMRS1M] 处理images目录时出错: {e}")
+        
+        return data_list
+
     def _load_caption_data(self) -> List[dict]:
         """加载图像描述任务数据。"""
         data_list = []

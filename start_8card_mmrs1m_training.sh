@@ -27,7 +27,7 @@ export MMCV_WITH_OPS=1
 export MAX_JOBS=8
 
 # 配置文件路径
-CONFIG_FILE="configs/train_dinov3_mmrs1m_t20_gcu_8card.py"
+CONFIG_FILE="configs/train_dinov3_mmrs1m_t20_gcu_8card_fixed.py"
 WORK_DIR="./work_dirs/dinov3_mmrs1m_t20_gcu_8card"
 
 # 检查配置文件是否存在
@@ -78,18 +78,11 @@ torchrun \
     --rdzv_id=100 \
     --rdzv_backend=c10d \
     --rdzv_endpoint=localhost:29500 \
-    scripts/train.py \
+    scripts/train_distributed_gcu_robust.py \
     "$CONFIG_FILE" \
     --work-dir "$WORK_DIR" \
     --launcher pytorch \
-    --seed 42 \
-    --deterministic \
-    --diff-seed \
-    --cfg-options \
-        data_root="$ACTUAL_DATA_ROOT" \
-        train_dataloader.dataset.data_root="$ACTUAL_DATA_ROOT" \
-        val_dataloader.dataset.data_root="$ACTUAL_DATA_ROOT" \
-        test_dataloader.dataset.data_root="$ACTUAL_DATA_ROOT" \
+    --backend gloo \
     2>&1 | tee "$WORK_DIR/training.log"
 
 # 检查训练结果
