@@ -31,6 +31,7 @@ class SegDataPreProcessor(BaseDataPreprocessor):
         mean (Sequence[float]): The pixel mean of R, G, B channels.
         std (Sequence[float]): The pixel standard deviation of R, G, B channels.
         bgr_to_rgb (bool): Whether to convert the image from BGR to RGB.
+        to_rgb (bool, optional): Alias for bgr_to_rgb for compatibility.
         pad_val (float): Padding value for images.
         seg_pad_val (int): Padding value for segmentation maps.
         size (tuple, optional): Fixed size for resizing.
@@ -40,10 +41,17 @@ class SegDataPreProcessor(BaseDataPreprocessor):
                  mean: Sequence[float] = (123.675, 116.28, 103.53),
                  std: Sequence[float] = (58.395, 57.12, 57.375),
                  bgr_to_rgb: bool = True,
+                 to_rgb: Optional[bool] = None,  # 兼容性参数
                  pad_val: float = 0,
                  seg_pad_val: int = 255,
                  size: Optional[tuple] = None,
                  **kwargs):
+        # 处理 to_rgb 和 bgr_to_rgb 参数的兼容性
+        if to_rgb is not None:
+            # 如果提供了 to_rgb 参数，使用它并覆盖 bgr_to_rgb
+            bgr_to_rgb = to_rgb
+            print(f"✅ 兼容性修复：使用 to_rgb={to_rgb} 参数，等效于 bgr_to_rgb={bgr_to_rgb}")
+        
         super().__init__(**kwargs)
         
         self.mean = torch.tensor(mean, dtype=torch.float32).view(-1, 1, 1)

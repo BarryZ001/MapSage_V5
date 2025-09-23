@@ -6,6 +6,25 @@ import os
 os.environ['PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION'] = 'python'
 print("✅ 设置 PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python 以修复 protobuf 兼容性问题")
 
+# 修复NumPy兼容性问题 - 必须在导入任何使用numpy的模块之前设置
+import numpy as np
+# 为了兼容TensorBoard，恢复已弃用的numpy别名
+if not hasattr(np, 'object'):
+    np.object = object  # type: ignore
+    print("✅ 修复 NumPy 兼容性问题，恢复 np.object 别名")
+if not hasattr(np, 'int'):
+    np.int = int  # type: ignore
+    print("✅ 修复 NumPy 兼容性问题，恢复 np.int 别名")
+if not hasattr(np, 'float'):
+    np.float = float  # type: ignore
+    print("✅ 修复 NumPy 兼容性问题，恢复 np.float 别名")
+if not hasattr(np, 'bool'):
+    np.bool = bool  # type: ignore
+    print("✅ 修复 NumPy 兼容性问题，恢复 np.bool 别名")
+if not hasattr(np, 'complex'):
+    np.complex = complex  # type: ignore
+    print("✅ 修复 NumPy 兼容性问题，恢复 np.complex 别名")
+
 import argparse
 import sys
 import time
