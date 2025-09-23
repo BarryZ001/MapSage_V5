@@ -173,11 +173,18 @@ def cleanup_distributed():
     except Exception as e:
         print(f"⚠️ 分布式清理失败: {e}")
     
-    # 清理torch_gcu
+    # 清理torch_gcu - 修复empty_cache方法不存在的问题
     if torch_gcu is not None:
         try:
-            torch_gcu.empty_cache()
-            print("✅ torch_gcu缓存清理完成")
+            # 检查torch_gcu是否有empty_cache方法
+            if hasattr(torch_gcu, 'empty_cache'):
+                torch_gcu.empty_cache()
+                print("✅ torch_gcu缓存清理完成")
+            elif hasattr(torch_gcu, 'synchronize'):
+                torch_gcu.synchronize()
+                print("✅ torch_gcu同步完成")
+            else:
+                print("ℹ️ torch_gcu无需清理缓存")
         except Exception as e:
             print(f"⚠️ torch_gcu清理失败: {e}")
 
@@ -207,6 +214,33 @@ def main():
         
         print(f"📝 加载配置文件: {args.config}")
         cfg = Config.fromfile(args.config)
+        
+        # 清理配置中可能导致pickle错误的模块对象
+        def clean_config_for_pickle(config_dict):
+            """递归清理配置中不能被pickle的对象"""
+            if isinstance(config_dict, dict):
+                cleaned = {}
+                for key, value in config_dict.items():
+                    # 跳过模块对象和函数对象
+                    if hasattr(value, '__module__') and not isinstance(value, (str, int, float, bool, list, tuple, dict)):
+                        continue
+                    elif callable(value) and not isinstance(value, type):
+                        continue
+                    else:
+                        cleaned[key] = clean_config_for_pickle(value)
+                return cleaned
+            elif isinstance(config_dict, (list, tuple)):
+                return [clean_config_for_pickle(item) for item in config_dict]
+            else:
+                return config_dict
+        
+        # 备份原始配置中的关键信息
+        original_custom_imports = getattr(cfg, 'custom_imports', None)
+        
+        # 临时移除可能导致pickle问题的custom_imports
+        if hasattr(cfg, 'custom_imports'):
+            delattr(cfg, 'custom_imports')
+            print("🔧 临时移除custom_imports以避免pickle错误")
         
         # 设置工作目录
         if cfg.get('work_dir', None) is None:
@@ -268,6 +302,19 @@ def main():
                     cfg.default_hooks.checkpoint.max_keep_ckpts = 3
         
         print("🚀 开始训练...")
+        
+        # 在创建Runner之前，确保配置可以被深拷贝
+        try:
+            import copy
+            # 测试配置是否可以被深拷贝
+            copy.deepcopy(cfg)
+            print("✅ 配置深拷贝测试通过")
+        except Exception as e:
+            print(f"⚠️ 配置深拷贝测试失败: {e}")
+            # 如果深拷贝失败，尝试重新构建配置
+            print("🔧 尝试重新构建配置...")
+            cfg_dict = cfg.to_dict()
+            cfg = Config(cfg_dict)
         
         # 创建Runner并开始训练
         runner = Runner.from_cfg(cfg)
