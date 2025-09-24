@@ -99,22 +99,41 @@ def setup_gcu_environment():
 def init_distributed():
     """初始化分布式训练"""
     try:
-        # 使用eccl后端（燧原推荐）
-        init_dist('pytorch', backend='eccl')
-        print(f"✅ 分布式初始化成功 - 后端: eccl")
-        print(f"   - rank: {get_rank()}")
-        print(f"   - world_size: {get_world_size()}")
+        # 直接使用torch.distributed初始化，避免MMEngine的init_dist可能的CUDA依赖
+        import torch.distributed as dist
+        
+        # 获取环境变量
+        rank = int(os.environ.get('RANK', 0))
+        local_rank = int(os.environ.get('LOCAL_RANK', 0))
+        world_size = int(os.environ.get('WORLD_SIZE', 1))
+        master_addr = os.environ.get('MASTER_ADDR', 'localhost')
+        master_port = os.environ.get('MASTER_PORT', '29500')
+        
+        print(f"🔧 分布式环境变量:")
+        print(f"   - RANK: {rank}")
+        print(f"   - LOCAL_RANK: {local_rank}")
+        print(f"   - WORLD_SIZE: {world_size}")
+        print(f"   - MASTER_ADDR: {master_addr}")
+        print(f"   - MASTER_PORT: {master_port}")
+        
+        # 初始化进程组，使用eccl后端
+        if not dist.is_initialized():
+            dist.init_process_group(
+                backend='eccl',
+                init_method=f'tcp://{master_addr}:{master_port}',
+                rank=rank,
+                world_size=world_size
+            )
+            print(f"✅ 分布式初始化成功 - 后端: eccl")
+            print(f"   - rank: {dist.get_rank()}")
+            print(f"   - world_size: {dist.get_world_size()}")
+        else:
+            print("✅ 分布式已初始化")
+        
         return True
     except Exception as e:
         print(f"❌ 分布式初始化失败: {e}")
-        print("🔄 尝试使用gloo后端...")
-        try:
-            init_dist('pytorch', backend='gloo')
-            print(f"✅ 分布式初始化成功 - 后端: gloo")
-            return True
-        except Exception as e2:
-            print(f"❌ gloo后端也失败: {e2}")
-            return False
+        return False
 
 def load_and_validate_config(config_path, work_dir=None):
     """加载和验证配置文件"""
