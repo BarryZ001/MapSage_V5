@@ -248,7 +248,7 @@ def main():
     parser = argparse.ArgumentParser(description='DINOv3单卡测试脚本')
     parser.add_argument('config', 
                         nargs='?',
-                        default='configs/train_dinov3_mmrs1m_t20_gcu_8card.py',
+                        default='configs/train_dinov3_mmrs1m_t20_gcu_8card_single_test.py',
                         help='配置文件路径')
     parser.add_argument('--skip-forward', action='store_true',
                         help='跳过前向传播测试')
