@@ -65,7 +65,7 @@ try:
     import mmseg_custom.transforms
     print("✅ 自定义模块导入成功")
     
-    # 验证MMRS1MDataset是否已注册
+    # 验证MMRS1MDataset注册状态
     from mmengine.registry import DATASETS
     if 'MMRS1MDataset' in DATASETS._module_dict:
         print("✅ MMRS1MDataset已成功注册到DATASETS注册表")
@@ -75,12 +75,28 @@ try:
         from mmseg_custom.datasets.mmrs1m_dataset import MMRS1MDataset
         print("✅ 手动导入MMRS1MDataset完成")
         
+        # 强制重新注册
+        DATASETS.register_module(module=MMRS1MDataset, force=True)
+        print("✅ 强制重新注册MMRS1MDataset完成")
+        
+        # 再次验证
+        if 'MMRS1MDataset' in DATASETS._module_dict:
+            print("✅ MMRS1MDataset重新注册成功")
+        else:
+            print("❌ MMRS1MDataset重新注册失败")
+        
 except ImportError as e:
     print(f"⚠️ 自定义模块导入失败: {e}")
-    # 尝试手动导入MMRS1MDataset
+    # 尝试手动导入关键组件
     try:
         from mmseg_custom.datasets.mmrs1m_dataset import MMRS1MDataset
         print("✅ 手动导入MMRS1MDataset成功")
+        
+        # 手动注册到DATASETS
+        from mmengine.registry import DATASETS
+        DATASETS.register_module(module=MMRS1MDataset, force=True)
+        print("✅ 手动注册MMRS1MDataset到DATASETS成功")
+        
     except ImportError as e2:
         print(f"❌ 手动导入MMRS1MDataset失败: {e2}")
         sys.exit(1)
