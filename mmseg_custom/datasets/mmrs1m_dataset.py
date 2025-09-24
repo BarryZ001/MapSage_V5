@@ -55,7 +55,10 @@ class MMRS1MDataset(BaseDataset):
         self.modality = modality
         self.instruction_format = instruction_format
         
-        super().__init__(**kwargs)
+        # 过滤掉'type'参数，避免传递给父类BaseDataset
+        filtered_kwargs = {k: v for k, v in kwargs.items() if k != 'type'}
+        
+        super().__init__(**filtered_kwargs)
         
     def load_data_list(self) -> List[dict]:
         """加载数据列表。"""
