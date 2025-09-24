@@ -23,15 +23,17 @@ os.environ.setdefault('TORCH_ECCL_ASYNC_ERROR_HANDLING', '3')
 # 导入必要的库
 try:
     import torch
-    import torch_gcu  # 燧原GCU支持
-    import deepspeed
     print(f"✅ PyTorch版本: {torch.__version__}")
+    
+    import torch_gcu  # 燧原GCU支持
     print(f"✅ torch_gcu可用: {torch_gcu.is_available()}")
-    print(f"✅ DeepSpeed版本: {deepspeed.__version__}")
     if torch_gcu.is_available():
         print(f"✅ GCU设备数: {torch_gcu.device_count()}")
     else:
         raise RuntimeError("torch_gcu不可用，请检查安装")
+    
+    import deepspeed
+    print(f"✅ DeepSpeed版本: {deepspeed.__version__}")
 except ImportError as e:
     print(f"❌ 导入失败: {e}")
     sys.exit(1)
@@ -48,19 +50,40 @@ try:
     import mmseg
     from mmseg.models import *
     from mmseg.datasets import *
+    from mmseg.apis import init_segmentor
+    from mmseg.datasets import build_dataset
+    from mmseg.models import build_segmentor
     print("✅ MMSegmentation导入成功")
 except ImportError as e:
     print(f"❌ MMSegmentation导入失败: {e}")
     sys.exit(1)
 
-# 导入自定义模块
+# 导入自定义模块 - 确保在DATASETS注册表中注册MMRS1MDataset
 try:
     import mmseg_custom.models
-    import mmseg_custom.datasets
+    import mmseg_custom.datasets  # 这会注册MMRS1MDataset
     import mmseg_custom.transforms
     print("✅ 自定义模块导入成功")
+    
+    # 验证MMRS1MDataset是否已注册
+    from mmengine.registry import DATASETS
+    if 'MMRS1MDataset' in DATASETS._module_dict:
+        print("✅ MMRS1MDataset已成功注册到DATASETS注册表")
+    else:
+        print("⚠️ MMRS1MDataset未在DATASETS注册表中找到")
+        # 手动导入并注册
+        from mmseg_custom.datasets.mmrs1m_dataset import MMRS1MDataset
+        print("✅ 手动导入MMRS1MDataset完成")
+        
 except ImportError as e:
     print(f"⚠️ 自定义模块导入失败: {e}")
+    # 尝试手动导入MMRS1MDataset
+    try:
+        from mmseg_custom.datasets.mmrs1m_dataset import MMRS1MDataset
+        print("✅ 手动导入MMRS1MDataset成功")
+    except ImportError as e2:
+        print(f"❌ 手动导入MMRS1MDataset失败: {e2}")
+        sys.exit(1)
 
 def setup_gcu_environment():
     """设置GCU环境 - 已废弃，使用main函数中的简化版本"""
@@ -117,31 +140,36 @@ def load_and_validate_config(config_path, work_dir=None):
 
 def build_model_and_dataset(cfg, device_name):
     """构建模型和数据集"""
-    print("🏗️ 构建模型...")
+    print(f"📊 构建数据集: {cfg.train_dataloader.dataset.type}")
+    
+    # 构建训练数据集
+    train_dataset = build_dataset(cfg.train_dataloader.dataset)
+    print(f"✅ 训练数据集大小: {len(train_dataset)}")
+    
+    # 构建验证数据集（如果存在）
+    val_dataset = None
+    if hasattr(cfg, 'val_dataloader') and cfg.val_dataloader is not None:
+        val_dataset = build_dataset(cfg.val_dataloader.dataset)
+        print(f"✅ 验证数据集大小: {len(val_dataset)}")
     
     # 构建模型
-    model = MODELS.build(cfg.model)
-    model = model.to(device_name)
-    print(f"✅ 模型构建完成，设备: {device_name}")
+    print(f"🏗️ 构建模型: {cfg.model.type}")
+    model = build_segmentor(cfg.model)
+    print(f"✅ 模型构建完成")
     
-    # 构建数据集
-    print("📊 构建数据集...")
-    train_dataset = DATASETS.build(cfg.train_dataloader.dataset)
-    print(f"✅ 训练数据集构建完成，样本数: {len(train_dataset)}")
+    # 设置设备
+    if device_name.startswith('xla'):
+        device = torch_gcu.device(device_name)
+    else:
+        device = torch.device(device_name)
     
-    # 构建数据加载器
-    from torch.utils.data import DataLoader
-    train_dataloader = DataLoader(
-        train_dataset,
-        batch_size=cfg.train_dataloader.get('batch_size', 2),
-        shuffle=cfg.train_dataloader.get('shuffle', True),
-        num_workers=cfg.train_dataloader.get('num_workers', 2),
-        pin_memory=False  # GCU环境下不使用pin_memory
-    )
+    model = model.to(device)
+    print(f"✅ 模型已移动到设备: {device}")
     
-    return model, train_dataloader
+    return model, train_dataset, val_dataset
 
 def main():
+    """主函数"""
     parser = argparse.ArgumentParser(description='DINOv3 8卡分布式训练脚本 (DeepSpeed)')
     parser.add_argument('config', help='训练配置文件路径')
     parser.add_argument('--work-dir', help='工作目录')
@@ -153,24 +181,41 @@ def main():
                         help='随机种子')
     args = parser.parse_args()
 
-    print("🚀 DINOv3 + MMRS-1M 8卡分布式训练启动 (DeepSpeed)")
+    print("🚀 启动DINOv3 + MMRS-1M 8卡分布式训练")
     print("=" * 60)
     
     # 1. 设置GCU环境 - 使用与成功demo相同的方式
     local_rank = args.local_rank if args.local_rank >= 0 else int(os.environ.get("LOCAL_RANK", 0))
     world_size = int(os.environ.get("WORLD_SIZE", "1"))
     
+    # 设置设备
     device_name = f"xla:{local_rank}"
-    print(f"[PID {os.getpid()}] local_rank={local_rank}, world_size={world_size}, device={device_name}")
+    print(f"[PID {os.getpid()}] GCU环境 - local_rank={local_rank}, world_size={world_size}, device={device_name}")
     
     # 设置GCU设备
-    torch_gcu.set_device(local_rank)
+    if torch_gcu is not None:
+        torch_gcu.set_device(local_rank)
+    else:
+        print("⚠️ torch_gcu不可用，跳过设备设置")
     
     # 2. 加载配置
     cfg = load_and_validate_config(args.config, args.work_dir)
     
-    # 3. 构建模型和数据集
-    model, train_dataloader = build_model_and_dataset(cfg, device_name)
+    # 构建模型和数据集
+    model, train_dataset, val_dataset = build_model_and_dataset(cfg, device_name)
+    
+
+    
+    # 构建数据加载器
+    from torch.utils.data import DataLoader
+    train_dataloader = DataLoader(
+        train_dataset,
+        batch_size=cfg.train_dataloader.get('batch_size', 2),
+        shuffle=True,
+        num_workers=cfg.train_dataloader.get('num_workers', 2),
+        pin_memory=False,  # GCU环境下不使用pin_memory
+        collate_fn=getattr(train_dataset, 'collate_fn', None)  # 使用数据集的collate_fn
+    )
     
     # 4. 创建优化器 - 手动传入torch.optim.Adam，避免FusedAdam（与成功demo相同）
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
