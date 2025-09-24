@@ -55,6 +55,8 @@ export TORCH_ECCL_ASYNC_ERROR_HANDLING="3"
 export MASTER_ADDR="localhost"
 export MASTER_PORT="$MASTER_PORT"
 export WORLD_SIZE="$NUM_GPUS"
+export RANK="0"
+export LOCAL_RANK="0"
 
 # 设置CUDA相关环境变量（即使使用GCU，某些库仍需要这些变量）
 export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
@@ -86,7 +88,7 @@ else
 fi
 
 # 显示训练命令
-TRAIN_CMD="python3 $TRAIN_SCRIPT $CONFIG_FILE --work-dir $WORK_DIR --launcher pytorch"
+TRAIN_CMD="torchrun --nproc_per_node=$NUM_GPUS --master_port=$MASTER_PORT $TRAIN_SCRIPT $CONFIG_FILE --work-dir $WORK_DIR --launcher pytorch"
 
 echo ""
 echo "🚀 即将执行训练命令:"
