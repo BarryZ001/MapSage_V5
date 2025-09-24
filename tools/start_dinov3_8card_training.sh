@@ -86,7 +86,7 @@ else
 fi
 
 # 显示训练命令
-TRAIN_CMD="python3 $TRAIN_SCRIPT $CONFIG_FILE --work-dir $WORK_DIR --launcher eccl"
+TRAIN_CMD="python3 $TRAIN_SCRIPT $CONFIG_FILE --work-dir $WORK_DIR --launcher pytorch"
 
 echo ""
 echo "🚀 即将执行训练命令:"
