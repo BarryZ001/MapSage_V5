@@ -58,32 +58,46 @@ except ImportError as e:
     print(f"❌ MMSegmentation导入失败: {e}")
     sys.exit(1)
 
-# 导入自定义模块 - 确保在DATASETS注册表中注册MMRS1MDataset
+# 导入自定义模块 - 确保在正确的DATASETS注册表中注册MMRS1MDataset
 try:
     import mmseg_custom.models
-    import mmseg_custom.datasets  # 这会注册MMRS1MDataset
+    import mmseg_custom.datasets  # 这会注册MMRS1MDataset到mmengine的DATASETS
     import mmseg_custom.transforms
     print("✅ 自定义模块导入成功")
     
-    # 验证MMRS1MDataset注册状态
-    from mmengine.registry import DATASETS
-    if 'MMRS1MDataset' in DATASETS._module_dict:
-        print("✅ MMRS1MDataset已成功注册到DATASETS注册表")
+    # 验证MMRS1MDataset在mmengine注册表中的状态
+    from mmengine.registry import DATASETS as MMENGINE_DATASETS
+    if 'MMRS1MDataset' in MMENGINE_DATASETS._module_dict:
+        print("✅ MMRS1MDataset已成功注册到MMEngine DATASETS注册表")
     else:
-        print("⚠️ MMRS1MDataset未在DATASETS注册表中找到")
-        # 手动导入并注册
+        print("⚠️ MMRS1MDataset未在MMEngine DATASETS注册表中找到")
+        # 手动导入并注册到mmengine注册表
         from mmseg_custom.datasets.mmrs1m_dataset import MMRS1MDataset
         print("✅ 手动导入MMRS1MDataset完成")
         
-        # 强制重新注册
-        DATASETS.register_module(module=MMRS1MDataset, force=True)
-        print("✅ 强制重新注册MMRS1MDataset完成")
+        # 强制重新注册到mmengine注册表
+        MMENGINE_DATASETS.register_module(module=MMRS1MDataset, force=True)
+        print("✅ 强制重新注册MMRS1MDataset到MMEngine DATASETS完成")
         
         # 再次验证
-        if 'MMRS1MDataset' in DATASETS._module_dict:
+        if 'MMRS1MDataset' in MMENGINE_DATASETS._module_dict:
             print("✅ MMRS1MDataset重新注册成功")
         else:
             print("❌ MMRS1MDataset重新注册失败")
+    
+    # 同时注册到mmseg的DATASETS注册表（如果存在）
+    try:
+        from mmseg.registry import DATASETS as MMSEG_DATASETS
+        from mmseg_custom.datasets.mmrs1m_dataset import MMRS1MDataset
+        
+        if 'MMRS1MDataset' not in MMSEG_DATASETS._module_dict:
+            MMSEG_DATASETS.register_module(module=MMRS1MDataset, force=True)
+            print("✅ MMRS1MDataset已注册到MMSeg DATASETS注册表")
+        else:
+            print("✅ MMRS1MDataset已存在于MMSeg DATASETS注册表")
+            
+    except ImportError:
+        print("⚠️ MMSeg DATASETS注册表不可用，使用MMEngine注册表")
         
 except ImportError as e:
     print(f"⚠️ 自定义模块导入失败: {e}")
@@ -92,10 +106,18 @@ except ImportError as e:
         from mmseg_custom.datasets.mmrs1m_dataset import MMRS1MDataset
         print("✅ 手动导入MMRS1MDataset成功")
         
-        # 手动注册到DATASETS
-        from mmengine.registry import DATASETS
-        DATASETS.register_module(module=MMRS1MDataset, force=True)
-        print("✅ 手动注册MMRS1MDataset到DATASETS成功")
+        # 手动注册到mmengine DATASETS
+        from mmengine.registry import DATASETS as MMENGINE_DATASETS
+        MMENGINE_DATASETS.register_module(module=MMRS1MDataset, force=True)
+        print("✅ 手动注册MMRS1MDataset到MMEngine DATASETS成功")
+        
+        # 同时尝试注册到mmseg DATASETS
+        try:
+            from mmseg.registry import DATASETS as MMSEG_DATASETS
+            MMSEG_DATASETS.register_module(module=MMRS1MDataset, force=True)
+            print("✅ 手动注册MMRS1MDataset到MMSeg DATASETS成功")
+        except ImportError:
+            print("⚠️ MMSeg DATASETS注册表不可用")
         
     except ImportError as e2:
         print(f"❌ 手动导入MMRS1MDataset失败: {e2}")
