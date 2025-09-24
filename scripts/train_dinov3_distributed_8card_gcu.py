@@ -116,15 +116,22 @@ def init_distributed():
         print(f"   - MASTER_ADDR: {master_addr}")
         print(f"   - MASTER_PORT: {master_port}")
         
-        # 初始化进程组，使用eccl后端
+        # 检查可用的后端
+        print(f"🔍 检查分布式后端可用性:")
+        print(f"   - NCCL: {dist.is_nccl_available()}")
+        print(f"   - MPI: {dist.is_mpi_available()}")
+        print(f"   - Gloo: {dist.is_gloo_available()}")
+        
+        # 初始化进程组，优先使用gloo后端（在GCU环境下更稳定）
         if not dist.is_initialized():
+            backend = 'gloo'  # 使用gloo后端，因为eccl不被支持
             dist.init_process_group(
-                backend='eccl',
+                backend=backend,
                 init_method=f'tcp://{master_addr}:{master_port}',
                 rank=rank,
                 world_size=world_size
             )
-            print(f"✅ 分布式初始化成功 - 后端: eccl")
+            print(f"✅ 分布式初始化成功 - 后端: {backend}")
             print(f"   - rank: {dist.get_rank()}")
             print(f"   - world_size: {dist.get_world_size()}")
         else:
