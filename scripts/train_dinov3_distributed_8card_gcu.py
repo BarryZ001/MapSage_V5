@@ -81,7 +81,7 @@ def setup_gcu_environment():
     
     # 设置设备 - 使用xla设备名称（基于demo_deepspeed_xla.py）
     device_name = f"xla:{local_rank}"
-    torch.cuda.set_device(local_rank)  # 设置当前设备
+    torch_gcu.set_device(local_rank)  # 设置当前GCU设备
     
     print(f"🔧 设备配置: {device_name}")
     
