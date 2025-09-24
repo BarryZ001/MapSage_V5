@@ -66,35 +66,27 @@ echo "✅ 环境变量设置完成"
 
 # 检查torch_gcu环境
 echo "🔍 检查torch_gcu环境..."
-python3 -c "
-import torch
-import torch_gcu
-print(f'PyTorch版本: {torch.__version__}')
-print(f'torch_gcu可用: {torch_gcu.is_available()}')
-if torch_gcu.is_available():
-    print(f'GCU设备数: {torch_gcu.device_count()}')
-else:
-    print('❌ torch_gcu不可用')
-    exit(1)
-"
-
-if [ $? -ne 0 ]; then
-    echo "❌ torch_gcu环境检查失败"
+if ! python3 -c "import torch_gcu; print('torch_gcu可用:', torch_gcu.is_available())" 2>/dev/null; then
+    echo "❌ torch_gcu环境检查失败，请确保已正确安装torch_gcu"
     exit 1
 fi
 
-echo "✅ torch_gcu环境检查通过"
-
-# 检查数据集路径（如果是T20服务器）
-if [ -d "/workspace/data/mmrs1m/data" ]; then
-    echo "✅ 检测到T20服务器环境，MMRS-1M数据集路径存在"
-    ls -la /workspace/data/mmrs1m/data/ | head -10
+# 检查MMRS-1M数据集
+MMRS1M_PATH="/workspace/data/mmrs1m/data"
+echo "🔍 检查MMRS-1M数据集路径: $MMRS1M_PATH"
+if [ ! -d "$MMRS1M_PATH" ]; then
+    echo "❌ MMRS-1M数据集路径不存在: $MMRS1M_PATH"
+    echo "请确保数据集已正确挂载到容器中"
+    exit 1
 else
-    echo "⚠️ 未检测到T20服务器MMRS-1M数据集路径，将使用配置文件中的路径"
+    echo "✅ MMRS-1M数据集路径存在: $MMRS1M_PATH"
+    # 显示数据集基本信息
+    echo "   数据集目录内容:"
+    ls -la "$MMRS1M_PATH" | head -10
 fi
 
 # 显示训练命令
-TRAIN_CMD="torchrun --nproc_per_node=$NUM_GPUS --master_port=$MASTER_PORT $TRAIN_SCRIPT $CONFIG_FILE --work-dir $WORK_DIR"
+TRAIN_CMD="python3 $TRAIN_SCRIPT $CONFIG_FILE --work-dir $WORK_DIR --launcher eccl"
 
 echo ""
 echo "🚀 即将执行训练命令:"
